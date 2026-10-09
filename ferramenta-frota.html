@@ -1,0 +1,780 @@
+<title>Ferramenta da Frota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* layout: topbar fixo + sidebar de módulos (gated por permissão) + painel de conteúdo por módulo */
+  :root{
+    --paper:#f6f5f0;
+    --surface:#ffffff;
+    --surface-2:#efeee7;
+    --ink:#1a231f;
+    --muted:#5c645d;
+    --faint:#8a8f87;
+    --line:#e2e0d5;
+    --line-strong:#cfccbd;
+    --accent:#0e7c66;
+    --accent-ink:#ffffff;
+    --accent-soft:#e2f2ee;
+    --accent-soft-line:#bfe1d7;
+    --good:#1e8e4f;
+    --good-soft:#e5f4ea;
+    --warning:#a8690a;
+    --warning-soft:#faf0dd;
+    --critical:#c23b3b;
+    --critical-soft:#fbe9e8;
+    --shadow: 0 1px 2px rgba(20,25,20,.04), 0 8px 24px rgba(20,25,20,.05);
+    --radius: 10px;
+    --font-display: "Archivo", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
+      --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
+      --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
+    --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
+    --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  body{ background:var(--paper); color:var(--ink); font-family:var(--font-body); }
+  h1,h2,h3{ font-family:var(--font-display); margin:0; text-wrap:balance; }
+  button{ font-family:var(--font-body); cursor:pointer; }
+  input,select,textarea{ font-family:var(--font-body); font-size:13.5px; }
+  table{ font-variant-numeric:tabular-nums; }
+  ::selection{ background:var(--accent-soft-line); }
+
+  /* ---------- login ---------- */
+  #view-login{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .login-card{ width:100%; max-width:360px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:28px; }
+  .login-brand{ display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+  .login-brand .mark{ width:36px; height:36px; border-radius:9px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:16px; flex:none; }
+  .login-brand .name{ font-family:var(--font-display); font-weight:800; font-size:17px; letter-spacing:-0.01em; }
+  .login-brand .sub{ font-size:12px; color:var(--muted); margin-top:1px; }
+  .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:14px; }
+  .field label{ font-size:12px; font-weight:600; color:var(--muted); }
+  .field input, .field select, .field textarea{
+    padding:9px 11px; border:1px solid var(--line-strong); border-radius:7px; background:var(--surface); color:var(--ink); width:100%;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
+  .btn{ border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); border-radius:7px; padding:9px 14px; font-size:13.5px; font-weight:600; }
+  .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .btn-primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); width:100%; }
+  .btn-primary:disabled{ opacity:.55; cursor:default; }
+  .btn-ghost{ background:none; border-color:transparent; color:var(--muted); }
+  .login-error{ background:var(--critical-soft); color:var(--critical); border-radius:7px; padding:8px 11px; font-size:12.5px; margin-bottom:14px; }
+  .login-hint{ margin-top:16px; font-size:12px; color:var(--faint); line-height:1.5; }
+
+  /* ---------- app shell ---------- */
+  #view-app{ display:none; min-height:100vh; }
+  #view-app.active{ display:flex; }
+  .sidebar{ width:208px; flex:none; background:var(--surface); border-right:1px solid var(--line); padding:18px 12px; display:flex; flex-direction:column; gap:4px; position:sticky; top:0; height:100vh; overflow-y:auto; }
+  .sidebar .brand{ display:flex; align-items:center; gap:9px; padding:4px 8px 16px; }
+  .sidebar .brand .mark{ width:28px; height:28px; border-radius:7px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:13px; flex:none; }
+  .sidebar .brand .name{ font-family:var(--font-display); font-weight:800; font-size:14.5px; letter-spacing:-0.01em; }
+  .navbtn{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:none; border-radius:7px; padding:9px 10px; font-size:13.5px; font-weight:600; color:var(--muted); }
+  .navbtn:hover{ background:var(--surface-2); color:var(--ink); }
+  .navbtn.active{ background:var(--accent-soft); color:var(--accent); }
+  .navbtn .dot{ width:7px; height:7px; border-radius:999px; background:var(--line-strong); flex:none; }
+  .navbtn.active .dot{ background:var(--accent); }
+  .sidebar-foot{ margin-top:auto; border-top:1px solid var(--line); padding-top:12px; }
+  .user-chip{ display:flex; align-items:center; gap:8px; padding:6px 8px; }
+  .user-chip .av{ width:26px; height:26px; border-radius:999px; background:var(--surface-2); color:var(--ink); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex:none; }
+  .user-chip .who{ min-width:0; }
+  .user-chip .who .nm{ font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .user-chip .who .role{ font-size:11px; color:var(--muted); text-transform:capitalize; }
+  .logout{ width:100%; margin-top:8px; font-size:12px; }
+
+  .main{ flex:1; min-width:0; padding:22px 28px 60px; max-width:1040px; }
+  .topline{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:4px; flex-wrap:wrap; }
+  .topline h1{ font-size:20px; font-weight:800; letter-spacing:-0.01em; }
+  .topline .meta{ font-size:12.5px; color:var(--muted); }
+  .section-desc{ font-size:13px; color:var(--muted); max-width:62ch; margin:4px 0 20px; line-height:1.5; }
+
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  .toolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .toolbar .count{ font-size:12.5px; color:var(--muted); }
+
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-bottom:18px; }
+  .card-head{ padding:12px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .card-head h2{ font-size:13.5px; font-weight:700; }
+  .table-wrap{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{ text-align:left; padding:9px 14px; font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td{ padding:10px 14px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td{ border-bottom:none; }
+  td.num{ font-family:var(--font-mono); text-align:right; }
+  .empty-row{ padding:28px 16px; text-align:center; color:var(--faint); font-size:13px; }
+
+  .pill{ display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600; white-space:nowrap; }
+  .pill.good{ background:var(--good-soft); color:var(--good); }
+  .pill.warn{ background:var(--warning-soft); color:var(--warning); }
+  .pill.crit{ background:var(--critical-soft); color:var(--critical); }
+  .pill.neutral{ background:var(--surface-2); color:var(--muted); }
+
+  .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
+  .form-grid .span2{ grid-column:1 / -1; }
+  @media (max-width:560px){ .form-grid{ grid-template-columns:1fr; } }
+
+  .inline-add{ border-top:1px dashed var(--line-strong); padding:14px 16px; background:var(--surface-2); }
+  .inline-add-trigger{ font-size:12.5px; color:var(--accent); font-weight:600; background:none; border:none; padding:0; }
+
+  .roadmap-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px; }
+  .roadmap-card .tag{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); background:var(--surface-2); padding:3px 9px; border-radius:999px; margin-bottom:12px; }
+  .roadmap-card ul{ margin:10px 0 0; padding-left:18px; font-size:13px; color:var(--ink); line-height:1.7; }
+  .roadmap-card li::marker{ color:var(--faint); }
+
+  .toast{ position:fixed; bottom:20px; right:20px; background:var(--ink); color:var(--paper); padding:10px 16px; border-radius:8px; font-size:13px; box-shadow:var(--shadow); z-index:50; max-width:320px; }
+  .toast.err{ background:var(--critical); color:#fff; }
+  [hidden]{ display:none!important; }
+
+  .modal-overlay{ position:fixed; inset:0; background:rgba(10,15,12,.4); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; z-index:40; overflow-y:auto; }
+  .modal{ background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); width:100%; max-width:560px; padding:22px; }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .modal-head h3{ font-size:16px; font-weight:700; }
+  .modal-close{ background:none; border:none; color:var(--muted); font-size:18px; line-height:1; padding:4px; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+  .field-err{ color:var(--critical); font-size:12px; margin-top:4px; }
+</style>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="view-login">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="mark">CF</div>
+      <div>
+        <div class="name">Ferramenta da Frota</div>
+        <div class="sub">Beep Saúde · gestão de frota</div>
+      </div>
+    </div>
+    <div id="login-error" class="login-error" hidden></div>
+    <form id="login-form">
+      <div class="field">
+        <label for="login-email">E-mail</label>
+        <input id="login-email" type="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="login-pass">Senha</label>
+        <input id="login-pass" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" id="login-submit" class="btn btn-primary">Entrar</button>
+    </form>
+    <div class="login-hint">Acesso por convite. Se você ainda não recebeu seu convite por e-mail, fale com o administrador da frota.</div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="view-app">
+  <div class="sidebar">
+    <div class="brand"><div class="mark">CF</div><div class="name">Ferramenta da Frota</div></div>
+    <nav id="nav" aria-label="Módulos"></nav>
+    <div class="sidebar-foot">
+      <div class="user-chip">
+        <div class="av" id="user-av">–</div>
+        <div class="who"><div class="nm" id="user-name">–</div><div class="role" id="user-role">–</div></div>
+      </div>
+      <button class="btn btn-ghost logout" id="btn-logout">Sair</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- GESTÃO DA FROTA -->
+    <section class="panel" data-panel="frota">
+      <div class="topline"><h1>Gestão da Frota</h1></div>
+      <p class="section-desc">Veículos, hubs e status de disponibilidade. Esta é a base de dados usada pelos outros módulos.</p>
+
+      <div class="card">
+        <div class="card-head"><h2>Veículos</h2><span class="count" id="frota-veic-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Placa</th><th>Modelo</th><th>Combustível</th><th>Hub</th><th>Status</th></tr></thead>
+            <tbody id="frota-veic-body"><tr><td colspan="5" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="frota">
+          <button class="inline-add-trigger" data-open-modal="modal-veiculo">+ Novo veículo</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Hubs</h2><span class="count" id="frota-hub-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th>UF</th><th>Tipo</th></tr></thead>
+            <tbody id="frota-hub-body"><tr><td colspan="3" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="frota">
+          <button class="inline-add-trigger" data-open-modal="modal-hub">+ Novo hub</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MANUTENÇÃO -->
+    <section class="panel" data-panel="manutencao">
+      <div class="topline"><h1>Manutenções</h1></div>
+      <p class="section-desc">Ordens de serviço, oficinas e tempo parado por veículo.</p>
+
+      <div class="card">
+        <div class="card-head"><h2>Ordens de serviço</h2><span class="count" id="man-os-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Veículo</th><th>Tipo</th><th>Status</th><th>Parou em</th><th>Oficina</th><th>Cobertura</th><th class="num">Valor</th></tr></thead>
+            <tbody id="man-os-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="manutencao">
+          <button class="inline-add-trigger" data-open-modal="modal-os">+ Nova OS</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Oficinas</h2><span class="count" id="man-of-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th>Hub</th><th>Avaliação média</th></tr></thead>
+            <tbody id="man-of-body"><tr><td colspan="3" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="manutencao">
+          <button class="inline-add-trigger" data-open-modal="modal-oficina">+ Nova oficina</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MULTAS -->
+    <section class="panel" data-panel="multas">
+      <div class="topline"><h1>Multas</h1></div>
+      <p class="section-desc">Fluxo completo: e-mail recebido → identificação do condutor → liderança → locadora → desconto em folha.</p>
+      <div class="roadmap-card">
+        <span class="tag">Em construção</span>
+        <h3>Próxima etapa deste módulo</h3>
+        <ul>
+          <li>Registro de cada multa com datas de cada etapa do fluxo (recebida, enviada à liderança, retorno, enviada à locadora)</li>
+          <li>Alerta de SLA vencido quando a liderança não responde no prazo</li>
+          <li>Custo acumulado das multas que a empresa acaba pagando por falta de retorno da liderança</li>
+          <li>Ranking de motoristas por recorrência de infração</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- FINANCEIRO -->
+    <section class="panel" data-panel="financeiro">
+      <div class="topline"><h1>Financeiro</h1></div>
+      <p class="section-desc">Fornecedores, notas fiscais e alertas de envio — substituindo o fluxo manual por e-mail e planilha.</p>
+      <div class="roadmap-card">
+        <span class="tag">Em construção</span>
+        <h3>Próxima etapa deste módulo</h3>
+        <ul>
+          <li>Cadastro de fornecedores com dia esperado de envio da nota</li>
+          <li>Registro de notas fiscais recebidas, com status de pagamento</li>
+          <li>Alerta automático quando um fornecedor não envia a nota no dia esperado</li>
+          <li>Histórico de atraso por fornecedor</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ELÉTRICOS -->
+    <section class="panel" data-panel="eletrificacao">
+      <div class="topline"><h1>Carros Elétricos</h1></div>
+      <p class="section-desc">Recarga, telemetria e comparação de custo/impacto ambiental frente à combustão.</p>
+      <div class="roadmap-card">
+        <span class="tag">Em construção</span>
+        <h3>Próxima etapa deste módulo</h3>
+        <ul>
+          <li>Registro de recargas (kWh, custo, km rodado)</li>
+          <li>Telemetria diária por veículo elétrico</li>
+          <li>Comparativo automático de custo e CO₂ vs. equivalente a combustão</li>
+          <li>Integração com telemetria embarcada, reduzindo a planilha manual</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- SEM ACESSO -->
+    <section class="panel" data-panel="sem-acesso">
+      <div class="topline"><h1>Sem módulos liberados</h1></div>
+      <p class="section-desc">Seu usuário está ativo, mas ainda não tem nenhum módulo liberado para visualização. Fale com o administrador da frota.</p>
+    </section>
+
+  </div>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+<div class="modal-overlay" id="modal-veiculo" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Novo veículo</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="veiculo">
+      <div class="form-grid">
+        <div class="field"><label for="v-placa">Placa</label><input id="v-placa" required maxlength="8" style="text-transform:uppercase"></div>
+        <div class="field"><label for="v-modelo">Modelo</label><input id="v-modelo"></div>
+        <div class="field"><label for="v-combustivel">Combustível</label>
+          <select id="v-combustivel"><option value="combustao">Combustão</option><option value="eletrico">Elétrico</option><option value="hibrido">Híbrido</option></select>
+        </div>
+        <div class="field"><label for="v-hub">Hub</label><select id="v-hub"><option value="">—</option></select></div>
+        <div class="field"><label for="v-status">Status</label>
+          <select id="v-status">
+            <option value="disponivel">Disponível</option><option value="indisponivel">Indisponível</option>
+            <option value="em_mobilizacao">Em mobilização</option><option value="desmobilizar">Desmobilizar</option>
+            <option value="devolvido">Devolvido</option><option value="fora_de_operacao">Fora de operação</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-err" id="v-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar veículo</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-hub" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Novo hub</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="hub">
+      <div class="form-grid">
+        <div class="field span2"><label for="h-nome">Nome</label><input id="h-nome" required></div>
+        <div class="field"><label for="h-uf">UF</label><input id="h-uf" maxlength="2" style="text-transform:uppercase"></div>
+        <div class="field"><label for="h-tipo">Tipo</label><select id="h-tipo"><option value="operacional">Operacional</option><option value="administrativo">Administrativo</option></select></div>
+      </div>
+      <div class="field-err" id="h-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar hub</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-oficina" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Nova oficina</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="oficina">
+      <div class="form-grid">
+        <div class="field span2"><label for="of-nome">Nome</label><input id="of-nome" required></div>
+        <div class="field span2"><label for="of-hub">Hub (opcional)</label><select id="of-hub"><option value="">—</option></select></div>
+      </div>
+      <div class="field-err" id="of-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar oficina</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-os" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Nova ordem de serviço</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="os">
+      <div class="form-grid">
+        <div class="field span2"><label for="os-veiculo">Veículo</label><select id="os-veiculo" required><option value="">Selecione…</option></select></div>
+        <div class="field"><label for="os-tipo">Tipo</label>
+          <select id="os-tipo"><option value="corretiva">Corretiva</option><option value="preventiva">Preventiva</option><option value="sinistro">Sinistro</option><option value="pneu">Pneu</option><option value="outro">Outro</option></select>
+        </div>
+        <div class="field"><label for="os-data-parou">Parou em</label><input id="os-data-parou" type="datetime-local" required></div>
+        <div class="field span2"><label for="os-motivo">Motivo</label><input id="os-motivo" placeholder="Ex.: ruído no motor, pane elétrica…"></div>
+        <div class="field"><label for="os-oficina">Oficina (opcional)</label><select id="os-oficina"><option value="">—</option></select></div>
+        <div class="field"><label for="os-cobertura">Cobertura</label>
+          <select id="os-cobertura"><option value="a_definir">A definir</option><option value="garantia_fabrica">Garantia fábrica</option><option value="garantia_oficina">Garantia oficina</option><option value="seguradora">Seguradora</option><option value="beep_saude">Beep Saúde</option></select>
+        </div>
+        <div class="field span2"><label for="os-obs">Observações</label><textarea id="os-obs" rows="2"></textarea></div>
+      </div>
+      <div class="field-err" id="os-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Abrir OS</button></div>
+    </form>
+  </div>
+</div>
+
+<div id="toast-host"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------- Supabase config ----------------
+  var SUPA_URL = "https://efmpzjkqiwyuumaoumof.supabase.co";
+  var SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbXB6amtxaXd5dXVtYW91bW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NjkzMDAsImV4cCI6MjEwNzE0NTMwMH0.k0AFjsUrT1HDjNe4D-k75LYgZ3DeOVDGCZvq-2cNozw";
+  var SCHEMA = "frota";
+
+  var session = null; // {access_token, user}
+  var perfil = null;  // row from usuarios_perfil
+
+  var MODULES = [
+    {key:"frota", label:"Gestão da Frota"},
+    {key:"manutencao", label:"Manutenções"},
+    {key:"multas", label:"Multas"},
+    {key:"financeiro", label:"Financeiro"},
+    {key:"eletrificacao", label:"Carros Elétricos"}
+  ];
+
+  // ---------------- storage (per-browser convenience only) ----------------
+  function saveSession(s){
+    try{ sessionStorage.setItem("ff_session", JSON.stringify(s)); }catch(e){}
+  }
+  function loadStoredSession(){
+    try{ var raw = sessionStorage.getItem("ff_session"); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+  }
+  function clearStoredSession(){
+    try{ sessionStorage.removeItem("ff_session"); }catch(e){}
+  }
+
+  // ---------------- toast ----------------
+  function toast(msg, isErr){
+    var host = document.getElementById("toast-host");
+    var el = document.createElement("div");
+    el.className = "toast" + (isErr ? " err" : "");
+    el.textContent = msg;
+    host.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 4200);
+  }
+
+  // ---------------- auth ----------------
+  function authLogin(email, password){
+    return fetch(SUPA_URL + "/auth/v1/token?grant_type=password", {
+      method: "POST",
+      headers: { "apikey": SUPA_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: password })
+    }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j}; }); });
+  }
+
+  // ---------------- REST helper (schema "frota") ----------------
+  function rest(path, opts){
+    opts = opts || {};
+    var headers = {
+      "apikey": SUPA_ANON,
+      "Authorization": "Bearer " + (session ? session.access_token : ""),
+      "Content-Type": "application/json"
+    };
+    if ((opts.method || "GET") === "GET") headers["Accept-Profile"] = SCHEMA;
+    else headers["Content-Profile"] = SCHEMA;
+    if (opts.method && opts.method !== "GET") headers["Prefer"] = "return=representation";
+    return fetch(SUPA_URL + "/rest/v1/" + path, {
+      method: opts.method || "GET",
+      headers: headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function(r){
+      return r.text().then(function(t){
+        var j; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = t; }
+        if (!r.ok) throw new Error((j && (j.message || j.hint)) || ("Erro " + r.status));
+        return j;
+      });
+    });
+  }
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c];
+    });
+  }
+
+  // ---------------- permission ----------------
+  function canView(mod){
+    if (!perfil) return false;
+    if (perfil.papel === "admin") return true;
+    var vis = perfil.modulos_visualizacao || [];
+    var ope = perfil.modulos_operador || [];
+    return vis.indexOf(mod) > -1 || ope.indexOf(mod) > -1;
+  }
+  function canEdit(mod){
+    if (!perfil) return false;
+    if (perfil.papel === "admin") return true;
+    return (perfil.modulos_operador || []).indexOf(mod) > -1;
+  }
+
+  // ---------------- nav / panels ----------------
+  var currentPanel = null;
+
+  function buildNav(){
+    var nav = document.getElementById("nav");
+    nav.innerHTML = "";
+    var visible = MODULES.filter(function(m){ return canView(m.key); });
+    if (!visible.length){
+      currentPanel = "sem-acesso";
+      showPanel("sem-acesso");
+      return;
+    }
+    visible.forEach(function(m, i){
+      var b = document.createElement("button");
+      b.className = "navbtn";
+      b.innerHTML = '<span class="dot"></span>' + esc(m.label);
+      b.addEventListener("click", function(){ showPanel(m.key); });
+      b.dataset.mod = m.key;
+      nav.appendChild(b);
+    });
+    showPanel(visible[0].key);
+  }
+
+  function showPanel(key){
+    currentPanel = key;
+    document.querySelectorAll(".panel").forEach(function(p){
+      p.classList.toggle("active", p.dataset.panel === key);
+    });
+    document.querySelectorAll(".navbtn").forEach(function(b){
+      b.classList.toggle("active", b.dataset.mod === key);
+    });
+    // reveal/hide edit affordances per module
+    document.querySelectorAll("[data-edit]").forEach(function(el){
+      el.hidden = !canEdit(el.dataset.edit);
+    });
+    if (key === "frota") loadFrota();
+    if (key === "manutencao") loadManutencao();
+  }
+
+  // ---------------- status pill helpers ----------------
+  var STATUS_VEICULO_PILL = {
+    disponivel:"good", indisponivel:"crit", em_mobilizacao:"warn", desmobilizar:"warn", devolvido:"neutral", fora_de_operacao:"crit"
+  };
+  var STATUS_OS_PILL = {
+    aberta:"warn", aguardando_oficina:"warn", em_reparo:"warn", aguardando_peca:"warn", concluida:"good", cancelada:"neutral"
+  };
+  function pill(text, cls){ return '<span class="pill ' + (cls||"neutral") + '">' + esc(text) + "</span>"; }
+
+  // ---------------- Gestão da Frota ----------------
+  var hubCache = [];
+
+  function loadFrota(){
+    rest("hubs?select=*&order=nome").then(function(rows){
+      hubCache = rows || [];
+      renderHubs(rows);
+      fillHubSelects(rows);
+    }).catch(function(e){ toast("Erro ao carregar hubs: " + e.message, true); });
+
+    rest("veiculos?select=placa,modelo,tipo_combustivel,status,hubs(nome)&order=placa").then(function(rows){
+      renderVeiculos(rows);
+    }).catch(function(e){ toast("Erro ao carregar veículos: " + e.message, true); });
+  }
+
+  function renderVeiculos(rows){
+    var body = document.getElementById("frota-veic-body");
+    document.getElementById("frota-veic-count").textContent = rows.length + (rows.length === 1 ? " veículo" : " veículos");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="5" class="empty-row">Nenhum veículo cadastrado ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(v){
+      return "<tr><td>" + esc(v.placa) + "</td><td>" + esc(v.modelo || "—") + "</td><td>" + esc(v.tipo_combustivel) + "</td><td>" +
+        esc(v.hubs ? v.hubs.nome : "—") + "</td><td>" + pill(v.status.replace(/_/g," "), STATUS_VEICULO_PILL[v.status]) + "</td></tr>";
+    }).join("");
+  }
+
+  function renderHubs(rows){
+    var body = document.getElementById("frota-hub-body");
+    document.getElementById("frota-hub-count").textContent = rows.length + (rows.length === 1 ? " hub" : " hubs");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhum hub cadastrado ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(h){
+      return "<tr><td>" + esc(h.nome) + "</td><td>" + esc(h.uf || "—") + "</td><td>" + esc(h.tipo || "—") + "</td></tr>";
+    }).join("");
+  }
+
+  function fillHubSelects(rows){
+    ["v-hub","of-hub"].forEach(function(id){
+      var sel = document.getElementById(id);
+      var current = sel.value;
+      sel.innerHTML = '<option value="">—</option>' + rows.map(function(h){ return '<option value="' + h.id + '">' + esc(h.nome) + "</option>"; }).join("");
+      sel.value = current;
+    });
+  }
+
+  // ---------------- Manutenção ----------------
+  function loadManutencao(){
+    rest("veiculos?select=id,placa&order=placa").then(function(rows){
+      var sel = document.getElementById("os-veiculo");
+      sel.innerHTML = '<option value="">Selecione…</option>' + rows.map(function(v){ return '<option value="' + v.id + '">' + esc(v.placa) + "</option>"; }).join("");
+    }).catch(function(){});
+
+    rest("oficinas?select=id,nome,hubs(nome),avaliacao_media&order=nome").then(function(rows){
+      renderOficinas(rows);
+      var sel = document.getElementById("os-oficina");
+      sel.innerHTML = '<option value="">—</option>' + rows.map(function(o){ return '<option value="' + o.id + '">' + esc(o.nome) + "</option>"; }).join("");
+    }).catch(function(e){ toast("Erro ao carregar oficinas: " + e.message, true); });
+
+    rest("ordens_servico?select=tipo,status,data_parou,cobertura,valor_total,veiculos(placa),oficinas(nome)&order=created_at.desc&limit=100").then(function(rows){
+      renderOS(rows);
+    }).catch(function(e){ toast("Erro ao carregar ordens de serviço: " + e.message, true); });
+  }
+
+  function renderOS(rows){
+    var body = document.getElementById("man-os-body");
+    document.getElementById("man-os-count").textContent = rows.length + (rows.length === 1 ? " OS" : " OS");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma ordem de serviço aberta ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(o){
+      var data = o.data_parou ? new Date(o.data_parou).toLocaleString("pt-BR", {dateStyle:"short", timeStyle:"short"}) : "—";
+      return "<tr><td>" + esc(o.veiculos ? o.veiculos.placa : "—") + "</td><td>" + esc(o.tipo) + "</td><td>" +
+        pill(o.status.replace(/_/g," "), STATUS_OS_PILL[o.status]) + "</td><td>" + esc(data) + "</td><td>" +
+        esc(o.oficinas ? o.oficinas.nome : "—") + "</td><td>" + esc((o.cobertura||"a_definir").replace(/_/g," ")) + "</td><td class=\"num\">" +
+        (o.valor_total != null ? "R$ " + Number(o.valor_total).toLocaleString("pt-BR", {minimumFractionDigits:2}) : "—") + "</td></tr>";
+    }).join("");
+  }
+
+  function renderOficinas(rows){
+    var body = document.getElementById("man-of-body");
+    document.getElementById("man-of-count").textContent = rows.length + (rows.length === 1 ? " oficina" : " oficinas");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhuma oficina cadastrada ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(o){
+      return "<tr><td>" + esc(o.nome) + "</td><td>" + esc(o.hubs ? o.hubs.nome : "—") + "</td><td>" + (o.avaliacao_media != null ? Number(o.avaliacao_media).toFixed(1) : "—") + "</td></tr>";
+    }).join("");
+  }
+
+  // ---------------- modals ----------------
+  function openModal(id){ document.getElementById(id).hidden = false; }
+  function closeModal(el){ var m = el.closest(".modal-overlay"); if (m) m.hidden = true; }
+
+  document.addEventListener("click", function(ev){
+    var openTrigger = ev.target.closest("[data-open-modal]");
+    if (openTrigger){ openModal(openTrigger.dataset.openModal); return; }
+    var closeTrigger = ev.target.closest("[data-close-modal]");
+    if (closeTrigger){ closeModal(closeTrigger); return; }
+    if (ev.target.classList.contains("modal-overlay")){ ev.target.hidden = true; }
+  });
+
+  function setErr(id, msg){
+    var el = document.getElementById(id);
+    if (msg){ el.textContent = msg; el.hidden = false; } else { el.hidden = true; }
+  }
+
+  document.querySelector('[data-form="veiculo"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("v-err", "");
+    var body = {
+      placa: document.getElementById("v-placa").value.trim().toUpperCase(),
+      modelo: document.getElementById("v-modelo").value.trim() || null,
+      tipo_combustivel: document.getElementById("v-combustivel").value,
+      hub_id: document.getElementById("v-hub").value || null,
+      status: document.getElementById("v-status").value
+    };
+    rest("veiculos", {method:"POST", body: body}).then(function(){
+      toast("Veículo " + body.placa + " cadastrado.");
+      document.getElementById("modal-veiculo").hidden = true;
+      ev.target.reset();
+      loadFrota();
+    }).catch(function(e){ setErr("v-err", e.message); });
+  });
+
+  document.querySelector('[data-form="hub"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("h-err", "");
+    var body = {
+      nome: document.getElementById("h-nome").value.trim(),
+      uf: document.getElementById("h-uf").value.trim().toUpperCase() || null,
+      tipo: document.getElementById("h-tipo").value
+    };
+    rest("hubs", {method:"POST", body: body}).then(function(){
+      toast("Hub " + body.nome + " cadastrado.");
+      document.getElementById("modal-hub").hidden = true;
+      ev.target.reset();
+      loadFrota();
+    }).catch(function(e){ setErr("h-err", e.message); });
+  });
+
+  document.querySelector('[data-form="oficina"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("of-err", "");
+    var body = {
+      nome: document.getElementById("of-nome").value.trim(),
+      hub_id: document.getElementById("of-hub").value || null
+    };
+    rest("oficinas", {method:"POST", body: body}).then(function(){
+      toast("Oficina " + body.nome + " cadastrada.");
+      document.getElementById("modal-oficina").hidden = true;
+      ev.target.reset();
+      loadManutencao();
+    }).catch(function(e){ setErr("of-err", e.message); });
+  });
+
+  document.querySelector('[data-form="os"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("os-err", "");
+    var veiculo = document.getElementById("os-veiculo").value;
+    if (!veiculo){ setErr("os-err", "Selecione o veículo."); return; }
+    var body = {
+      veiculo_id: veiculo,
+      tipo: document.getElementById("os-tipo").value,
+      motivo: document.getElementById("os-motivo").value.trim() || null,
+      data_parou: new Date(document.getElementById("os-data-parou").value).toISOString(),
+      oficina_id: document.getElementById("os-oficina").value || null,
+      cobertura: document.getElementById("os-cobertura").value,
+      observacoes: document.getElementById("os-obs").value.trim() || null,
+      status: "aberta"
+    };
+    rest("ordens_servico", {method:"POST", body: body}).then(function(){
+      toast("OS aberta com sucesso.");
+      document.getElementById("modal-os").hidden = true;
+      ev.target.reset();
+      loadManutencao();
+    }).catch(function(e){ setErr("os-err", e.message); });
+  });
+
+  // ---------------- boot / login flow ----------------
+  function decodeJwtSub(token){
+    try{
+      var payload = token.split(".")[1];
+      var json = decodeURIComponent(atob(payload.replace(/-/g,"+").replace(/_/g,"/")).split("").map(function(c){
+        return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(""));
+      return JSON.parse(json).sub;
+    }catch(e){ return null; }
+  }
+
+  function enterApp(){
+    document.getElementById("view-login").style.display = "none";
+    document.getElementById("view-app").classList.add("active");
+    var email = session.user && session.user.email ? session.user.email : "";
+    document.getElementById("user-av").textContent = email.slice(0,2).toUpperCase();
+    document.getElementById("user-name").textContent = (perfil && perfil.nome) || email;
+    document.getElementById("user-role").textContent = perfil ? perfil.papel : "sem perfil";
+    buildNav();
+  }
+
+  function loadPerfilAndEnter(){
+    var uid = session.user.id;
+    rest("usuarios_perfil?user_id=eq." + uid + "&select=*").then(function(rows){
+      perfil = (rows && rows[0]) || null;
+      if (!perfil){
+        toast("Seu acesso ainda não foi configurado pelo administrador.", true);
+      }
+      enterApp();
+    }).catch(function(e){
+      toast("Erro ao carregar seu perfil: " + e.message, true);
+      perfil = null;
+      enterApp();
+    });
+  }
+
+  document.getElementById("login-form").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var btn = document.getElementById("login-submit");
+    btn.disabled = true; btn.textContent = "Entrando…";
+    document.getElementById("login-error").hidden = true;
+    var email = document.getElementById("login-email").value.trim();
+    var pass = document.getElementById("login-pass").value;
+    authLogin(email, pass).then(function(res){
+      if (!res.ok || !res.body.access_token){
+        throw new Error(res.body && (res.body.error_description || res.body.msg) || "Falha no login.");
+      }
+      session = { access_token: res.body.access_token, user: { id: decodeJwtSub(res.body.access_token), email: email } };
+      saveSession(session);
+      loadPerfilAndEnter();
+    }).catch(function(e){
+      var el = document.getElementById("login-error");
+      el.textContent = e.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : e.message;
+      el.hidden = false;
+    }).finally(function(){
+      btn.disabled = false; btn.textContent = "Entrar";
+    });
+  });
+
+  document.getElementById("btn-logout").addEventListener("click", function(){
+    session = null; perfil = null;
+    clearStoredSession();
+    document.getElementById("view-app").classList.remove("active");
+    document.getElementById("view-login").style.display = "flex";
+    document.getElementById("login-pass").value = "";
+  });
+
+  // try restoring a session already in this tab
+  var stored = loadStoredSession();
+  if (stored && stored.access_token){
+    session = stored;
+    loadPerfilAndEnter();
+  }
+})();
+</script>
