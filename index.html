@@ -190,8 +190,8 @@
 
     <!-- GESTÃO DA FROTA -->
     <section class="panel" data-panel="frota">
-      <div class="topline"><h1>Gestão da Frota</h1></div>
-      <p class="section-desc">Veículos, hubs e status de disponibilidade. Esta é a base de dados usada pelos outros módulos.</p>
+      <div class="topline"><h1>Cadastro da Frota</h1></div>
+      <p class="section-desc">Veículos, hubs, contratos e status de disponibilidade. Esta é a base de dados usada pelos outros módulos.</p>
 
       <div class="card">
         <div class="card-head"><h2>Veículos</h2><span class="count" id="frota-veic-count"></span></div>
@@ -216,6 +216,20 @@
         </div>
         <div class="inline-add" data-edit="frota">
           <button class="inline-add-trigger" data-open-modal="modal-hub">+ Novo hub</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Contratos</h2><span class="count" id="frota-contrato-count"></span></div>
+        <p class="section-desc" style="margin-top:-6px;">O que cada locadora cobre (manutenção, pneus, veículo reserva) — usado pelo módulo Manutenções para saber o que é coberto pelo contrato.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Contrato</th><th>Locadora</th><th>Qtde</th><th>Vencimento</th><th>Status</th><th class="num">Valor mensal</th><th>Manutenção</th><th>Pneus</th><th>Reserva</th></tr></thead>
+            <tbody id="frota-contrato-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="frota">
+          <button class="inline-add-trigger" data-open-modal="modal-contrato">+ Novo contrato</button>
         </div>
       </div>
     </section>
@@ -256,15 +270,18 @@
     <section class="panel" data-panel="multas">
       <div class="topline"><h1>Multas</h1></div>
       <p class="section-desc">Fluxo completo: e-mail recebido → identificação do condutor → liderança → locadora → desconto em folha.</p>
-      <div class="roadmap-card">
-        <span class="tag">Em construção</span>
-        <h3>Próxima etapa deste módulo</h3>
-        <ul>
-          <li>Registro de cada multa com datas de cada etapa do fluxo (recebida, enviada à liderança, retorno, enviada à locadora)</li>
-          <li>Alerta de SLA vencido quando a liderança não responde no prazo</li>
-          <li>Custo acumulado das multas que a empresa acaba pagando por falta de retorno da liderança</li>
-          <li>Ranking de motoristas por recorrência de infração</li>
-        </ul>
+
+      <div class="card">
+        <div class="card-head"><h2>Multas registradas</h2><span class="count" id="multas-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Placa</th><th>Data infração</th><th>Status</th><th>Locadora</th><th>Paga por</th><th class="num">Valor</th><th class="num">Absorvido empresa</th></tr></thead>
+            <tbody id="multas-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="multas">
+          <button class="inline-add-trigger" data-open-modal="modal-multa">+ Nova multa</button>
+        </div>
       </div>
     </section>
 
@@ -272,15 +289,31 @@
     <section class="panel" data-panel="financeiro">
       <div class="topline"><h1>Financeiro</h1></div>
       <p class="section-desc">Fornecedores, notas fiscais e alertas de envio — substituindo o fluxo manual por e-mail e planilha.</p>
-      <div class="roadmap-card">
-        <span class="tag">Em construção</span>
-        <h3>Próxima etapa deste módulo</h3>
-        <ul>
-          <li>Cadastro de fornecedores com dia esperado de envio da nota</li>
-          <li>Registro de notas fiscais recebidas, com status de pagamento</li>
-          <li>Alerta automático quando um fornecedor não envia a nota no dia esperado</li>
-          <li>Histórico de atraso por fornecedor</li>
-        </ul>
+
+      <div class="card">
+        <div class="card-head"><h2>Notas fiscais</h2><span class="count" id="fin-nf-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fornecedor</th><th>Categoria</th><th>Nº nota</th><th>Vencimento</th><th>Status</th><th class="num">Valor</th></tr></thead>
+            <tbody id="fin-nf-body"><tr><td colspan="6" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="financeiro">
+          <button class="inline-add-trigger" data-open-modal="modal-nota">+ Nova nota fiscal</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Fornecedores</h2><span class="count" id="fin-forn-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th>Tipo</th><th>Dia esperado de envio</th><th>Ativo</th></tr></thead>
+            <tbody id="fin-forn-body"><tr><td colspan="4" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="financeiro">
+          <button class="inline-add-trigger" data-open-modal="modal-fornecedor">+ Novo fornecedor</button>
+        </div>
       </div>
     </section>
 
@@ -288,15 +321,18 @@
     <section class="panel" data-panel="eletrificacao">
       <div class="topline"><h1>Carros Elétricos</h1></div>
       <p class="section-desc">Recarga, telemetria e comparação de custo/impacto ambiental frente à combustão.</p>
-      <div class="roadmap-card">
-        <span class="tag">Em construção</span>
-        <h3>Próxima etapa deste módulo</h3>
-        <ul>
-          <li>Registro de recargas (kWh, custo, km rodado)</li>
-          <li>Telemetria diária por veículo elétrico</li>
-          <li>Comparativo automático de custo e CO₂ vs. equivalente a combustão</li>
-          <li>Integração com telemetria embarcada, reduzindo a planilha manual</li>
-        </ul>
+
+      <div class="card">
+        <div class="card-head"><h2>Recargas</h2><span class="count" id="elet-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Veículo</th><th>Hub</th><th>Data/hora</th><th class="num">kWh</th><th class="num">Valor</th><th class="num">Km rodado</th></tr></thead>
+            <tbody id="elet-body"><tr><td colspan="6" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="inline-add" data-edit="eletrificacao">
+          <button class="inline-add-trigger" data-open-modal="modal-recarga">+ Nova recarga</button>
+        </div>
       </div>
     </section>
 
@@ -350,6 +386,44 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-contrato" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Novo contrato</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="contrato">
+      <div class="form-grid">
+        <div class="field"><label for="co-locadora">Locadora</label><select id="co-locadora" required><option value="">Selecione…</option></select></div>
+        <div class="field"><label for="co-numero">Nº do contrato / lote</label><input id="co-numero" placeholder="Ex.: RENAULT 3"></div>
+        <div class="field"><label for="co-qtde">Quantidade de veículos</label><input id="co-qtde" type="number" min="1"></div>
+        <div class="field"><label for="co-modelo">Modelo dos veículos</label><input id="co-modelo"></div>
+        <div class="field"><label for="co-inicio">Data de início</label><input id="co-inicio" type="date"></div>
+        <div class="field"><label for="co-fim">Data de devolução</label><input id="co-fim" type="date"></div>
+        <div class="field"><label for="co-prazo">Prazo (meses)</label><input id="co-prazo" type="number" min="1"></div>
+        <div class="field"><label for="co-status">Status</label>
+          <select id="co-status">
+            <option value="ativo">Ativo</option><option value="vencido">Vencido</option>
+            <option value="renovado">Renovado</option><option value="encerrado">Encerrado</option>
+          </select>
+        </div>
+        <div class="field"><label for="co-valor">Valor mensal (R$)</label><input id="co-valor" type="number" step="0.01"></div>
+        <div class="field"><label for="co-reajuste">Reajuste anual</label><input id="co-reajuste" placeholder="Ex.: IPCA, 5%, N/A"></div>
+        <div class="field"><label for="co-franquia">Franquia de km (mensal)</label><input id="co-franquia" type="number" step="0.01"></div>
+        <div class="field"><label for="co-cobranca-km">Cobrança do km excedente</label>
+          <select id="co-cobranca-km"><option value="">—</option><option value="POOL">Pool (soma da frota)</option><option value="INDIVIDUAL">Individual (por veículo)</option></select>
+        </div>
+        <div class="field"><label for="co-valor-km">Valor do km excedente (R$)</label><input id="co-valor-km" type="number" step="0.0001"></div>
+        <div class="field"><label for="co-manutencao">Manutenção coberta</label><input id="co-manutencao" placeholder="Ex.: PREV, PREV + CORR, N/A"></div>
+        <div class="field"><label for="co-pneus">Pneus cobertos</label><input id="co-pneus" placeholder="Ex.: N/A, 2, 4"></div>
+        <div class="field"><label for="co-reserva">Veículo reserva</label>
+          <select id="co-reserva"><option value="">—</option><option value="SIM">Sim</option><option value="N/A">Não</option></select>
+        </div>
+        <div class="field span2"><label for="co-obs">Observações</label><textarea id="co-obs" rows="2"></textarea></div>
+      </div>
+      <div class="field-err" id="co-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar contrato</button></div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-oficina" hidden>
   <div class="modal">
     <div class="modal-head"><h3>Nova oficina</h3><button class="modal-close" data-close-modal>×</button></div>
@@ -387,6 +461,117 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-multa" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Nova multa</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="multa">
+      <div class="form-grid">
+        <div class="field"><label for="mu-veiculo">Veículo</label><select id="mu-veiculo" required><option value="">Selecione…</option></select></div>
+        <div class="field"><label for="mu-locadora">Locadora (opcional)</label><select id="mu-locadora"><option value="">—</option></select></div>
+        <div class="field"><label for="mu-numero">Número da multa</label><input id="mu-numero"></div>
+        <div class="field"><label for="mu-valor">Valor (R$)</label><input id="mu-valor" type="number" step="0.01" required></div>
+        <div class="field"><label for="mu-data-infracao">Data da infração</label><input id="mu-data-infracao" type="datetime-local" required></div>
+        <div class="field"><label for="mu-data-recebimento">Recebimento do e-mail</label><input id="mu-data-recebimento" type="datetime-local" required></div>
+        <div class="field span2"><label for="mu-status">Status</label>
+          <select id="mu-status">
+            <option value="recebida_email">Recebida por e-mail</option>
+            <option value="identificando_condutor">Identificando condutor</option>
+            <option value="enviada_lideranca">Enviada à liderança</option>
+            <option value="aguardando_retorno_lideranca">Aguardando retorno da liderança</option>
+            <option value="infrator_identificado">Infrator identificado</option>
+            <option value="infrator_nao_identificado">Infrator não identificado</option>
+            <option value="enviada_locadora">Enviada à locadora</option>
+            <option value="desconto_em_folha">Desconto em folha</option>
+            <option value="paga_pelo_infrator">Paga pelo infrator</option>
+            <option value="paga_pela_empresa">Paga pela empresa</option>
+            <option value="cancelada_recurso">Cancelada por recurso</option>
+          </select>
+        </div>
+        <div class="field"><label for="mu-prazo">Prazo de resposta à locadora</label><input id="mu-prazo" type="date"></div>
+        <div class="field"><label for="mu-paga-por">Paga por</label><input id="mu-paga-por" placeholder="Ex.: motorista, empresa…"></div>
+        <div class="field span2"><label for="mu-absorvido">Valor absorvido pela empresa (R$)</label><input id="mu-absorvido" type="number" step="0.01"></div>
+        <div class="field span2"><label for="mu-desc">Descrição</label><textarea id="mu-desc" rows="2"></textarea></div>
+      </div>
+      <div class="field-err" id="mu-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar multa</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-fornecedor" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Novo fornecedor</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="fornecedor">
+      <div class="form-grid">
+        <div class="field span2"><label for="fo-nome">Nome</label><input id="fo-nome" required></div>
+        <div class="field"><label for="fo-cnpj">CNPJ</label><input id="fo-cnpj"></div>
+        <div class="field"><label for="fo-tipo">Tipo</label><select id="fo-tipo"><option value="outro">Outro</option><option value="locadora">Locadora</option></select></div>
+        <div class="field"><label for="fo-dia">Dia esperado de envio da nota</label><input id="fo-dia" type="number" min="1" max="31"></div>
+        <div class="field"><label for="fo-contato-nome">Contato</label><input id="fo-contato-nome"></div>
+        <div class="field"><label for="fo-contato-email">E-mail do contato</label><input id="fo-contato-email" type="email"></div>
+        <div class="field"><label for="fo-contato-tel">Telefone do contato</label><input id="fo-contato-tel"></div>
+        <div class="field" style="align-self:end;"><label><input type="checkbox" id="fo-ativo" checked style="width:auto; margin-right:6px;">Fornecedor ativo</label></div>
+        <div class="field span2"><label for="fo-obs">Observações</label><textarea id="fo-obs" rows="2"></textarea></div>
+      </div>
+      <div class="field-err" id="fo-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar fornecedor</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-nota" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Nova nota fiscal</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="nota">
+      <div class="form-grid">
+        <div class="field span2"><label for="nf-fornecedor">Fornecedor</label><select id="nf-fornecedor" required><option value="">Selecione…</option></select></div>
+        <div class="field"><label for="nf-categoria">Categoria (opcional)</label><select id="nf-categoria"><option value="">—</option></select></div>
+        <div class="field"><label for="nf-hub">Hub (opcional)</label><select id="nf-hub"><option value="">—</option></select></div>
+        <div class="field"><label for="nf-veiculo">Veículo (opcional)</label><select id="nf-veiculo"><option value="">—</option></select></div>
+        <div class="field"><label for="nf-numero">Número da nota</label><input id="nf-numero"></div>
+        <div class="field"><label for="nf-valor">Valor (R$)</label><input id="nf-valor" type="number" step="0.01" required></div>
+        <div class="field"><label for="nf-emissao">Data de emissão</label><input id="nf-emissao" type="date"></div>
+        <div class="field"><label for="nf-vencimento">Data de vencimento</label><input id="nf-vencimento" type="date"></div>
+        <div class="field"><label for="nf-mes-ref">Mês de referência</label><input id="nf-mes-ref" type="month"></div>
+        <div class="field"><label for="nf-status">Status</label>
+          <select id="nf-status">
+            <option value="recebida_email">Recebida por e-mail</option>
+            <option value="pipefy_aberto">Pipefy aberto</option>
+            <option value="aguardando_pagamento">Aguardando pagamento</option>
+            <option value="paga">Paga</option>
+            <option value="atrasada">Atrasada</option>
+            <option value="contestada">Contestada</option>
+          </select>
+        </div>
+        <div class="field"><label for="nf-forma-pagamento">Forma de pagamento</label><input id="nf-forma-pagamento" placeholder="Ex.: boleto, transferência…"></div>
+        <div class="field span2"><label for="nf-obs">Observações</label><textarea id="nf-obs" rows="2"></textarea></div>
+      </div>
+      <div class="field-err" id="nf-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar nota fiscal</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-recarga" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Nova recarga</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form data-form="recarga">
+      <div class="form-grid">
+        <div class="field span2"><label for="rec-veiculo">Veículo (elétrico)</label><select id="rec-veiculo" required><option value="">Selecione…</option></select></div>
+        <div class="field"><label for="rec-hub">Hub (opcional)</label><select id="rec-hub"><option value="">—</option></select></div>
+        <div class="field"><label for="rec-data">Data/hora da recarga</label><input id="rec-data" type="datetime-local" required></div>
+        <div class="field"><label for="rec-kwh">kWh carregados</label><input id="rec-kwh" type="number" step="0.01" required></div>
+        <div class="field"><label for="rec-valor">Valor (R$)</label><input id="rec-valor" type="number" step="0.01" required></div>
+        <div class="field"><label for="rec-km-hodometro">Km do hodômetro</label><input id="rec-km-hodometro" type="number" step="0.1"></div>
+        <div class="field"><label for="rec-km-rodado">Km rodado desde a última</label><input id="rec-km-rodado" type="number" step="0.1"></div>
+        <div class="field"><label for="rec-duracao">Duração da recarga (minutos)</label><input id="rec-duracao" type="number" step="1"></div>
+      </div>
+      <div class="field-err" id="rec-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar recarga</button></div>
+    </form>
+  </div>
+</div>
+
 <div id="toast-host"></div>
 
 <script>
@@ -402,7 +587,7 @@
   var perfil = null;  // row from usuarios_perfil
 
   var MODULES = [
-    {key:"frota", label:"Gestão da Frota"},
+    {key:"frota", label:"Cadastro da Frota"},
     {key:"manutencao", label:"Manutenções"},
     {key:"multas", label:"Multas"},
     {key:"financeiro", label:"Financeiro"},
@@ -520,6 +705,9 @@
     });
     if (key === "frota") loadFrota();
     if (key === "manutencao") loadManutencao();
+    if (key === "multas") loadMultas();
+    if (key === "financeiro") loadFinanceiro();
+    if (key === "eletrificacao") loadEletrificacao();
   }
 
   // ---------------- status pill helpers ----------------
@@ -544,6 +732,14 @@
     rest("veiculos?select=placa,modelo,tipo_combustivel,status,hubs(nome)&order=placa").then(function(rows){
       renderVeiculos(rows);
     }).catch(function(e){ toast("Erro ao carregar veículos: " + e.message, true); });
+
+    rest("fornecedores?tipo=eq.locadora&select=id,nome&order=nome").then(function(rows){
+      fillSelect("co-locadora", rows, function(f){ return f.nome; }, "Selecione…");
+    }).catch(function(){});
+
+    rest("contratos?select=*,fornecedores(nome)&order=data_fim.asc.nullslast").then(function(rows){
+      renderContratos(rows);
+    }).catch(function(e){ toast("Erro ao carregar contratos: " + e.message, true); });
   }
 
   function renderVeiculos(rows){
@@ -572,6 +768,22 @@
       sel.innerHTML = '<option value="">—</option>' + rows.map(function(h){ return '<option value="' + h.id + '">' + esc(h.nome) + "</option>"; }).join("");
       sel.value = current;
     });
+  }
+
+  var STATUS_CONTRATO_LABEL = { ativo:"Ativo", vencido:"Vencido", renovado:"Renovado", encerrado:"Encerrado" };
+  var STATUS_CONTRATO_PILL = { ativo:"good", vencido:"crit", renovado:"neutral", encerrado:"neutral" };
+
+  function renderContratos(rows){
+    var body = document.getElementById("frota-contrato-body");
+    document.getElementById("frota-contrato-count").textContent = rows.length + (rows.length === 1 ? " contrato" : " contratos");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="9" class="empty-row">Nenhum contrato cadastrado ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(c){
+      return "<tr><td>" + esc(c.numero_contrato || "—") + "</td><td>" + esc(c.fornecedores ? c.fornecedores.nome : "—") + "</td><td>" +
+        esc(c.quantidade_veiculos != null ? c.quantidade_veiculos : "—") + "</td><td>" + dateBR(c.data_fim) + "</td><td>" +
+        pill(STATUS_CONTRATO_LABEL[c.status] || c.status, STATUS_CONTRATO_PILL[c.status]) + "</td><td class=\"num\">" +
+        money(c.valor_mensal) + "</td><td>" + esc(c.manutencao_cobertura || "—") + "</td><td>" + esc(c.pneus_cobertura || "—") +
+        "</td><td>" + esc(c.veiculo_reserva || "—") + "</td></tr>";
+    }).join("");
   }
 
   // ---------------- Manutenção ----------------
@@ -613,6 +825,259 @@
       return "<tr><td>" + esc(o.nome) + "</td><td>" + esc(o.hubs ? o.hubs.nome : "—") + "</td><td>" + (o.avaliacao_media != null ? Number(o.avaliacao_media).toFixed(1) : "—") + "</td></tr>";
     }).join("");
   }
+
+  // ---------------- Multas ----------------
+  var STATUS_MULTA_LABEL = {
+    recebida_email:"Recebida por e-mail", identificando_condutor:"Identificando condutor",
+    enviada_lideranca:"Enviada à liderança", aguardando_retorno_lideranca:"Aguardando retorno da liderança",
+    infrator_identificado:"Infrator identificado", infrator_nao_identificado:"Infrator não identificado",
+    enviada_locadora:"Enviada à locadora", desconto_em_folha:"Desconto em folha",
+    paga_pelo_infrator:"Paga pelo infrator", paga_pela_empresa:"Paga pela empresa", cancelada_recurso:"Cancelada por recurso"
+  };
+  var STATUS_MULTA_PILL = {
+    recebida_email:"neutral", identificando_condutor:"warn", enviada_lideranca:"warn", aguardando_retorno_lideranca:"warn",
+    infrator_identificado:"good", infrator_nao_identificado:"crit", enviada_locadora:"warn", desconto_em_folha:"good",
+    paga_pelo_infrator:"good", paga_pela_empresa:"crit", cancelada_recurso:"neutral"
+  };
+
+  function money(v){ return v != null ? "R$ " + Number(v).toLocaleString("pt-BR", {minimumFractionDigits:2}) : "—"; }
+  function dateBR(v){ return v ? new Date(v).toLocaleDateString("pt-BR") : "—"; }
+  function dateTimeBR(v){ return v ? new Date(v).toLocaleString("pt-BR", {dateStyle:"short", timeStyle:"short"}) : "—"; }
+
+  function fillSelect(id, rows, labelFn, placeholder){
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var current = sel.value;
+    sel.innerHTML = '<option value="">' + placeholder + '</option>' + rows.map(function(r){
+      return '<option value="' + r.id + '">' + esc(labelFn(r)) + "</option>";
+    }).join("");
+    sel.value = current;
+  }
+
+  function loadMultas(){
+    rest("veiculos?select=id,placa&order=placa").then(function(rows){
+      fillSelect("mu-veiculo", rows, function(v){ return v.placa; }, "Selecione…");
+    }).catch(function(){});
+
+    rest("fornecedores?tipo=eq.locadora&select=id,nome&order=nome").then(function(rows){
+      fillSelect("mu-locadora", rows, function(f){ return f.nome; }, "—");
+    }).catch(function(){});
+
+    rest("multas?select=valor,data_infracao,status,paga_por,valor_absorvido_empresa,veiculos(placa),fornecedores(nome)&order=data_infracao.desc&limit=200").then(function(rows){
+      renderMultas(rows);
+    }).catch(function(e){ toast("Erro ao carregar multas: " + e.message, true); });
+  }
+
+  function renderMultas(rows){
+    var body = document.getElementById("multas-body");
+    document.getElementById("multas-count").textContent = rows.length + (rows.length === 1 ? " multa" : " multas");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma multa registrada ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(m){
+      return "<tr><td>" + esc(m.veiculos ? m.veiculos.placa : "—") + "</td><td>" + dateBR(m.data_infracao) + "</td><td>" +
+        pill(STATUS_MULTA_LABEL[m.status] || m.status, STATUS_MULTA_PILL[m.status]) + "</td><td>" +
+        esc(m.fornecedores ? m.fornecedores.nome : "—") + "</td><td>" + esc(m.paga_por || "—") + "</td><td class=\"num\">" +
+        money(m.valor) + "</td><td class=\"num\">" + money(m.valor_absorvido_empresa) + "</td></tr>";
+    }).join("");
+  }
+
+  document.querySelector('[data-form="multa"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("mu-err", "");
+    var veiculo = document.getElementById("mu-veiculo").value;
+    if (!veiculo){ setErr("mu-err", "Selecione o veículo."); return; }
+    var dataInfracao = document.getElementById("mu-data-infracao").value;
+    var dataRecebimento = document.getElementById("mu-data-recebimento").value;
+    if (!dataInfracao || !dataRecebimento){ setErr("mu-err", "Informe as datas obrigatórias."); return; }
+    var valor = parseFloat(document.getElementById("mu-valor").value);
+    if (!valor){ setErr("mu-err", "Informe o valor da multa."); return; }
+    var absorvido = document.getElementById("mu-absorvido").value;
+    var body = {
+      veiculo_id: veiculo,
+      locadora_id: document.getElementById("mu-locadora").value || null,
+      numero_multa: document.getElementById("mu-numero").value.trim() || null,
+      valor: valor,
+      data_infracao: new Date(dataInfracao).toISOString(),
+      data_recebimento_email: new Date(dataRecebimento).toISOString(),
+      status: document.getElementById("mu-status").value,
+      prazo_resposta_locadora: document.getElementById("mu-prazo").value || null,
+      paga_por: document.getElementById("mu-paga-por").value.trim() || null,
+      valor_absorvido_empresa: absorvido ? parseFloat(absorvido) : null,
+      descricao: document.getElementById("mu-desc").value.trim() || null
+    };
+    rest("multas", {method:"POST", body: body}).then(function(){
+      toast("Multa cadastrada.");
+      document.getElementById("modal-multa").hidden = true;
+      ev.target.reset();
+      loadMultas();
+    }).catch(function(e){ setErr("mu-err", e.message); });
+  });
+
+  // ---------------- Financeiro ----------------
+  var STATUS_NF_LABEL = {
+    recebida_email:"Recebida por e-mail", pipefy_aberto:"Pipefy aberto", aguardando_pagamento:"Aguardando pagamento",
+    paga:"Paga", atrasada:"Atrasada", contestada:"Contestada"
+  };
+  var STATUS_NF_PILL = { recebida_email:"neutral", pipefy_aberto:"warn", aguardando_pagamento:"warn", paga:"good", atrasada:"crit", contestada:"crit" };
+
+  function loadFinanceiro(){
+    rest("fornecedores?select=id,nome&order=nome").then(function(rows){
+      fillSelect("nf-fornecedor", rows, function(f){ return f.nome; }, "Selecione…");
+    }).catch(function(){});
+
+    rest("categorias_custo?select=id,nome&order=nome").then(function(rows){
+      fillSelect("nf-categoria", rows, function(c){ return c.nome; }, "—");
+    }).catch(function(){});
+
+    rest("hubs?select=id,nome&order=nome").then(function(rows){
+      fillSelect("nf-hub", rows, function(h){ return h.nome; }, "—");
+    }).catch(function(){});
+
+    rest("veiculos?select=id,placa&order=placa").then(function(rows){
+      fillSelect("nf-veiculo", rows, function(v){ return v.placa; }, "—");
+    }).catch(function(){});
+
+    rest("fornecedores?select=nome,tipo,dia_esperado_envio_nota,ativo&order=nome").then(function(rows){
+      renderFornecedores(rows);
+    }).catch(function(e){ toast("Erro ao carregar fornecedores: " + e.message, true); });
+
+    rest("notas_fiscais?select=numero_nota,data_vencimento,valor,status,fornecedores(nome),categorias_custo(nome)&order=data_vencimento.desc&limit=200").then(function(rows){
+      renderNotasFiscais(rows);
+    }).catch(function(e){ toast("Erro ao carregar notas fiscais: " + e.message, true); });
+  }
+
+  function renderFornecedores(rows){
+    var body = document.getElementById("fin-forn-body");
+    document.getElementById("fin-forn-count").textContent = rows.length + (rows.length === 1 ? " fornecedor" : " fornecedores");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum fornecedor cadastrado ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(f){
+      return "<tr><td>" + esc(f.nome) + "</td><td>" + esc(f.tipo || "—") + "</td><td>" + (f.dia_esperado_envio_nota != null ? esc(f.dia_esperado_envio_nota) : "—") +
+        "</td><td>" + pill(f.ativo === false ? "Inativo" : "Ativo", f.ativo === false ? "neutral" : "good") + "</td></tr>";
+    }).join("");
+  }
+
+  function renderNotasFiscais(rows){
+    var body = document.getElementById("fin-nf-body");
+    document.getElementById("fin-nf-count").textContent = rows.length + (rows.length === 1 ? " nota" : " notas");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhuma nota fiscal registrada ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(n){
+      return "<tr><td>" + esc(n.fornecedores ? n.fornecedores.nome : "—") + "</td><td>" + esc(n.categorias_custo ? n.categorias_custo.nome : "—") +
+        "</td><td>" + esc(n.numero_nota || "—") + "</td><td>" + dateBR(n.data_vencimento) + "</td><td>" +
+        pill(STATUS_NF_LABEL[n.status] || n.status, STATUS_NF_PILL[n.status]) + "</td><td class=\"num\">" + money(n.valor) + "</td></tr>";
+    }).join("");
+  }
+
+  document.querySelector('[data-form="fornecedor"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("fo-err", "");
+    var nome = document.getElementById("fo-nome").value.trim();
+    if (!nome){ setErr("fo-err", "Informe o nome do fornecedor."); return; }
+    var body = {
+      nome: nome,
+      cnpj: document.getElementById("fo-cnpj").value.trim() || null,
+      tipo: document.getElementById("fo-tipo").value,
+      dia_esperado_envio_nota: document.getElementById("fo-dia").value ? parseInt(document.getElementById("fo-dia").value, 10) : null,
+      contato_nome: document.getElementById("fo-contato-nome").value.trim() || null,
+      contato_email: document.getElementById("fo-contato-email").value.trim() || null,
+      contato_telefone: document.getElementById("fo-contato-tel").value.trim() || null,
+      observacoes: document.getElementById("fo-obs").value.trim() || null,
+      ativo: document.getElementById("fo-ativo").checked
+    };
+    rest("fornecedores", {method:"POST", body: body}).then(function(){
+      toast("Fornecedor " + body.nome + " cadastrado.");
+      document.getElementById("modal-fornecedor").hidden = true;
+      ev.target.reset();
+      document.getElementById("fo-ativo").checked = true;
+      loadFinanceiro();
+    }).catch(function(e){ setErr("fo-err", e.message); });
+  });
+
+  document.querySelector('[data-form="nota"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("nf-err", "");
+    var fornecedor = document.getElementById("nf-fornecedor").value;
+    if (!fornecedor){ setErr("nf-err", "Selecione o fornecedor."); return; }
+    var valor = parseFloat(document.getElementById("nf-valor").value);
+    if (!valor){ setErr("nf-err", "Informe o valor da nota."); return; }
+    var mesRef = document.getElementById("nf-mes-ref").value;
+    var body = {
+      fornecedor_id: fornecedor,
+      categoria_id: document.getElementById("nf-categoria").value || null,
+      hub_id: document.getElementById("nf-hub").value || null,
+      veiculo_id: document.getElementById("nf-veiculo").value || null,
+      numero_nota: document.getElementById("nf-numero").value.trim() || null,
+      data_emissao: document.getElementById("nf-emissao").value || null,
+      data_vencimento: document.getElementById("nf-vencimento").value || null,
+      mes_referencia: mesRef ? (mesRef + "-01") : null,
+      valor: valor,
+      status: document.getElementById("nf-status").value,
+      forma_pagamento: document.getElementById("nf-forma-pagamento").value.trim() || null,
+      observacoes: document.getElementById("nf-obs").value.trim() || null
+    };
+    rest("notas_fiscais", {method:"POST", body: body}).then(function(){
+      toast("Nota fiscal cadastrada.");
+      document.getElementById("modal-nota").hidden = true;
+      ev.target.reset();
+      loadFinanceiro();
+    }).catch(function(e){ setErr("nf-err", e.message); });
+  });
+
+  // ---------------- Carros Elétricos ----------------
+  function loadEletrificacao(){
+    rest("veiculos?select=id,placa&tipo_combustivel=eq.eletrico&order=placa").then(function(rows){
+      fillSelect("rec-veiculo", rows, function(v){ return v.placa; }, "Selecione…");
+    }).catch(function(){});
+
+    rest("hubs?select=id,nome&order=nome").then(function(rows){
+      fillSelect("rec-hub", rows, function(h){ return h.nome; }, "—");
+    }).catch(function(){});
+
+    rest("recargas_eletricas?select=data_hora,kwh,valor,km_rodado_desde_ultima,veiculos(placa),hubs(nome)&order=data_hora.desc&limit=200").then(function(rows){
+      renderRecargas(rows);
+    }).catch(function(e){ toast("Erro ao carregar recargas: " + e.message, true); });
+  }
+
+  function renderRecargas(rows){
+    var body = document.getElementById("elet-body");
+    document.getElementById("elet-count").textContent = rows.length + (rows.length === 1 ? " recarga" : " recargas");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhuma recarga registrada ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(r){
+      return "<tr><td>" + esc(r.veiculos ? r.veiculos.placa : "—") + "</td><td>" + esc(r.hubs ? r.hubs.nome : "—") + "</td><td>" +
+        dateTimeBR(r.data_hora) + "</td><td class=\"num\">" + Number(r.kwh).toLocaleString("pt-BR", {minimumFractionDigits:2}) +
+        "</td><td class=\"num\">" + money(r.valor) + "</td><td class=\"num\">" +
+        (r.km_rodado_desde_ultima != null ? Number(r.km_rodado_desde_ultima).toLocaleString("pt-BR", {minimumFractionDigits:1}) : "—") + "</td></tr>";
+    }).join("");
+  }
+
+  document.querySelector('[data-form="recarga"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("rec-err", "");
+    var veiculo = document.getElementById("rec-veiculo").value;
+    if (!veiculo){ setErr("rec-err", "Selecione o veículo."); return; }
+    var dataHora = document.getElementById("rec-data").value;
+    if (!dataHora){ setErr("rec-err", "Informe a data/hora da recarga."); return; }
+    var kwh = parseFloat(document.getElementById("rec-kwh").value);
+    var valor = parseFloat(document.getElementById("rec-valor").value);
+    if (!kwh || !valor){ setErr("rec-err", "Informe kWh e valor."); return; }
+    var kmHod = document.getElementById("rec-km-hodometro").value;
+    var kmRodado = document.getElementById("rec-km-rodado").value;
+    var duracao = document.getElementById("rec-duracao").value;
+    var body = {
+      veiculo_id: veiculo,
+      hub_id: document.getElementById("rec-hub").value || null,
+      data_hora: new Date(dataHora).toISOString(),
+      kwh: kwh,
+      valor: valor,
+      km_hodometro: kmHod ? parseFloat(kmHod) : null,
+      km_rodado_desde_ultima: kmRodado ? parseFloat(kmRodado) : null,
+      duracao_minutos: duracao ? parseFloat(duracao) : null
+    };
+    rest("recargas_eletricas", {method:"POST", body: body}).then(function(){
+      toast("Recarga registrada.");
+      document.getElementById("modal-recarga").hidden = true;
+      ev.target.reset();
+      loadEletrificacao();
+    }).catch(function(e){ setErr("rec-err", e.message); });
+  });
 
   // ---------------- modals ----------------
   function openModal(id){ document.getElementById(id).hidden = false; }
@@ -663,6 +1128,43 @@
       ev.target.reset();
       loadFrota();
     }).catch(function(e){ setErr("h-err", e.message); });
+  });
+
+  document.querySelector('[data-form="contrato"]').addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("co-err", "");
+    var locadora = document.getElementById("co-locadora").value;
+    if (!locadora){ setErr("co-err", "Selecione a locadora."); return; }
+    var qtde = document.getElementById("co-qtde").value;
+    var prazo = document.getElementById("co-prazo").value;
+    var valor = document.getElementById("co-valor").value;
+    var franquia = document.getElementById("co-franquia").value;
+    var valorKm = document.getElementById("co-valor-km").value;
+    var body = {
+      locadora_id: locadora,
+      numero_contrato: document.getElementById("co-numero").value.trim() || null,
+      quantidade_veiculos: qtde ? parseInt(qtde, 10) : null,
+      modelo_veiculo: document.getElementById("co-modelo").value.trim() || null,
+      data_inicio: document.getElementById("co-inicio").value || null,
+      data_fim: document.getElementById("co-fim").value || null,
+      prazo_locacao_meses: prazo ? parseInt(prazo, 10) : null,
+      status: document.getElementById("co-status").value,
+      valor_mensal: valor ? parseFloat(valor) : null,
+      reajuste_anual: document.getElementById("co-reajuste").value.trim() || null,
+      franquia_km_mensal: franquia ? parseFloat(franquia) : null,
+      cobranca_km_excedente: document.getElementById("co-cobranca-km").value || null,
+      valor_km_excedente: valorKm ? parseFloat(valorKm) : null,
+      manutencao_cobertura: document.getElementById("co-manutencao").value.trim() || null,
+      pneus_cobertura: document.getElementById("co-pneus").value.trim() || null,
+      veiculo_reserva: document.getElementById("co-reserva").value || null,
+      observacoes: document.getElementById("co-obs").value.trim() || null
+    };
+    rest("contratos", {method:"POST", body: body}).then(function(){
+      toast("Contrato cadastrado.");
+      document.getElementById("modal-contrato").hidden = true;
+      ev.target.reset();
+      loadFrota();
+    }).catch(function(e){ setErr("co-err", e.message); });
   });
 
   document.querySelector('[data-form="oficina"]').addEventListener("submit", function(ev){
