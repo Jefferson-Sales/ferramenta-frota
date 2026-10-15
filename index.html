@@ -214,12 +214,24 @@
       <div class="topline"><h1>Cadastro da Frota</h1></div>
       <p class="section-desc">Veículos, hubs, contratos e status de disponibilidade. Esta é a base de dados usada pelos outros módulos.</p>
 
+      <div class="kpi-row" id="frota-kpis"></div>
+
       <div class="card">
         <div class="card-head"><h2>Veículos</h2><span class="count" id="frota-veic-count"></span></div>
+        <div class="file-row" style="margin-bottom:10px; flex-wrap:wrap;">
+          <input type="text" id="frota-busca" placeholder="Buscar placa ou modelo…" class="filter-select" style="min-width:200px;">
+          <select id="frota-filtro-contrato" class="filter-select"><option value="">Todos os contratos</option></select>
+          <select id="frota-filtro-chip" class="filter-select">
+            <option value="todos">Todos os veículos</option>
+            <option value="vencendo">Contratos vencendo (≤30d) ou vencidos</option>
+            <option value="km_excedente">Com KM excedente</option>
+            <option value="sem_contrato">Sem contrato mapeado</option>
+          </select>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Placa</th><th>Modelo</th><th>Combustível</th><th>Hub</th><th>Status</th></tr></thead>
-            <tbody id="frota-veic-body"><tr><td colspan="5" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr><th>Placa</th><th>Contrato</th><th>Locadora</th><th>Modelo</th><th>Hub</th><th>Status</th><th>Contrato (venc.)</th><th class="num">Dias Rest.</th><th class="num">KM Atual</th><th class="num">KM Exced.</th><th class="num">Valor Mensal</th></tr></thead>
+            <tbody id="frota-veic-body"><tr><td colspan="11" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
         <div class="inline-add" data-edit="frota">
@@ -252,6 +264,17 @@
         <div class="inline-add" data-edit="frota">
           <button class="inline-add-trigger" data-open-modal="modal-contrato">+ Novo contrato</button>
         </div>
+      </div>
+
+      <div class="card" data-edit="frota">
+        <div class="card-head"><h2>Telemetria dos elétricos (Questar/Exodus)</h2></div>
+        <p class="section-desc" style="margin-top:-6px;">Integração em teste: busca km/hodômetro real direto da telemetria para atualizar o KM atual dos veículos elétricos, sem depender de planilha.</p>
+        <div class="file-row" style="margin-bottom:10px;">
+          <button type="button" class="btn" id="btn-telemetria-diag" style="width:auto;">Testar conexão (diagnóstico)</button>
+          <button type="button" class="btn btn-primary" id="btn-telemetria-sync" style="width:auto;" disabled>Sincronizar KM agora</button>
+        </div>
+        <div id="telemetria-status" class="section-desc" style="margin-top:-4px;"></div>
+        <pre id="telemetria-raw" style="display:none; max-height:320px; overflow:auto; background:var(--surface-2); padding:10px; border-radius:8px; font-size:11.5px; white-space:pre-wrap;"></pre>
       </div>
     </section>
 
@@ -443,10 +466,19 @@
             <option value="devolvido">Devolvido</option><option value="fora_de_operacao">Fora de operação</option>
           </select>
         </div>
+        <div class="field"><label for="v-contrato">Contrato</label><select id="v-contrato"><option value="">—</option></select></div>
+        <div class="field"><label for="v-km-atual">KM atual</label><input id="v-km-atual" type="number" step="1" min="0"></div>
       </div>
       <div class="field-err" id="v-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar veículo</button></div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-veiculo-detalhe" hidden>
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3 id="vd-titulo">Veículo</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="detail-grid" id="vd-resumo"></div>
   </div>
 </div>
 
@@ -580,12 +612,13 @@
       <div class="form-grid">
         <div class="field"><label for="osd-status">Status</label>
           <select id="osd-status">
-            <option value="agendada">Agendada</option>
-            <option value="aberta">Aberta</option>
-            <option value="aguardando_oficina">Aguardando oficina</option>
-            <option value="em_reparo">Em reparo</option>
+            <option value="agendada">Agendada (serviço futuro)</option>
+            <option value="aguardando_agendamento">Aguardando agendamento</option>
+            <option value="aguardando_orcamento">Aguardando orçamento</option>
+            <option value="em_execucao">Em execução</option>
             <option value="aguardando_peca">Aguardando peça</option>
-            <option value="concluida">Concluída</option>
+            <option value="aguardando_pagamento">Aguardando pagamento</option>
+            <option value="concluida">Concluída (carro liberado)</option>
             <option value="cancelada">Cancelada</option>
           </select>
         </div>
@@ -929,12 +962,18 @@
     disponivel:"good", indisponivel:"crit", em_mobilizacao:"warn", desmobilizar:"warn", devolvido:"neutral", fora_de_operacao:"crit"
   };
   var STATUS_OS_PILL = {
-    agendada:"neutral", aberta:"warn", aguardando_oficina:"warn", em_reparo:"warn", aguardando_peca:"warn", concluida:"good", cancelada:"neutral"
+    agendada:"neutral", aguardando_agendamento:"warn", aguardando_orcamento:"warn", em_execucao:"warn",
+    aguardando_peca:"warn", aguardando_pagamento:"warn", concluida:"good", cancelada:"neutral",
+    // compat com dados antigos, caso alguma OS ainda não tenha sido migrada
+    aberta:"warn", aguardando_oficina:"warn", em_reparo:"warn"
   };
   function pill(text, cls){ return '<span class="pill ' + (cls||"neutral") + '">' + esc(text) + "</span>"; }
 
   // ---------------- Gestão da Frota ----------------
   var hubCache = [];
+  var contratosCache = [];
+  var cadastroFrotaCache = [];
+  var frotaFiltros = { busca:"", contrato:"", chip:"todos" };
 
   function loadFrota(){
     rest("hubs?select=*&order=nome").then(function(rows){
@@ -943,27 +982,185 @@
       fillHubSelects(rows);
     }).catch(function(e){ toast("Erro ao carregar hubs: " + e.message, true); });
 
-    rest("veiculos?select=placa,modelo,tipo_combustivel,status,hubs(nome)&order=placa").then(function(rows){
-      renderVeiculos(rows);
-    }).catch(function(e){ toast("Erro ao carregar veículos: " + e.message, true); });
-
     rest("fornecedores?tipo=eq.locadora&select=id,nome&order=nome").then(function(rows){
       fillSelect("co-locadora", rows, function(f){ return f.nome; }, "Selecione…");
     }).catch(function(){});
 
     rest("contratos?select=*,fornecedores(nome)&order=data_fim.asc.nullslast").then(function(rows){
+      contratosCache = rows || [];
       renderContratos(rows);
+      fillContratoSelects(rows);
     }).catch(function(e){ toast("Erro ao carregar contratos: " + e.message, true); });
+
+    rest("v_cadastro_frota?select=*&order=placa").then(function(rows){
+      cadastroFrotaCache = rows || [];
+      renderFrotaKpis(rows);
+      applyFrotaFiltros();
+    }).catch(function(e){ toast("Erro ao carregar cadastro da frota: " + e.message, true); });
   }
+
+  function fillContratoSelects(rows){
+    var optsNew = '<option value="">—</option>' + rows.map(function(c){
+      var label = (c.numero_contrato || (c.fornecedores ? c.fornecedores.nome : "Contrato"));
+      return '<option value="' + c.id + '">' + esc(label) + "</option>";
+    }).join("");
+    var selNew = document.getElementById("v-contrato");
+    if (selNew){ var cur = selNew.value; selNew.innerHTML = optsNew; selNew.value = cur; }
+
+    var selFiltro = document.getElementById("frota-filtro-contrato");
+    if (selFiltro){
+      var cur2 = selFiltro.value;
+      selFiltro.innerHTML = '<option value="">Todos os contratos</option>' + rows.map(function(c){
+        var label = (c.numero_contrato || (c.fornecedores ? c.fornecedores.nome : "Contrato"));
+        return '<option value="' + c.id + '">' + esc(label) + "</option>";
+      }).join("");
+      selFiltro.value = cur2;
+    }
+  }
+
+  var STATUS_CONTRATO_CALC_LABEL = { ativo:"Ativo", critico:"Vence em ≤30d", vencido:"Vencido", sem_data:"Sem data" };
+  var STATUS_CONTRATO_CALC_PILL = { ativo:"good", critico:"warn", vencido:"crit", sem_data:"neutral" };
+
+  function renderFrotaKpis(rows){
+    var total = rows.length;
+    var vencendo = rows.filter(function(r){ return r.status_contrato_calc === "critico" || r.status_contrato_calc === "vencido"; }).length;
+    var comExcedente = rows.filter(function(r){ return r.km_excedente != null && r.km_excedente > 0; }).length;
+    var semContrato = rows.filter(function(r){ return !r.contrato_id; }).length;
+    var kpis = [
+      { num: total, label: "Veículos cadastrados", cls: "" },
+      { num: vencendo, label: "Contratos vencendo/vencidos", cls: vencendo ? "warn" : "" },
+      { num: comExcedente, label: "Com KM excedente", cls: comExcedente ? "warn" : "" },
+      { num: semContrato, label: "Sem contrato mapeado", cls: semContrato ? "crit" : "" }
+    ];
+    document.getElementById("frota-kpis").innerHTML = kpis.map(function(k){
+      return '<div class="kpi-card ' + k.cls + '"><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></div>";
+    }).join("");
+  }
+
+  function applyFrotaFiltros(){
+    var f = frotaFiltros;
+    var busca = (f.busca || "").trim().toUpperCase();
+    var rows = cadastroFrotaCache.filter(function(r){
+      if (busca && (r.placa || "").toUpperCase().indexOf(busca) === -1 && (r.modelo_veiculo || "").toUpperCase().indexOf(busca) === -1) return false;
+      if (f.contrato && r.contrato_id !== f.contrato) return false;
+      if (f.chip === "vencendo" && !(r.status_contrato_calc === "critico" || r.status_contrato_calc === "vencido")) return false;
+      if (f.chip === "km_excedente" && !(r.km_excedente != null && r.km_excedente > 0)) return false;
+      if (f.chip === "sem_contrato" && r.contrato_id) return false;
+      return true;
+    });
+    renderVeiculos(rows);
+  }
+
+  document.getElementById("frota-busca").addEventListener("input", function(ev){ frotaFiltros.busca = ev.target.value; applyFrotaFiltros(); });
+  document.getElementById("frota-filtro-contrato").addEventListener("change", function(ev){ frotaFiltros.contrato = ev.target.value; applyFrotaFiltros(); });
+  document.getElementById("frota-filtro-chip").addEventListener("change", function(ev){ frotaFiltros.chip = ev.target.value; applyFrotaFiltros(); });
 
   function renderVeiculos(rows){
     var body = document.getElementById("frota-veic-body");
-    document.getElementById("frota-veic-count").textContent = rows.length + (rows.length === 1 ? " veículo" : " veículos");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="5" class="empty-row">Nenhum veículo cadastrado ainda.</td></tr>'; return; }
+    document.getElementById("frota-veic-count").textContent = rows.length + (rows.length === 1 ? " veículo" : " veículos") +
+      (rows.length !== cadastroFrotaCache.length ? " (de " + cadastroFrotaCache.length + ")" : "");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="11" class="empty-row">Nenhum veículo encontrado.</td></tr>'; return; }
     body.innerHTML = rows.map(function(v){
-      return "<tr><td>" + esc(v.placa) + "</td><td>" + esc(v.modelo || "—") + "</td><td>" + esc(v.tipo_combustivel) + "</td><td>" +
-        esc(v.hubs ? v.hubs.nome : "—") + "</td><td>" + pill(v.status.replace(/_/g," "), STATUS_VEICULO_PILL[v.status]) + "</td></tr>";
+      var kmExc = v.km_excedente;
+      var kmExcStr = kmExc == null ? "—" : Number(kmExc).toLocaleString("pt-BR");
+      var kmExcCls = kmExc != null && kmExc > 0 ? "style=\"color:var(--danger,#c0392b); font-weight:600;\"" : "";
+      return '<tr class="os-row" data-veiculo-id="' + v.veiculo_id + '">' +
+        "<td>" + esc(v.placa) + "</td><td>" + esc(v.contrato || "—") + "</td><td>" + esc(v.locadora || "—") + "</td><td>" +
+        esc(v.modelo_veiculo || "—") + "</td><td>" + esc(v.hub || "—") + "</td><td>" +
+        (v.status_operacional ? pill(v.status_operacional.replace(/_/g," "), STATUS_VEICULO_PILL[v.status_operacional]) : "—") + "</td><td>" +
+        pill(STATUS_CONTRATO_CALC_LABEL[v.status_contrato_calc] || "—", STATUS_CONTRATO_CALC_PILL[v.status_contrato_calc]) + "</td><td class=\"num\">" +
+        (v.dias_restantes != null ? v.dias_restantes : "—") + "</td><td class=\"num\">" +
+        (v.km_atual != null ? Number(v.km_atual).toLocaleString("pt-BR") : "—") + "</td><td class=\"num\" " + kmExcCls + ">" + kmExcStr +
+        "</td><td class=\"num\">" + money(v.valor_mensal) + "</td></tr>";
     }).join("");
+  }
+
+  document.getElementById("frota-veic-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".os-row");
+    if (!tr) return;
+    abrirDetalheVeiculo(tr.dataset.veiculoId);
+  });
+
+  function abrirDetalheVeiculo(veiculoId){
+    var v = cadastroFrotaCache.filter(function(x){ return x.veiculo_id === veiculoId; })[0];
+    if (!v) return;
+    document.getElementById("vd-titulo").textContent = v.placa + (v.modelo_veiculo ? " — " + v.modelo_veiculo : "");
+    document.getElementById("vd-resumo").innerHTML =
+      '<div><div class="k">Contrato</div>' + esc(v.contrato || "—") + '</div>' +
+      '<div><div class="k">Locadora</div>' + esc(v.locadora || "—") + '</div>' +
+      '<div><div class="k">Hub</div>' + esc(v.hub || "—") + '</div>' +
+      '<div><div class="k">Status operacional</div>' + (v.status_operacional ? pill(v.status_operacional.replace(/_/g," "), STATUS_VEICULO_PILL[v.status_operacional]) : "—") + '</div>' +
+      '<div><div class="k">Status do contrato</div>' + pill(STATUS_CONTRATO_CALC_LABEL[v.status_contrato_calc] || "—", STATUS_CONTRATO_CALC_PILL[v.status_contrato_calc]) + '</div>' +
+      '<div><div class="k">Prazo de locação</div>' + (v.prazo_locacao_meses != null ? v.prazo_locacao_meses + " meses" : "—") + '</div>' +
+      '<div><div class="k">Data de retirada</div>' + dateBR(v.data_retirada) + '</div>' +
+      '<div><div class="k">Data prevista de devolução</div>' + dateBR(v.data_prevista_devolucao) + '</div>' +
+      '<div><div class="k">Dias restantes</div>' + (v.dias_restantes != null ? v.dias_restantes : "—") + '</div>' +
+      '<div><div class="k">KM contratado (mensal)</div>' + (v.km_contratado != null ? Number(v.km_contratado).toLocaleString("pt-BR") : "—") + '</div>' +
+      '<div><div class="k">Total KM contratado</div>' + (v.total_km_contratado != null ? Number(v.total_km_contratado).toLocaleString("pt-BR") : "—") + '</div>' +
+      '<div><div class="k">KM atual</div>' + (v.km_atual != null ? Number(v.km_atual).toLocaleString("pt-BR") : "—") + '</div>' +
+      '<div><div class="k">KM excedente</div>' + (v.km_excedente != null ? Number(v.km_excedente).toLocaleString("pt-BR") : "—") + '</div>' +
+      '<div><div class="k">Cobrança do excedente</div>' + esc(v.cobranca_excedente || "—") + '</div>' +
+      '<div><div class="k">Manutenção</div>' + esc(v.manutencao || "—") + '</div>' +
+      '<div><div class="k">Pneus</div>' + esc(v.pneus || "—") + '</div>' +
+      '<div><div class="k">Veículo reserva</div>' + esc(v.veiculo_reserva || "—") + '</div>' +
+      '<div><div class="k">Valor mensal</div>' + money(v.valor_mensal) + '</div>' +
+      '<div><div class="k">Combustível</div>' + esc(v.tipo_combustivel || "—") + '</div>' +
+      '<div><div class="k">Finalidade</div>' + esc(v.finalidade || "—") + '</div>';
+    openModal("modal-veiculo-detalhe");
+  }
+
+  // ---------------- Telemetria Questar/Exodus (elétricos) ----------------
+  function chamarTelemetria(mode){
+    return ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/functions/v1/sync-telemetria-questar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPA_ANON,
+          "Authorization": "Bearer " + (session ? session.access_token : "")
+        },
+        body: JSON.stringify({ mode: mode, days: 3, sample_size: 3 })
+      }).then(function(r){
+        return r.text().then(function(t){
+          var j; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = t; }
+          return { ok: r.ok, status: r.status, body: j };
+        });
+      });
+    });
+  }
+
+  var btnTelemetriaDiag = document.getElementById("btn-telemetria-diag");
+  var btnTelemetriaSync = document.getElementById("btn-telemetria-sync");
+  if (btnTelemetriaDiag){
+    btnTelemetriaDiag.addEventListener("click", function(){
+      var statusEl = document.getElementById("telemetria-status");
+      var rawEl = document.getElementById("telemetria-raw");
+      statusEl.textContent = "Chamando a API da Questar/Exodus…";
+      rawEl.style.display = "none";
+      chamarTelemetria("diag").then(function(res){
+        rawEl.style.display = "block";
+        rawEl.textContent = JSON.stringify(res.body, null, 2);
+        if (!res.ok){
+          statusEl.textContent = "Erro (" + res.status + "). Veja os detalhes abaixo — provavelmente falta configurar o secret QUESTAR_API_TOKEN na função, ou o token/placa não bateu.";
+          return;
+        }
+        statusEl.textContent = "Resposta recebida. Confira abaixo o formato real antes de habilitar a sincronização.";
+      }).catch(function(e){
+        statusEl.textContent = "Falha ao chamar a função: " + e.message;
+      });
+    });
+  }
+  if (btnTelemetriaSync){
+    btnTelemetriaSync.addEventListener("click", function(){
+      var statusEl = document.getElementById("telemetria-status");
+      statusEl.textContent = "Sincronizando KM dos elétricos…";
+      chamarTelemetria("sync").then(function(res){
+        if (!res.ok){ statusEl.textContent = "Erro ao sincronizar: " + JSON.stringify(res.body); return; }
+        statusEl.textContent = "Sincronizado: " + res.body.processados + " de " + res.body.total + " veículos." +
+          (res.body.erros && res.body.erros.length ? " (" + res.body.erros.length + " com erro)" : "");
+        loadFrota();
+      }).catch(function(e){ statusEl.textContent = "Falha ao sincronizar: " + e.message; });
+    });
   }
 
   function renderHubs(rows){
@@ -1463,12 +1660,15 @@
   document.querySelector('[data-form="veiculo"]').addEventListener("submit", function(ev){
     ev.preventDefault();
     setErr("v-err", "");
+    var kmAtual = document.getElementById("v-km-atual").value;
     var body = {
       placa: document.getElementById("v-placa").value.trim().toUpperCase(),
       modelo: document.getElementById("v-modelo").value.trim() || null,
       tipo_combustivel: document.getElementById("v-combustivel").value,
       hub_id: document.getElementById("v-hub").value || null,
-      status: document.getElementById("v-status").value
+      status: document.getElementById("v-status").value,
+      contrato_id: document.getElementById("v-contrato").value || null,
+      km_atual: kmAtual ? parseFloat(kmAtual) : null
     };
     rest("veiculos", {method:"POST", body: body}).then(function(){
       toast("Veículo " + body.placa + " cadastrado.");
@@ -1570,7 +1770,7 @@
       previsao_retorno: document.getElementById("os-previsao").value || null,
       cobertura: document.getElementById("os-cobertura").value,
       observacoes: document.getElementById("os-obs").value.trim() || null,
-      status: agendada ? "agendada" : "aberta"
+      status: agendada ? "agendada" : "aguardando_agendamento"
     };
     rest("ordens_servico", {method:"POST", body: body}).then(function(rows){
       toast(agendada ? "OS agendada com sucesso (carro segue disponível)." : "OS aberta com sucesso — carro marcado indisponível.");
