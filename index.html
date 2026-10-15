@@ -84,6 +84,7 @@
   .navbtn.active{ background:var(--accent-soft); color:var(--accent); }
   .navbtn .dot{ width:7px; height:7px; border-radius:999px; background:var(--line-strong); flex:none; }
   .navbtn.active .dot{ background:var(--accent); }
+  .nav-badge{ margin-left:auto; background:var(--critical); color:#fff; font-size:10.5px; font-weight:700; border-radius:999px; padding:1px 7px; }
   .sidebar-foot{ margin-top:auto; border-top:1px solid var(--line); padding-top:12px; }
   .user-chip{ display:flex; align-items:center; gap:8px; padding:6px 8px; }
   .user-chip .av{ width:26px; height:26px; border-radius:999px; background:var(--surface-2); color:var(--ink); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex:none; }
@@ -128,6 +129,26 @@
   .inline-add{ border-top:1px dashed var(--line-strong); padding:14px 16px; background:var(--surface-2); }
   .inline-add-trigger{ font-size:12.5px; color:var(--accent); font-weight:600; background:none; border:none; padding:0; }
 
+  .kpi-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
+  .kpi-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; }
+  .kpi-card .kpi-num{ font-family:var(--font-display); font-size:21px; font-weight:800; line-height:1.15; }
+  .kpi-card .kpi-label{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .kpi-card.crit .kpi-num{ color:var(--critical); }
+  .kpi-card.warn .kpi-num{ color:var(--warning); }
+  .kpi-card.good .kpi-num{ color:var(--good); }
+  .filter-select{ font-size:12.5px; padding:5px 8px; border:1px solid var(--line-strong); border-radius:6px; background:var(--surface); color:var(--ink); }
+  .os-row{ cursor:pointer; }
+  .os-row:hover td{ background:var(--surface-2); }
+  .anexo-chip{ display:inline-flex; align-items:center; gap:4px; font-size:11.5px; background:var(--surface-2); border-radius:999px; padding:2px 8px; margin:0 4px 4px 0; text-decoration:none; color:var(--ink); }
+  .anexo-chip:hover{ background:var(--accent-soft); color:var(--accent); }
+  .detail-section{ margin-top:4px; }
+  .detail-section h4{ font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin:18px 0 8px; }
+  .detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; font-size:13px; }
+  .detail-grid .k{ color:var(--muted); font-size:11.5px; }
+  .file-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .checklist-item{ display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; }
+  .checklist-item input{ width:15px; height:15px; flex:none; }
+  .checklist-item.done span{ color:var(--muted); text-decoration:line-through; }
   .roadmap-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px; }
   .roadmap-card .tag{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); background:var(--surface-2); padding:3px 9px; border-radius:999px; margin-bottom:12px; }
   .roadmap-card ul{ margin:10px 0 0; padding-left:18px; font-size:13px; color:var(--ink); line-height:1.7; }
@@ -237,14 +258,30 @@
     <!-- MANUTENÇÃO -->
     <section class="panel" data-panel="manutencao">
       <div class="topline"><h1>Manutenções</h1></div>
-      <p class="section-desc">Ordens de serviço, oficinas e tempo parado por veículo.</p>
+      <p class="section-desc">Ordens de serviço, oficinas e tempo parado por veículo. Clique numa OS para ver detalhes, anexar orçamento/NF ou fechar.</p>
+
+      <div class="kpi-row" id="man-kpis"></div>
 
       <div class="card">
-        <div class="card-head"><h2>Ordens de serviço</h2><span class="count" id="man-os-count"></span></div>
+        <div class="card-head">
+          <h2>Ordens de serviço</h2>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <select id="man-os-filtro" class="filter-select">
+              <option value="ativas" selected>Ativas (carro parado)</option>
+              <option value="agendadas">Agendadas (futuro)</option>
+              <option value="concluidas">Concluídas/canceladas</option>
+              <option value="todas">Todas</option>
+            </select>
+            <span class="count" id="man-os-count"></span>
+          </div>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Veículo</th><th>Tipo</th><th>Status</th><th>Parou em</th><th>Oficina</th><th>Cobertura</th><th class="num">Valor</th></tr></thead>
-            <tbody id="man-os-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr>
+              <th>Placa</th><th>Locadora</th><th>Hub</th><th>Motivo</th><th>Veículo</th>
+              <th>Parou em</th><th>Dias parado</th><th>Previsão retorno</th><th>Oficina</th><th>Anexos</th>
+            </tr></thead>
+            <tbody id="man-os-body"><tr><td colspan="10" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
         <div class="inline-add" data-edit="manutencao">
@@ -262,6 +299,48 @@
         </div>
         <div class="inline-add" data-edit="manutencao">
           <button class="inline-add-trigger" data-open-modal="modal-oficina">+ Nova oficina</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>SLA por oficina</h2><span class="count" id="man-sla-count"></span></div>
+        <p class="section-desc" style="margin:-4px 0 0; padding:0 16px 12px;">Só considera OS já concluídas com previsão de retorno informada.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Oficina</th><th>OS concluídas</th><th class="num">Atraso médio (dias)</th><th class="num">% no prazo</th></tr></thead>
+            <tbody id="man-sla-body"><tr><td colspan="4" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Ranking de quebras por placa</h2><span class="count" id="man-ranking-count"></span></div>
+        <p class="section-desc" style="margin:-4px 0 0; padding:0 16px 12px;">Considera apenas OS do tipo corretiva ou sinistro.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Placa</th><th class="num">Qtde quebras</th><th class="num">Dias parado (total)</th></tr></thead>
+            <tbody id="man-ranking-body"><tr><td colspan="3" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Custo de manutenção por veículo</h2><span class="count" id="man-custo-veic-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Placa</th><th>Hub</th><th class="num">Qtde OS</th><th class="num">Custo total</th></tr></thead>
+            <tbody id="man-custo-veic-body"><tr><td colspan="4" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Custo de manutenção por oficina</h2><span class="count" id="man-custo-of-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Oficina</th><th class="num">Qtde OS</th><th class="num">Custo total</th></tr></thead>
+            <tbody id="man-custo-of-body"><tr><td colspan="3" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -444,12 +523,21 @@
     <form data-form="os">
       <div class="form-grid">
         <div class="field span2"><label for="os-veiculo">Veículo</label><select id="os-veiculo" required><option value="">Selecione…</option></select></div>
+        <div class="field span2">
+          <label for="os-quando">Quando</label>
+          <select id="os-quando">
+            <option value="agora">O carro já parou agora</option>
+            <option value="agendada">Serviço futuro — carro ainda disponível (agenda a OS sem indisponibilizar)</option>
+          </select>
+        </div>
         <div class="field"><label for="os-tipo">Tipo</label>
           <select id="os-tipo"><option value="corretiva">Corretiva</option><option value="preventiva">Preventiva</option><option value="sinistro">Sinistro</option><option value="pneu">Pneu</option><option value="outro">Outro</option></select>
         </div>
-        <div class="field"><label for="os-data-parou">Parou em</label><input id="os-data-parou" type="datetime-local" required></div>
-        <div class="field span2"><label for="os-motivo">Motivo</label><input id="os-motivo" placeholder="Ex.: ruído no motor, pane elétrica…"></div>
+        <div class="field" id="os-data-parou-wrap"><label for="os-data-parou">Parou em</label><input id="os-data-parou" type="datetime-local" required></div>
+        <div class="field span2"><label for="os-motivo">Motivo / tratativa</label><input id="os-motivo" placeholder="Ex.: ruído no motor, funilaria, revisão de km…"></div>
         <div class="field"><label for="os-oficina">Oficina (opcional)</label><select id="os-oficina"><option value="">—</option></select></div>
+        <div class="field"><label for="os-contato">Contato da oficina (opcional)</label><input id="os-contato" placeholder="Nome / telefone"></div>
+        <div class="field"><label for="os-previsao">Previsão de retorno (opcional)</label><input id="os-previsao" type="date"></div>
         <div class="field"><label for="os-cobertura">Cobertura</label>
           <select id="os-cobertura"><option value="a_definir">A definir</option><option value="garantia_fabrica">Garantia fábrica</option><option value="garantia_oficina">Garantia oficina</option><option value="seguradora">Seguradora</option><option value="beep_saude">Beep Saúde</option></select>
         </div>
@@ -457,6 +545,63 @@
       </div>
       <div class="field-err" id="os-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Abrir OS</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-os-detalhe" hidden>
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3 id="osd-titulo">OS</h3><button class="modal-close" data-close-modal>×</button></div>
+
+    <div class="detail-grid" id="osd-resumo"></div>
+
+    <div class="detail-section">
+      <h4>Checklist</h4>
+      <div id="osd-checklist"></div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Anexos (orçamento, NF, fotos)</h4>
+      <div class="file-row" id="osd-anexos"></div>
+      <div class="file-row" style="margin-top:8px;" data-edit="manutencao">
+        <select id="osd-anexo-tipo" class="filter-select">
+          <option value="orcamento">Orçamento</option>
+          <option value="nota_fiscal">Nota fiscal</option>
+          <option value="foto">Foto</option>
+          <option value="outro">Outro</option>
+        </select>
+        <input type="file" id="osd-anexo-arquivo">
+        <button type="button" class="btn" id="osd-anexo-enviar" style="width:auto;">Anexar</button>
+      </div>
+    </div>
+
+    <form id="osd-form" data-edit="manutencao">
+      <h4>Atualizar OS</h4>
+      <div class="form-grid">
+        <div class="field"><label for="osd-status">Status</label>
+          <select id="osd-status">
+            <option value="agendada">Agendada</option>
+            <option value="aberta">Aberta</option>
+            <option value="aguardando_oficina">Aguardando oficina</option>
+            <option value="em_reparo">Em reparo</option>
+            <option value="aguardando_peca">Aguardando peça</option>
+            <option value="concluida">Concluída</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+        </div>
+        <div class="field"><label for="osd-data-parou">Parou em</label><input id="osd-data-parou" type="datetime-local"></div>
+        <div class="field"><label for="osd-valor">Valor total (R$)</label><input id="osd-valor" type="number" step="0.01"></div>
+        <div class="field"><label for="osd-previsao">Previsão de retorno</label><input id="osd-previsao" type="date"></div>
+        <div class="field"><label for="osd-liberacao">Data de liberação (real)</label><input id="osd-liberacao" type="date"></div>
+        <div class="field"><label for="osd-oficina">Oficina</label><select id="osd-oficina"><option value="">—</option></select></div>
+        <div class="field"><label for="osd-contato">Contato da oficina</label><input id="osd-contato"></div>
+        <div class="field span2"><label for="osd-obs">Observações</label><textarea id="osd-obs" rows="2"></textarea></div>
+      </div>
+      <div class="field-err" id="osd-err" hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="osd-fechar-os" data-edit="manutencao">Fechar OS agora</button>
+        <button type="submit" class="btn btn-primary" style="width:auto">Salvar</button>
+      </div>
     </form>
   </div>
 </div>
@@ -751,12 +896,13 @@
     visible.forEach(function(m, i){
       var b = document.createElement("button");
       b.className = "navbtn";
-      b.innerHTML = '<span class="dot"></span>' + esc(m.label);
+      b.innerHTML = '<span class="dot"></span>' + esc(m.label) + '<span class="nav-badge" id="nav-badge-' + m.key + '" hidden></span>';
       b.addEventListener("click", function(){ showPanel(m.key); });
       b.dataset.mod = m.key;
       nav.appendChild(b);
     });
     showPanel(visible[0].key);
+    atualizarBadgeManutencaoInicial();
   }
 
   function showPanel(key){
@@ -772,7 +918,7 @@
       el.hidden = !canEdit(el.dataset.edit);
     });
     if (key === "frota") loadFrota();
-    if (key === "manutencao") loadManutencao();
+    if (key === "manutencao") loadManutencao(true);
     if (key === "multas") loadMultas();
     if (key === "financeiro") loadFinanceiro();
     if (key === "eletrificacao") loadEletrificacao();
@@ -783,7 +929,7 @@
     disponivel:"good", indisponivel:"crit", em_mobilizacao:"warn", desmobilizar:"warn", devolvido:"neutral", fora_de_operacao:"crit"
   };
   var STATUS_OS_PILL = {
-    aberta:"warn", aguardando_oficina:"warn", em_reparo:"warn", aguardando_peca:"warn", concluida:"good", cancelada:"neutral"
+    agendada:"neutral", aberta:"warn", aguardando_oficina:"warn", em_reparo:"warn", aguardando_peca:"warn", concluida:"good", cancelada:"neutral"
   };
   function pill(text, cls){ return '<span class="pill ' + (cls||"neutral") + '">' + esc(text) + "</span>"; }
 
@@ -855,33 +1001,136 @@
   }
 
   // ---------------- Manutenção ----------------
-  function loadManutencao(){
+  var osCache = [];        // última leitura completa de ordens_servico
+  var oficinasCache = [];
+  var OS_FECHADAS = ["concluida","cancelada"];
+
+  function loadManutencao(avisarVencidas){
     rest("veiculos?select=id,placa&order=placa").then(function(rows){
       var sel = document.getElementById("os-veiculo");
       sel.innerHTML = '<option value="">Selecione…</option>' + rows.map(function(v){ return '<option value="' + v.id + '">' + esc(v.placa) + "</option>"; }).join("");
     }).catch(function(){});
 
     rest("oficinas?select=id,nome,hubs(nome),avaliacao_media&order=nome").then(function(rows){
+      oficinasCache = rows || [];
       renderOficinas(rows);
-      var sel = document.getElementById("os-oficina");
-      sel.innerHTML = '<option value="">—</option>' + rows.map(function(o){ return '<option value="' + o.id + '">' + esc(o.nome) + "</option>"; }).join("");
+      ["os-oficina","osd-oficina"].forEach(function(id){
+        var sel = document.getElementById(id);
+        sel.innerHTML = '<option value="">—</option>' + rows.map(function(o){ return '<option value="' + o.id + '">' + esc(o.nome) + "</option>"; }).join("");
+      });
     }).catch(function(e){ toast("Erro ao carregar oficinas: " + e.message, true); });
 
-    rest("ordens_servico?select=tipo,status,data_parou,cobertura,valor_total,veiculos(placa),oficinas(nome)&order=created_at.desc&limit=100").then(function(rows){
-      renderOS(rows);
-    }).catch(function(e){ toast("Erro ao carregar ordens de serviço: " + e.message, true); });
+    carregarOS(avisarVencidas);
+    carregarSlaOficina();
+    carregarRankingQuebra();
+    carregarCustoManutencao();
   }
+
+  var anexosCountById = {};
+
+  function carregarOS(avisarVencidas){
+    rest("ordens_servico?select=id,tipo,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
+      .then(function(rows){
+        osCache = rows || [];
+        renderKpisManutencao(rows);
+        aplicarBadgeManutencao(rows);
+        if (avisarVencidas) avisarOSVencidas(rows);
+        return rest("os_anexos?select=os_id");
+      }).then(function(anexos){
+        anexosCountById = {};
+        (anexos || []).forEach(function(a){ anexosCountById[a.os_id] = (anexosCountById[a.os_id] || 0) + 1; });
+        renderOSFiltrado();
+      }).catch(function(e){ toast("Erro ao carregar ordens de serviço: " + e.message, true); });
+  }
+
+  // ---------------- alerta de previsão de retorno vencida ----------------
+  function osVencidas(rows){
+    var agora = new Date();
+    return rows.filter(function(o){
+      return o.previsao_retorno && o.status !== "agendada" && OS_FECHADAS.indexOf(o.status) === -1 && new Date(o.previsao_retorno) < agora;
+    });
+  }
+
+  function aplicarBadgeManutencao(rows){
+    var el = document.getElementById("nav-badge-manutencao");
+    if (!el) return;
+    var n = osVencidas(rows).length;
+    if (n > 0){ el.textContent = n; el.hidden = false; } else { el.hidden = true; }
+  }
+
+  function avisarOSVencidas(rows){
+    var vencidas = osVencidas(rows);
+    if (!vencidas.length) return;
+    var placas = vencidas.slice(0,4).map(function(o){ return o.veiculos ? o.veiculos.placa : "—"; }).join(", ");
+    var resto = vencidas.length > 4 ? " e mais " + (vencidas.length - 4) : "";
+    toast((vencidas.length === 1 ? "1 OS com previsão de retorno vencida: " : vencidas.length + " OS com previsão de retorno vencida: ") + placas + resto + ".", true);
+  }
+
+  // Badge no menu lateral calculado assim que o usuário loga, sem precisar abrir o módulo.
+  function atualizarBadgeManutencaoInicial(){
+    if (!canView("manutencao")) return;
+    rest("ordens_servico?select=id,previsao_retorno,status,veiculos(placa)&status=not.in.(concluida,cancelada,agendada)&previsao_retorno=not.is.null")
+      .then(aplicarBadgeManutencao)
+      .catch(function(){});
+  }
+
+  function diasEntre(a, b){
+    return Math.max(0, Math.round((b - a) / 86400000));
+  }
+
+  function renderKpisManutencao(rows){
+    var agora = new Date();
+    var ativas = rows.filter(function(o){ return OS_FECHADAS.indexOf(o.status) === -1 && o.status !== "agendada" && o.data_parou; });
+    var agendadas = rows.filter(function(o){ return o.status === "agendada"; });
+    var somaDias = ativas.reduce(function(s,o){ return s + diasEntre(new Date(o.data_parou), agora); }, 0);
+    var mediaDias = ativas.length ? (somaDias/ativas.length).toFixed(1) : "0";
+    var atrasadas = ativas.filter(function(o){ return o.previsao_retorno && new Date(o.previsao_retorno) < agora; });
+    var kpis = [
+      {label:"Indisponíveis agora", num:ativas.length, cls:ativas.length ? "crit" : "good"},
+      {label:"Dias parado (média)", num:mediaDias, cls:"warn"},
+      {label:"Previsão vencida", num:atrasadas.length, cls:atrasadas.length ? "crit" : "good"},
+      {label:"OS agendadas (futuro)", num:agendadas.length, cls:"neutral"}
+    ];
+    document.getElementById("man-kpis").innerHTML = kpis.map(function(k){
+      return '<div class="kpi-card ' + k.cls + '"><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></div>";
+    }).join("");
+  }
+
+  function renderOSFiltrado(){
+    var filtro = document.getElementById("man-os-filtro").value;
+    var rows = osCache.filter(function(o){
+      if (filtro === "ativas") return o.status !== "agendada" && OS_FECHADAS.indexOf(o.status) === -1;
+      if (filtro === "agendadas") return o.status === "agendada";
+      if (filtro === "concluidas") return OS_FECHADAS.indexOf(o.status) > -1;
+      return true;
+    });
+    renderOS(rows);
+  }
+
+  document.getElementById("man-os-filtro").addEventListener("change", renderOSFiltrado);
 
   function renderOS(rows){
     var body = document.getElementById("man-os-body");
     document.getElementById("man-os-count").textContent = rows.length + (rows.length === 1 ? " OS" : " OS");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma ordem de serviço aberta ainda.</td></tr>'; return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="10" class="empty-row">Nenhuma OS nesse filtro.</td></tr>'; return; }
+    var agora = new Date();
     body.innerHTML = rows.map(function(o){
-      var data = o.data_parou ? new Date(o.data_parou).toLocaleString("pt-BR", {dateStyle:"short", timeStyle:"short"}) : "—";
-      return "<tr><td>" + esc(o.veiculos ? o.veiculos.placa : "—") + "</td><td>" + esc(o.tipo) + "</td><td>" +
-        pill(o.status.replace(/_/g," "), STATUS_OS_PILL[o.status]) + "</td><td>" + esc(data) + "</td><td>" +
-        esc(o.oficinas ? o.oficinas.nome : "—") + "</td><td>" + esc((o.cobertura||"a_definir").replace(/_/g," ")) + "</td><td class=\"num\">" +
-        (o.valor_total != null ? "R$ " + Number(o.valor_total).toLocaleString("pt-BR", {minimumFractionDigits:2}) : "—") + "</td></tr>";
+      var v = o.veiculos || {};
+      var dias = o.data_parou ? diasEntre(new Date(o.data_parou), o.data_liberacao ? new Date(o.data_liberacao) : agora) : null;
+      var previsaoVencida = o.previsao_retorno && OS_FECHADAS.indexOf(o.status) === -1 && new Date(o.previsao_retorno) < agora;
+      var statusVeiculoPill = v.status ? pill(v.status.replace(/_/g," "), STATUS_VEICULO_PILL[v.status]) : "—";
+      return '<tr class="os-row" data-os-id="' + o.id + '">' +
+        "<td>" + esc(v.placa || "—") + "</td>" +
+        "<td>" + esc(v.fornecedores ? v.fornecedores.nome : "—") + "</td>" +
+        "<td>" + esc(v.hubs ? v.hubs.nome : "—") + "</td>" +
+        "<td>" + pill(o.tipo, {sinistro:"crit",corretiva:"warn",preventiva:"good",pneu:"neutral",outro:"neutral"}[o.tipo]) + " " + esc(o.motivo || "") + "</td>" +
+        "<td>" + statusVeiculoPill + "</td>" +
+        "<td>" + (o.data_parou ? dateBR(o.data_parou) : "—") + "</td>" +
+        "<td>" + (dias != null ? dias : "—") + "</td>" +
+        "<td>" + (o.previsao_retorno ? ('<span' + (previsaoVencida ? ' style="color:var(--critical);font-weight:600;"' : '') + '>' + dateBR(o.previsao_retorno) + "</span>") : "—") + "</td>" +
+        "<td>" + esc(o.oficinas ? o.oficinas.nome : "—") + "</td>" +
+        "<td>" + (anexosCountById[o.id] ? ('📎 ' + anexosCountById[o.id]) : "—") + "</td>" +
+      "</tr>";
     }).join("");
   }
 
@@ -892,6 +1141,53 @@
     body.innerHTML = rows.map(function(o){
       return "<tr><td>" + esc(o.nome) + "</td><td>" + esc(o.hubs ? o.hubs.nome : "—") + "</td><td>" + (o.avaliacao_media != null ? Number(o.avaliacao_media).toFixed(1) : "—") + "</td></tr>";
     }).join("");
+  }
+
+  function carregarSlaOficina(){
+    rest("v_sla_oficina?select=*&order=dias_medio_atraso.desc.nullslast").then(function(rows){
+      var body = document.getElementById("man-sla-body");
+      document.getElementById("man-sla-count").textContent = rows.length + (rows.length === 1 ? " oficina" : " oficinas");
+      if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="empty-row">Ainda não há OS concluídas suficientes.</td></tr>'; return; }
+      body.innerHTML = rows.map(function(r){
+        var atrasoNum = r.dias_medio_atraso != null ? Number(r.dias_medio_atraso) : null;
+        var atrasoCls = atrasoNum > 2 ? "crit" : (atrasoNum > 0 ? "warn" : "good");
+        return "<tr><td>" + esc(r.oficina_nome) + "</td><td>" + r.qtd_os_concluidas + "</td><td class=\"num\">" +
+          (atrasoNum != null ? pill(atrasoNum.toFixed(1), atrasoCls) : "—") + "</td><td class=\"num\">" +
+          (r.pct_no_prazo != null ? Number(r.pct_no_prazo).toFixed(0) + "%" : "—") + "</td></tr>";
+      }).join("");
+    }).catch(function(e){ toast("Erro ao carregar SLA de oficinas: " + e.message, true); });
+  }
+
+  function carregarRankingQuebra(){
+    rest("v_ranking_quebras_por_placa?select=placa,qtd_quebras,dias_parado_total&order=qtd_quebras.desc&limit=20").then(function(rows){
+      var body = document.getElementById("man-ranking-body");
+      document.getElementById("man-ranking-count").textContent = rows.length + (rows.length === 1 ? " placa" : " placas");
+      if (!rows.length){ body.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhuma quebra registrada ainda.</td></tr>'; return; }
+      body.innerHTML = rows.map(function(r){
+        return "<tr><td>" + esc(r.placa) + "</td><td class=\"num\">" + r.qtd_quebras + "</td><td class=\"num\">" +
+          Math.round(Number(r.dias_parado_total)) + "</td></tr>";
+      }).join("");
+    }).catch(function(e){ toast("Erro ao carregar ranking de quebras: " + e.message, true); });
+  }
+
+  function carregarCustoManutencao(){
+    rest("v_custo_manutencao_por_veiculo?select=placa,hub_nome,qtd_os,custo_total&order=custo_total.desc&limit=15").then(function(rows){
+      var body = document.getElementById("man-custo-veic-body");
+      document.getElementById("man-custo-veic-count").textContent = rows.length + (rows.length === 1 ? " veículo" : " veículos");
+      if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="empty-row">Sem dados ainda.</td></tr>'; return; }
+      body.innerHTML = rows.map(function(r){
+        return "<tr><td>" + esc(r.placa) + "</td><td>" + esc(r.hub_nome || "—") + "</td><td class=\"num\">" + r.qtd_os + "</td><td class=\"num\">" + money(r.custo_total) + "</td></tr>";
+      }).join("");
+    }).catch(function(e){ toast("Erro ao carregar custo por veículo: " + e.message, true); });
+
+    rest("v_custo_manutencao_por_oficina?select=oficina_nome,qtd_os,custo_total&order=custo_total.desc&limit=15").then(function(rows){
+      var body = document.getElementById("man-custo-of-body");
+      document.getElementById("man-custo-of-count").textContent = rows.length + (rows.length === 1 ? " oficina" : " oficinas");
+      if (!rows.length){ body.innerHTML = '<tr><td colspan="3" class="empty-row">Sem dados ainda.</td></tr>'; return; }
+      body.innerHTML = rows.map(function(r){
+        return "<tr><td>" + esc(r.oficina_nome) + "</td><td class=\"num\">" + r.qtd_os + "</td><td class=\"num\">" + money(r.custo_total) + "</td></tr>";
+      }).join("");
+    }).catch(function(e){ toast("Erro ao carregar custo por oficina: " + e.message, true); });
   }
 
   // ---------------- Multas ----------------
@@ -1250,27 +1546,222 @@
     }).catch(function(e){ setErr("of-err", e.message); });
   });
 
+  document.getElementById("os-quando").addEventListener("change", function(){
+    var agendada = this.value === "agendada";
+    document.getElementById("os-data-parou-wrap").style.display = agendada ? "none" : "";
+    document.getElementById("os-data-parou").required = !agendada;
+  });
+
   document.querySelector('[data-form="os"]').addEventListener("submit", function(ev){
     ev.preventDefault();
     setErr("os-err", "");
     var veiculo = document.getElementById("os-veiculo").value;
     if (!veiculo){ setErr("os-err", "Selecione o veículo."); return; }
+    var agendada = document.getElementById("os-quando").value === "agendada";
+    var dataParouVal = document.getElementById("os-data-parou").value;
+    if (!agendada && !dataParouVal){ setErr("os-err", "Informe quando o carro parou, ou marque como serviço futuro."); return; }
     var body = {
       veiculo_id: veiculo,
       tipo: document.getElementById("os-tipo").value,
       motivo: document.getElementById("os-motivo").value.trim() || null,
-      data_parou: new Date(document.getElementById("os-data-parou").value).toISOString(),
+      data_parou: agendada ? null : new Date(dataParouVal).toISOString(),
       oficina_id: document.getElementById("os-oficina").value || null,
+      contato_oficina: document.getElementById("os-contato").value.trim() || null,
+      previsao_retorno: document.getElementById("os-previsao").value || null,
       cobertura: document.getElementById("os-cobertura").value,
       observacoes: document.getElementById("os-obs").value.trim() || null,
-      status: "aberta"
+      status: agendada ? "agendada" : "aberta"
     };
-    rest("ordens_servico", {method:"POST", body: body}).then(function(){
-      toast("OS aberta com sucesso.");
+    rest("ordens_servico", {method:"POST", body: body}).then(function(rows){
+      toast(agendada ? "OS agendada com sucesso (carro segue disponível)." : "OS aberta com sucesso — carro marcado indisponível.");
+      if (rows && rows[0]) clonarChecklistPadrao(rows[0].id, body.tipo);
       document.getElementById("modal-os").hidden = true;
       ev.target.reset();
+      document.getElementById("os-data-parou-wrap").style.display = "";
       loadManutencao();
     }).catch(function(e){ setErr("os-err", e.message); });
+  });
+
+  // ---------------- detalhe de OS / fechamento / anexos ----------------
+  var osdAtual = null;
+
+  document.getElementById("man-os-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".os-row");
+    if (!tr) return;
+    abrirDetalheOS(tr.dataset.osId);
+  });
+
+  function abrirDetalheOS(osId){
+    var o = osCache.filter(function(x){ return x.id === osId; })[0];
+    if (!o) return;
+    osdAtual = o;
+    var v = o.veiculos || {};
+    document.getElementById("osd-titulo").textContent = (v.placa || "OS") + " — " + (o.tipo || "");
+    document.getElementById("osd-resumo").innerHTML =
+      '<div><div class="k">Locadora</div>' + esc(v.fornecedores ? v.fornecedores.nome : "—") + '</div>' +
+      '<div><div class="k">Hub</div>' + esc(v.hubs ? v.hubs.nome : "—") + '</div>' +
+      '<div><div class="k">Status do veículo</div>' + (v.status ? pill(v.status.replace(/_/g," "), STATUS_VEICULO_PILL[v.status]) : "—") + '</div>' +
+      '<div><div class="k">Status da OS</div>' + pill(o.status.replace(/_/g," "), STATUS_OS_PILL[o.status]) + '</div>' +
+      '<div><div class="k">Parou em</div>' + (o.data_parou ? dateBR(o.data_parou) : "— (agendada)") + '</div>' +
+      '<div><div class="k">Entrada na oficina</div>' + dateBR(o.data_entrada_oficina) + '</div>' +
+      '<div><div class="k">Data de liberação real</div>' + dateBR(o.data_liberacao) + '</div>' +
+      '<div><div class="k">Valor total</div>' + money(o.valor_total) + '</div>';
+
+    document.getElementById("osd-status").value = o.status;
+    document.getElementById("osd-data-parou").value = o.data_parou ? o.data_parou.slice(0,16) : "";
+    document.getElementById("osd-valor").value = o.valor_total != null ? o.valor_total : "";
+    document.getElementById("osd-previsao").value = o.previsao_retorno || "";
+    document.getElementById("osd-liberacao").value = o.data_liberacao ? o.data_liberacao.slice(0,10) : "";
+    document.getElementById("osd-oficina").value = (o.oficinas && o.oficinas.id) || "";
+    document.getElementById("osd-contato").value = o.contato_oficina || "";
+    document.getElementById("osd-obs").value = o.observacoes || "";
+    setErr("osd-err", "");
+
+    carregarAnexosOS(osId);
+    carregarChecklistOS(osId);
+    openModal("modal-os-detalhe");
+  }
+
+  document.getElementById("osd-form").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    if (!osdAtual) return;
+    setErr("osd-err", "");
+    var novoStatus = document.getElementById("osd-status").value;
+    var dataParouVal = document.getElementById("osd-data-parou").value;
+    if (novoStatus !== "agendada" && !dataParouVal){
+      setErr("osd-err", "Informe quando o carro parou (obrigatório fora do status agendada).");
+      return;
+    }
+    var body = {
+      status: novoStatus,
+      data_parou: dataParouVal ? new Date(dataParouVal).toISOString() : null,
+      valor_total: document.getElementById("osd-valor").value ? parseFloat(document.getElementById("osd-valor").value) : null,
+      previsao_retorno: document.getElementById("osd-previsao").value || null,
+      data_liberacao: document.getElementById("osd-liberacao").value ? new Date(document.getElementById("osd-liberacao").value).toISOString() : null,
+      oficina_id: document.getElementById("osd-oficina").value || null,
+      contato_oficina: document.getElementById("osd-contato").value.trim() || null,
+      observacoes: document.getElementById("osd-obs").value.trim() || null
+    };
+    if (body.status === "concluida" && !body.data_liberacao) body.data_liberacao = new Date().toISOString();
+    if (body.status === "concluida" && !osdAtual.data_conclusao) body.data_conclusao = new Date().toISOString();
+    rest("ordens_servico?id=eq." + osdAtual.id, {method:"PATCH", body: body}).then(function(){
+      toast("OS atualizada.");
+      document.getElementById("modal-os-detalhe").hidden = true;
+      carregarOS();
+    }).catch(function(e){ setErr("osd-err", e.message); });
+  });
+
+  document.getElementById("osd-fechar-os").addEventListener("click", function(){
+    if (!osdAtual) return;
+    document.getElementById("osd-status").value = "concluida";
+    if (!document.getElementById("osd-liberacao").value) document.getElementById("osd-liberacao").value = new Date().toISOString().slice(0,10);
+    document.getElementById("osd-form").requestSubmit();
+  });
+
+  // ---------------- anexos (Supabase Storage, bucket os-anexos) ----------------
+  var ANEXO_TIPO_LABEL = { orcamento:"Orçamento", nota_fiscal:"Nota fiscal", foto:"Foto", outro:"Outro" };
+
+  // ---------------- checklist por tipo de serviço ----------------
+  function carregarChecklistOS(osId){
+    var host = document.getElementById("osd-checklist");
+    host.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Carregando…</span>';
+    rest("os_checklist_itens?os_id=eq." + osId + "&select=*&order=ordem").then(function(rows){
+      if (!rows.length){ host.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Sem itens de checklist para esta OS.</span>'; return; }
+      host.innerHTML = rows.map(function(it){
+        return '<label class="checklist-item' + (it.concluido ? ' done' : '') + '" data-item-id="' + it.id + '">' +
+          '<input type="checkbox" ' + (it.concluido ? "checked" : "") + (canEdit("manutencao") ? "" : " disabled") + '>' +
+          '<span>' + esc(it.item) + '</span></label>';
+      }).join("");
+    }).catch(function(e){ host.innerHTML = '<span style="color:var(--critical);font-size:12.5px;">Erro ao carregar checklist: ' + esc(e.message) + '</span>'; });
+  }
+
+  document.getElementById("osd-checklist").addEventListener("change", function(ev){
+    var label = ev.target.closest(".checklist-item");
+    if (!label) return;
+    var itemId = label.dataset.itemId;
+    var concluido = ev.target.checked;
+    rest("os_checklist_itens?id=eq." + itemId, {method:"PATCH", body:{concluido: concluido}}).then(function(){
+      label.classList.toggle("done", concluido);
+    }).catch(function(e){ toast("Erro ao atualizar checklist: " + e.message, true); ev.target.checked = !concluido; });
+  });
+
+  // Clona o checklist padrão do tipo de serviço para uma OS recém-criada.
+  function clonarChecklistPadrao(osId, tipo){
+    rest("checklist_padrao_tipo?tipo=eq." + tipo + "&select=item,ordem&order=ordem").then(function(itens){
+      if (!itens.length) return;
+      var body = itens.map(function(it){ return {os_id: osId, item: it.item, ordem: it.ordem}; });
+      return rest("os_checklist_itens", {method:"POST", body: body});
+    }).catch(function(){ /* checklist é um complemento; falha aqui não deve travar a abertura da OS */ });
+  }
+
+  function carregarAnexosOS(osId){
+    var host = document.getElementById("osd-anexos");
+    host.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Carregando…</span>';
+    rest("os_anexos?os_id=eq." + osId + "&select=*&order=created_at.desc").then(function(rows){
+      if (!rows.length){ host.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Nenhum anexo ainda.</span>'; return; }
+      host.innerHTML = rows.map(function(a){
+        return '<a class="anexo-chip" href="#" data-storage-path="' + esc(a.storage_path) + '" data-nome="' + esc(a.nome_arquivo) + '">' +
+          '📎 ' + esc(ANEXO_TIPO_LABEL[a.tipo] || a.tipo) + ': ' + esc(a.nome_arquivo) + '</a>';
+      }).join("");
+    }).catch(function(e){ host.innerHTML = '<span style="color:var(--critical);font-size:12.5px;">Erro ao carregar anexos: ' + esc(e.message) + '</span>'; });
+  }
+
+  document.getElementById("osd-anexos").addEventListener("click", function(ev){
+    var chip = ev.target.closest("[data-storage-path]");
+    if (!chip) return;
+    ev.preventDefault();
+    baixarAnexo(chip.dataset.storagePath, chip.dataset.nome);
+  });
+
+  function baixarAnexo(path, nomeArquivo){
+    ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/os-anexos/" + path, {
+        headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : "") }
+      });
+    }).then(function(r){
+      if (!r.ok) throw new Error("Erro " + r.status);
+      return r.blob();
+    }).then(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = nomeArquivo; a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    }).catch(function(e){ toast("Erro ao baixar anexo: " + e.message, true); });
+  }
+
+  document.getElementById("osd-anexo-enviar").addEventListener("click", function(){
+    if (!osdAtual) return;
+    var input = document.getElementById("osd-anexo-arquivo");
+    var file = input.files && input.files[0];
+    if (!file){ toast("Escolha um arquivo primeiro.", true); return; }
+    if (file.size > 15 * 1024 * 1024){ toast("Arquivo maior que 15MB.", true); return; }
+    var tipo = document.getElementById("osd-anexo-tipo").value;
+    var path = osdAtual.id + "/" + Date.now() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    var btn = this;
+    btn.disabled = true; btn.textContent = "Enviando…";
+    ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/os-anexos/" + path, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_ANON,
+          "Authorization": "Bearer " + (session ? session.access_token : ""),
+          "Content-Type": file.type || "application/octet-stream"
+        },
+        body: file
+      });
+    }).then(function(r){
+      if (!r.ok) return r.text().then(function(t){ throw new Error(t || ("Erro " + r.status)); });
+      return rest("os_anexos", {method:"POST", body:{
+        os_id: osdAtual.id, tipo: tipo, nome_arquivo: file.name, storage_path: path, tamanho_bytes: file.size
+      }});
+    }).then(function(){
+      toast("Anexo enviado.");
+      input.value = "";
+      carregarAnexosOS(osdAtual.id);
+      carregarOS();
+    }).catch(function(e){ toast("Erro ao enviar anexo: " + e.message, true); }).finally(function(){
+      btn.disabled = false; btn.textContent = "Anexar";
+    });
   });
 
   // ---------------- boot / login flow ----------------
