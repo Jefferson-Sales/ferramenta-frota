@@ -624,26 +624,94 @@
     }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j}; }); });
   }
 
+  // Supabase access tokens expire (default 1h). Sem isso, qualquer sessão
+  // deixada aberta por mais de 1h passava a falhar todas as chamadas REST
+  // (incluindo a busca do perfil), o que aparecia como "Sem módulos
+  // liberados" mesmo para um admin configurado corretamente.
+  function authRefresh(refreshToken){
+    return fetch(SUPA_URL + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST",
+      headers: { "apikey": SUPA_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j}; }); });
+  }
+
+  function applyAuthResponse(body, emailFallback){
+    session = {
+      access_token: body.access_token,
+      refresh_token: body.refresh_token,
+      expires_at: Date.now() + ((body.expires_in || 3600) * 1000),
+      user: { id: decodeJwtSub(body.access_token), email: (body.user && body.user.email) || emailFallback }
+    };
+    saveSession(session);
+    return session;
+  }
+
+  var refreshing = null;
+  // Garante um access_token válido antes de cada chamada: se faltar menos de
+  // 60s para expirar (ou já expirou), troca o refresh_token por um novo
+  // access_token antes de seguir. Evita a corrida de disparar dois refreshes
+  // em paralelo reaproveitando a mesma promise em voo.
+  function ensureFreshSession(){
+    if (!session) return Promise.resolve(null);
+    var soon = Date.now() + 60000;
+    if (!session.expires_at || session.expires_at > soon) return Promise.resolve(session);
+    if (refreshing) return refreshing;
+    if (!session.refresh_token) return Promise.resolve(session);
+    refreshing = authRefresh(session.refresh_token).then(function(res){
+      refreshing = null;
+      if (!res.ok || !res.body.access_token) throw new Error("refresh_failed");
+      return applyAuthResponse(res.body, session.user && session.user.email);
+    }).catch(function(e){
+      refreshing = null;
+      throw e;
+    });
+    return refreshing;
+  }
+
+  function forceReLogin(message){
+    session = null; perfil = null;
+    clearStoredSession();
+    document.getElementById("view-app").classList.remove("active");
+    document.getElementById("view-login").style.display = "flex";
+    if (message) toast(message, true);
+  }
+
   // ---------------- REST helper (schema "frota") ----------------
   function rest(path, opts){
     opts = opts || {};
-    var headers = {
-      "apikey": SUPA_ANON,
-      "Authorization": "Bearer " + (session ? session.access_token : ""),
-      "Content-Type": "application/json"
-    };
-    if ((opts.method || "GET") === "GET") headers["Accept-Profile"] = SCHEMA;
-    else headers["Content-Profile"] = SCHEMA;
-    if (opts.method && opts.method !== "GET") headers["Prefer"] = "return=representation";
-    return fetch(SUPA_URL + "/rest/v1/" + path, {
-      method: opts.method || "GET",
-      headers: headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined
-    }).then(function(r){
-      return r.text().then(function(t){
-        var j; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = t; }
-        if (!r.ok) throw new Error((j && (j.message || j.hint)) || ("Erro " + r.status));
-        return j;
+    return ensureFreshSession().catch(function(){
+      // refresh_token também expirou/foi revogado: não adianta tentar a
+      // chamada, é preciso logar de novo.
+      forceReLogin("Sua sessão expirou. Faça login novamente.");
+      throw new Error("Sessão expirada.");
+    }).then(function(){
+      var headers = {
+        "apikey": SUPA_ANON,
+        "Authorization": "Bearer " + (session ? session.access_token : ""),
+        "Content-Type": "application/json"
+      };
+      if ((opts.method || "GET") === "GET") headers["Accept-Profile"] = SCHEMA;
+      else headers["Content-Profile"] = SCHEMA;
+      if (opts.method && opts.method !== "GET") headers["Prefer"] = "return=representation";
+      return fetch(SUPA_URL + "/rest/v1/" + path, {
+        method: opts.method || "GET",
+        headers: headers,
+        body: opts.body ? JSON.stringify(opts.body) : undefined
+      }).then(function(r){
+        return r.text().then(function(t){
+          var j; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = t; }
+          if (!r.ok){
+            // JWT expirado/ inválido apesar do refresh (ex.: revogado no servidor):
+            // trata como sessão encerrada em vez de "sem perfil"/"sem módulos".
+            var msg = (j && (j.message || j.hint)) || ("Erro " + r.status);
+            if (r.status === 401 || /jwt|token/i.test(String(msg))){
+              forceReLogin("Sua sessão expirou. Faça login novamente.");
+            }
+            throw new Error(msg);
+          }
+          return j;
+        });
       });
     });
   }
@@ -1235,6 +1303,10 @@
       }
       enterApp();
     }).catch(function(e){
+      // Se a sessão expirou, rest()/ensureFreshSession() já chamaram
+      // forceReLogin() e trocaram para a tela de login — não reabrir o
+      // app aqui, ou o usuário veria "Sem módulos liberados" por cima do login.
+      if (!session) return;
       toast("Erro ao carregar seu perfil: " + e.message, true);
       perfil = null;
       enterApp();
@@ -1252,8 +1324,7 @@
       if (!res.ok || !res.body.access_token){
         throw new Error(res.body && (res.body.error_description || res.body.msg) || "Falha no login.");
       }
-      session = { access_token: res.body.access_token, user: { id: decodeJwtSub(res.body.access_token), email: email } };
-      saveSession(session);
+      applyAuthResponse(res.body, email);
       loadPerfilAndEnter();
     }).catch(function(e){
       var el = document.getElementById("login-error");
@@ -1265,10 +1336,7 @@
   });
 
   document.getElementById("btn-logout").addEventListener("click", function(){
-    session = null; perfil = null;
-    clearStoredSession();
-    document.getElementById("view-app").classList.remove("active");
-    document.getElementById("view-login").style.display = "flex";
+    forceReLogin();
     document.getElementById("login-pass").value = "";
   });
 
