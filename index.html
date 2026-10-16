@@ -111,6 +111,7 @@
   .frota-sticky-head{ position:sticky; top:0; z-index:6; background:var(--paper); padding-top:2px; padding-bottom:2px; margin-bottom:0; }
   .frota-sticky-card-head{ margin-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0; box-shadow:none; padding-bottom:10px; }
   .frota-sticky-card-body{ margin-top:-1px; border-top:none; border-top-left-radius:0; border-top-right-radius:0; }
+  .frota-sticky-card-body table thead th{ position:sticky; top:var(--frota-head-h, 0px); background:var(--surface); z-index:4; box-shadow:0 1px 0 var(--line); }
   .card-head h2{ font-size:13.5px; font-weight:700; }
   .table-wrap{ overflow-x:auto; }
   table{ width:100%; border-collapse:collapse; font-size:13px; }
@@ -460,8 +461,9 @@
 <!-- ===================== MODALS ===================== -->
 <div class="modal-overlay" id="modal-veiculo" hidden>
   <div class="modal">
-    <div class="modal-head"><h3>Novo veículo</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="modal-head"><h3 id="modal-veiculo-titulo">Novo veículo</h3><button class="modal-close" data-close-modal>×</button></div>
     <form data-form="veiculo">
+      <input type="hidden" id="v-id">
       <div class="form-grid">
         <div class="field"><label for="v-placa">Placa</label><input id="v-placa" required maxlength="8" style="text-transform:uppercase"></div>
         <div class="field"><label for="v-modelo">Modelo</label><input id="v-modelo"></div>
@@ -480,7 +482,7 @@
         <div class="field"><label for="v-km-atual">KM atual</label><input id="v-km-atual" type="number" step="1" min="0"></div>
       </div>
       <div class="field-err" id="v-err" hidden></div>
-      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar veículo</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="v-btn-salvar" style="width:auto">Salvar veículo</button></div>
     </form>
   </div>
 </div>
@@ -489,28 +491,33 @@
   <div class="modal" style="max-width:640px;">
     <div class="modal-head"><h3 id="vd-titulo">Veículo</h3><button class="modal-close" data-close-modal>×</button></div>
     <div class="detail-grid" id="vd-resumo"></div>
+    <div class="modal-actions" data-edit="frota">
+      <button type="button" class="btn btn-primary" id="vd-btn-editar" style="width:auto;">Editar veículo</button>
+    </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="modal-hub" hidden>
   <div class="modal">
-    <div class="modal-head"><h3>Novo hub</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="modal-head"><h3 id="modal-hub-titulo">Novo hub</h3><button class="modal-close" data-close-modal>×</button></div>
     <form data-form="hub">
+      <input type="hidden" id="h-id">
       <div class="form-grid">
         <div class="field span2"><label for="h-nome">Nome</label><input id="h-nome" required></div>
         <div class="field"><label for="h-uf">UF</label><input id="h-uf" maxlength="2" style="text-transform:uppercase"></div>
         <div class="field"><label for="h-tipo">Tipo</label><select id="h-tipo"><option value="operacional">Operacional</option><option value="administrativo">Administrativo</option></select></div>
       </div>
       <div class="field-err" id="h-err" hidden></div>
-      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar hub</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="h-btn-salvar" style="width:auto">Salvar hub</button></div>
     </form>
   </div>
 </div>
 
 <div class="modal-overlay" id="modal-contrato" hidden>
   <div class="modal">
-    <div class="modal-head"><h3>Novo contrato</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="modal-head"><h3 id="modal-contrato-titulo">Novo contrato</h3><button class="modal-close" data-close-modal>×</button></div>
     <form data-form="contrato">
+      <input type="hidden" id="co-id">
       <div class="form-grid">
         <div class="field"><label for="co-locadora">Locadora</label><select id="co-locadora" required><option value="">Selecione…</option></select></div>
         <div class="field"><label for="co-numero">Nº do contrato / lote</label><input id="co-numero" placeholder="Ex.: RENAULT 3"></div>
@@ -540,7 +547,7 @@
         <div class="field span2"><label for="co-obs">Observações</label><textarea id="co-obs" rows="2"></textarea></div>
       </div>
       <div class="field-err" id="co-err" hidden></div>
-      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar contrato</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="co-btn-salvar" style="width:auto">Salvar contrato</button></div>
     </form>
   </div>
 </div>
@@ -960,7 +967,7 @@
     document.querySelectorAll("[data-edit]").forEach(function(el){
       el.hidden = !canEdit(el.dataset.edit);
     });
-    if (key === "frota") loadFrota();
+    if (key === "frota") { loadFrota(); ajustarStickyFrota(); }
     if (key === "manutencao") loadManutencao(true);
     if (key === "multas") loadMultas();
     if (key === "financeiro") loadFinanceiro();
@@ -1045,7 +1052,19 @@
     document.getElementById("frota-kpis").innerHTML = kpis.map(function(k){
       return '<div class="kpi-card ' + k.cls + '"><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></div>";
     }).join("");
+    ajustarStickyFrota();
   }
+
+  // Mede a altura do bloco fixo (título + KPIs + busca/filtro) e usa isso como
+  // offset do cabeçalho da tabela (thead), que também fica fixo logo abaixo dele.
+  function ajustarStickyFrota(){
+    var head = document.querySelector(".frota-sticky-head");
+    if (!head) return;
+    requestAnimationFrame(function(){
+      document.documentElement.style.setProperty("--frota-head-h", head.offsetHeight + "px");
+    });
+  }
+  window.addEventListener("resize", ajustarStickyFrota);
 
   function applyFrotaFiltros(){
     var f = frotaFiltros;
@@ -1091,9 +1110,12 @@
     abrirDetalheVeiculo(tr.dataset.veiculoId);
   });
 
+  var detalheVeiculoId = null;
+
   function abrirDetalheVeiculo(veiculoId){
     var v = cadastroFrotaCache.filter(function(x){ return x.veiculo_id === veiculoId; })[0];
     if (!v) return;
+    detalheVeiculoId = veiculoId;
     document.getElementById("vd-titulo").textContent = v.placa + (v.modelo_veiculo ? " — " + v.modelo_veiculo : "");
     document.getElementById("vd-resumo").innerHTML =
       '<div><div class="k">Contrato</div>' + esc(v.contrato || "—") + '</div>' +
@@ -1117,6 +1139,32 @@
       '<div><div class="k">Combustível</div>' + esc(v.tipo_combustivel || "—") + '</div>' +
       '<div><div class="k">Finalidade</div>' + esc(v.finalidade || "—") + '</div>';
     openModal("modal-veiculo-detalhe");
+  }
+
+  var btnVdEditar = document.getElementById("vd-btn-editar");
+  if (btnVdEditar){
+    btnVdEditar.addEventListener("click", function(){
+      if (!detalheVeiculoId) return;
+      document.getElementById("modal-veiculo-detalhe").hidden = true;
+      abrirEdicaoVeiculo(detalheVeiculoId);
+    });
+  }
+
+  function abrirEdicaoVeiculo(veiculoId){
+    var v = cadastroFrotaCache.filter(function(x){ return x.veiculo_id === veiculoId; })[0];
+    if (!v) return;
+    document.getElementById("v-id").value = v.veiculo_id;
+    document.getElementById("v-placa").value = v.placa || "";
+    document.getElementById("v-modelo").value = v.modelo_proprio || "";
+    document.getElementById("v-combustivel").value = v.tipo_combustivel || "combustao";
+    document.getElementById("v-hub").value = v.hub_id || "";
+    document.getElementById("v-status").value = v.status_operacional || "disponivel";
+    document.getElementById("v-contrato").value = v.contrato_id || "";
+    document.getElementById("v-km-atual").value = v.km_atual != null ? v.km_atual : "";
+    document.getElementById("modal-veiculo-titulo").textContent = "Editar veículo";
+    document.getElementById("v-btn-salvar").textContent = "Salvar alterações";
+    setErr("v-err", "");
+    openModal("modal-veiculo");
   }
 
   // ---------------- Telemetria Questar/Exodus (elétricos) ----------------
@@ -1177,9 +1225,30 @@
     var body = document.getElementById("frota-hub-body");
     document.getElementById("frota-hub-count").textContent = rows.length + (rows.length === 1 ? " hub" : " hubs");
     if (!rows.length){ body.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhum hub cadastrado ainda.</td></tr>'; return; }
+    var podeEditar = canEdit("frota");
     body.innerHTML = rows.map(function(h){
-      return "<tr><td>" + esc(h.nome) + "</td><td>" + esc(h.uf || "—") + "</td><td>" + esc(h.tipo || "—") + "</td></tr>";
+      return "<tr" + (podeEditar ? ' class="os-row" data-hub-id="' + h.id + '" title="Clique para editar"' : "") + ">" +
+        "<td>" + esc(h.nome) + "</td><td>" + esc(h.uf || "—") + "</td><td>" + esc(h.tipo || "—") + "</td></tr>";
     }).join("");
+  }
+
+  document.getElementById("frota-hub-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".os-row");
+    if (!tr || !tr.dataset.hubId) return;
+    abrirEdicaoHub(tr.dataset.hubId);
+  });
+
+  function abrirEdicaoHub(hubId){
+    var h = hubCache.filter(function(x){ return x.id === hubId; })[0];
+    if (!h) return;
+    document.getElementById("h-id").value = h.id;
+    document.getElementById("h-nome").value = h.nome || "";
+    document.getElementById("h-uf").value = h.uf || "";
+    document.getElementById("h-tipo").value = h.tipo || "operacional";
+    document.getElementById("modal-hub-titulo").textContent = "Editar hub";
+    document.getElementById("h-btn-salvar").textContent = "Salvar alterações";
+    setErr("h-err", "");
+    openModal("modal-hub");
   }
 
   function fillHubSelects(rows){
@@ -1198,13 +1267,48 @@
     var body = document.getElementById("frota-contrato-body");
     document.getElementById("frota-contrato-count").textContent = rows.length + (rows.length === 1 ? " contrato" : " contratos");
     if (!rows.length){ body.innerHTML = '<tr><td colspan="9" class="empty-row">Nenhum contrato cadastrado ainda.</td></tr>'; return; }
+    var podeEditar = canEdit("frota");
     body.innerHTML = rows.map(function(c){
-      return "<tr><td>" + esc(c.numero_contrato || "—") + "</td><td>" + esc(c.fornecedores ? c.fornecedores.nome : "—") + "</td><td>" +
+      return "<tr" + (podeEditar ? ' class="os-row" data-contrato-id="' + c.id + '" title="Clique para editar"' : "") + ">" +
+        "<td>" + esc(c.numero_contrato || "—") + "</td><td>" + esc(c.fornecedores ? c.fornecedores.nome : "—") + "</td><td>" +
         esc(c.quantidade_veiculos != null ? c.quantidade_veiculos : "—") + "</td><td>" + dateBR(c.data_fim) + "</td><td>" +
         pill(STATUS_CONTRATO_LABEL[c.status] || c.status, STATUS_CONTRATO_PILL[c.status]) + "</td><td class=\"num\">" +
         money(c.valor_mensal) + "</td><td>" + esc(c.manutencao_cobertura || "—") + "</td><td>" + esc(c.pneus_cobertura || "—") +
         "</td><td>" + esc(c.veiculo_reserva || "—") + "</td></tr>";
     }).join("");
+  }
+
+  document.getElementById("frota-contrato-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".os-row");
+    if (!tr || !tr.dataset.contratoId) return;
+    abrirEdicaoContrato(tr.dataset.contratoId);
+  });
+
+  function abrirEdicaoContrato(contratoId){
+    var c = contratosCache.filter(function(x){ return x.id === contratoId; })[0];
+    if (!c) return;
+    document.getElementById("co-id").value = c.id;
+    document.getElementById("co-locadora").value = c.locadora_id || "";
+    document.getElementById("co-numero").value = c.numero_contrato || "";
+    document.getElementById("co-qtde").value = c.quantidade_veiculos != null ? c.quantidade_veiculos : "";
+    document.getElementById("co-modelo").value = c.modelo_veiculo || "";
+    document.getElementById("co-inicio").value = c.data_inicio || "";
+    document.getElementById("co-fim").value = c.data_fim || "";
+    document.getElementById("co-prazo").value = c.prazo_locacao_meses != null ? c.prazo_locacao_meses : "";
+    document.getElementById("co-status").value = c.status || "ativo";
+    document.getElementById("co-valor").value = c.valor_mensal != null ? c.valor_mensal : "";
+    document.getElementById("co-reajuste").value = c.reajuste_anual || "";
+    document.getElementById("co-franquia").value = c.franquia_km_mensal != null ? c.franquia_km_mensal : "";
+    document.getElementById("co-cobranca-km").value = c.cobranca_km_excedente || "";
+    document.getElementById("co-valor-km").value = c.valor_km_excedente != null ? c.valor_km_excedente : "";
+    document.getElementById("co-manutencao").value = c.manutencao_cobertura || "";
+    document.getElementById("co-pneus").value = c.pneus_cobertura || "";
+    document.getElementById("co-reserva").value = c.veiculo_reserva || "";
+    document.getElementById("co-obs").value = c.observacoes || "";
+    document.getElementById("modal-contrato-titulo").textContent = "Editar contrato";
+    document.getElementById("co-btn-salvar").textContent = "Salvar alterações";
+    setErr("co-err", "");
+    openModal("modal-contrato");
   }
 
   // ---------------- Manutenção ----------------
@@ -1654,9 +1758,37 @@
   function openModal(id){ document.getElementById(id).hidden = false; }
   function closeModal(el){ var m = el.closest(".modal-overlay"); if (m) m.hidden = true; }
 
+  // Os botões "+ Novo X" sempre abrem o formulário em modo de criação (zerado),
+  // mesmo que o mesmo modal tenha acabado de ser usado para editar um registro existente.
+  function prepararNovoRegistro(modalId){
+    if (modalId === "modal-veiculo"){
+      document.querySelector('[data-form="veiculo"]').reset();
+      document.getElementById("v-id").value = "";
+      document.getElementById("modal-veiculo-titulo").textContent = "Novo veículo";
+      document.getElementById("v-btn-salvar").textContent = "Salvar veículo";
+      setErr("v-err", "");
+    } else if (modalId === "modal-hub"){
+      document.querySelector('[data-form="hub"]').reset();
+      document.getElementById("h-id").value = "";
+      document.getElementById("modal-hub-titulo").textContent = "Novo hub";
+      document.getElementById("h-btn-salvar").textContent = "Salvar hub";
+      setErr("h-err", "");
+    } else if (modalId === "modal-contrato"){
+      document.querySelector('[data-form="contrato"]').reset();
+      document.getElementById("co-id").value = "";
+      document.getElementById("modal-contrato-titulo").textContent = "Novo contrato";
+      document.getElementById("co-btn-salvar").textContent = "Salvar contrato";
+      setErr("co-err", "");
+    }
+  }
+
   document.addEventListener("click", function(ev){
     var openTrigger = ev.target.closest("[data-open-modal]");
-    if (openTrigger){ openModal(openTrigger.dataset.openModal); return; }
+    if (openTrigger){
+      if (openTrigger.classList.contains("inline-add-trigger")) prepararNovoRegistro(openTrigger.dataset.openModal);
+      openModal(openTrigger.dataset.openModal);
+      return;
+    }
     var closeTrigger = ev.target.closest("[data-close-modal]");
     if (closeTrigger){ closeModal(closeTrigger); return; }
     if (ev.target.classList.contains("modal-overlay")){ ev.target.hidden = true; }
@@ -1680,10 +1812,15 @@
       contrato_id: document.getElementById("v-contrato").value || null,
       km_atual: kmAtual ? parseFloat(kmAtual) : null
     };
-    rest("veiculos", {method:"POST", body: body}).then(function(){
-      toast("Veículo " + body.placa + " cadastrado.");
+    var editId = document.getElementById("v-id").value;
+    var req = editId
+      ? rest("veiculos?id=eq." + encodeURIComponent(editId), {method:"PATCH", body: body})
+      : rest("veiculos", {method:"POST", body: body});
+    req.then(function(){
+      toast("Veículo " + body.placa + (editId ? " atualizado." : " cadastrado."));
       document.getElementById("modal-veiculo").hidden = true;
       ev.target.reset();
+      document.getElementById("v-id").value = "";
       loadFrota();
     }).catch(function(e){ setErr("v-err", e.message); });
   });
@@ -1696,10 +1833,15 @@
       uf: document.getElementById("h-uf").value.trim().toUpperCase() || null,
       tipo: document.getElementById("h-tipo").value
     };
-    rest("hubs", {method:"POST", body: body}).then(function(){
-      toast("Hub " + body.nome + " cadastrado.");
+    var editId = document.getElementById("h-id").value;
+    var req = editId
+      ? rest("hubs?id=eq." + encodeURIComponent(editId), {method:"PATCH", body: body})
+      : rest("hubs", {method:"POST", body: body});
+    req.then(function(){
+      toast("Hub " + body.nome + (editId ? " atualizado." : " cadastrado."));
       document.getElementById("modal-hub").hidden = true;
       ev.target.reset();
+      document.getElementById("h-id").value = "";
       loadFrota();
     }).catch(function(e){ setErr("h-err", e.message); });
   });
@@ -1733,10 +1875,15 @@
       veiculo_reserva: document.getElementById("co-reserva").value || null,
       observacoes: document.getElementById("co-obs").value.trim() || null
     };
-    rest("contratos", {method:"POST", body: body}).then(function(){
-      toast("Contrato cadastrado.");
+    var editId = document.getElementById("co-id").value;
+    var req = editId
+      ? rest("contratos?id=eq." + encodeURIComponent(editId), {method:"PATCH", body: body})
+      : rest("contratos", {method:"POST", body: body});
+    req.then(function(){
+      toast(editId ? "Contrato atualizado." : "Contrato cadastrado.");
       document.getElementById("modal-contrato").hidden = true;
       ev.target.reset();
+      document.getElementById("co-id").value = "";
       loadFrota();
     }).catch(function(e){ setErr("co-err", e.message); });
   });
