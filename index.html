@@ -277,6 +277,17 @@
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-head"><h2>Franquia de KM — contratos Pool</h2><span class="count" id="frota-pool-count"></span></div>
+        <p class="section-desc" style="margin-top:-6px;">Nos contratos com cobrança de km excedente no modo <strong>Pool</strong>, a franquia é somada entre todos os carros do contrato — o excedente só existe se a soma do km rodado pela frota do contrato passar da soma das franquias. Clique numa linha para ver a contribuição de cada veículo.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Contrato</th><th>Locadora</th><th class="num">Veículos</th><th class="num">KM contratado (pool)</th><th class="num">KM usado (pool)</th><th class="num">Saldo</th><th class="num">% utilizado</th><th class="num">Custo se exceder</th></tr></thead>
+            <tbody id="frota-pool-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card" data-edit="frota">
         <div class="card-head"><h2>Telemetria dos elétricos (Questar/Exodus)</h2></div>
         <p class="section-desc" style="margin-top:-6px;">Integração em teste: busca km/hodômetro real direto da telemetria para atualizar o KM atual dos veículos elétricos, sem depender de planilha.</p>
@@ -549,6 +560,19 @@
       <div class="field-err" id="co-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="co-btn-salvar" style="width:auto">Salvar contrato</button></div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pool-detalhe" hidden>
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3 id="pd-titulo">Franquia do contrato</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="detail-grid" id="pd-resumo" style="margin-bottom:14px;"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Placa</th><th>Modelo</th><th>Hub</th><th class="num">KM atual</th><th class="num">% da franquia do contrato</th></tr></thead>
+        <tbody id="pd-veiculos-body"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -990,6 +1014,7 @@
   var hubCache = [];
   var contratosCache = [];
   var cadastroFrotaCache = [];
+  var poolCache = [];
   var frotaFiltros = { busca:"", contrato:"", chip:"todos" };
 
   function loadFrota(){
@@ -1014,6 +1039,11 @@
       renderFrotaKpis(rows);
       applyFrotaFiltros();
     }).catch(function(e){ toast("Erro ao carregar cadastro da frota: " + e.message, true); });
+
+    rest("v_pool_km_contrato?select=*&order=numero_contrato").then(function(rows){
+      poolCache = rows || [];
+      renderPool(rows);
+    }).catch(function(e){ toast("Erro ao carregar franquia de km (pool): " + e.message, true); });
   }
 
   function fillContratoSelects(rows){
@@ -1309,6 +1339,62 @@
     document.getElementById("co-btn-salvar").textContent = "Salvar alterações";
     setErr("co-err", "");
     openModal("modal-contrato");
+  }
+
+  // ---------------- Franquia de KM — contratos Pool ----------------
+  function renderPool(rows){
+    var body = document.getElementById("frota-pool-body");
+    var relevantes = rows.filter(function(r){ return r.numero_contrato; });
+    document.getElementById("frota-pool-count").textContent = relevantes.length + (relevantes.length === 1 ? " contrato" : " contratos");
+    if (!relevantes.length){ body.innerHTML = '<tr><td colspan="8" class="empty-row">Nenhum contrato com franquia cadastrada.</td></tr>'; return; }
+    body.innerHTML = relevantes.map(function(r){
+      var temPool = r.km_contratado_pool != null;
+      var pct = r.pct_utilizado_pool;
+      var pctCls = pct == null ? "neutral" : (pct >= 100 ? "crit" : (pct >= 85 ? "warn" : "good"));
+      var saldo = r.km_excedente_pool;
+      var saldoTxt = saldo == null ? "—" : (saldo > 0 ? "+" + Number(saldo).toLocaleString("pt-BR") + " excedente" : Number(Math.abs(saldo)).toLocaleString("pt-BR") + " de sobra");
+      var saldoStyle = saldo != null && saldo > 0 ? ' style="color:var(--danger,#c0392b); font-weight:600;"' : "";
+      return '<tr class="os-row" data-contrato-id="' + r.contrato_id + '" title="Clique para ver por veículo">' +
+        "<td>" + esc(r.numero_contrato || "—") + (r.cobranca_km_excedente ? " " + pill(r.cobranca_km_excedente, r.cobranca_km_excedente === "POOL" ? "neutral" : "neutral") : "") + "</td><td>" +
+        esc(r.locadora || "—") + "</td><td class=\"num\">" + (r.qtde_veiculos_ativos != null ? r.qtde_veiculos_ativos : "—") +
+        (r.qtde_contratada != null ? " / " + r.qtde_contratada : "") + "</td><td class=\"num\">" +
+        (temPool ? Number(r.km_contratado_pool).toLocaleString("pt-BR") : "—") + "</td><td class=\"num\">" +
+        Number(r.km_usado_pool || 0).toLocaleString("pt-BR") + "</td><td class=\"num\"" + saldoStyle + ">" + saldoTxt + "</td><td class=\"num\">" +
+        (pct != null ? pill(pct + "%", pctCls) : "—") + "</td><td class=\"num\">" +
+        (r.custo_estimado_excedente != null ? money(r.custo_estimado_excedente) : "—") + "</td></tr>";
+    }).join("");
+  }
+
+  document.getElementById("frota-pool-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".os-row");
+    if (!tr) return;
+    abrirDetalhePool(tr.dataset.contratoId);
+  });
+
+  function abrirDetalhePool(contratoId){
+    var p = poolCache.filter(function(x){ return x.contrato_id === contratoId; })[0];
+    if (!p) return;
+    var veiculosDoContrato = cadastroFrotaCache.filter(function(v){ return v.contrato_id === contratoId; });
+    document.getElementById("pd-titulo").textContent = (p.numero_contrato || "Contrato") + " — franquia de KM";
+    var pct = p.pct_utilizado_pool;
+    var pctCls = pct == null ? "neutral" : (pct >= 100 ? "crit" : (pct >= 85 ? "warn" : "good"));
+    document.getElementById("pd-resumo").innerHTML =
+      '<div><div class="k">Locadora</div>' + esc(p.locadora || "—") + '</div>' +
+      '<div><div class="k">Modo de cobrança</div>' + esc(p.cobranca_km_excedente || "—") + '</div>' +
+      '<div><div class="k">Veículos ativos / contratados</div>' + (p.qtde_veiculos_ativos != null ? p.qtde_veiculos_ativos : "—") + " / " + (p.qtde_contratada != null ? p.qtde_contratada : "—") + '</div>' +
+      '<div><div class="k">Franquia mensal (por veículo)</div>' + (p.franquia_km_mensal != null ? Number(p.franquia_km_mensal).toLocaleString("pt-BR") + " km" : "—") + '</div>' +
+      '<div><div class="k">KM contratado (pool, prazo todo)</div>' + (p.km_contratado_pool != null ? Number(p.km_contratado_pool).toLocaleString("pt-BR") : "—") + '</div>' +
+      '<div><div class="k">KM usado (pool, hoje)</div>' + Number(p.km_usado_pool || 0).toLocaleString("pt-BR") + '</div>' +
+      '<div><div class="k">% utilizado</div>' + (pct != null ? pill(pct + "%", pctCls) : "—") + '</div>' +
+      '<div><div class="k">Custo estimado se exceder</div>' + (p.custo_estimado_excedente != null ? money(p.custo_estimado_excedente) : "—") + '</div>';
+    var totalKm = veiculosDoContrato.reduce(function(acc, v){ return acc + (v.km_atual || 0); }, 0);
+    var ordenado = veiculosDoContrato.slice().sort(function(a, b){ return (b.km_atual || 0) - (a.km_atual || 0); });
+    document.getElementById("pd-veiculos-body").innerHTML = ordenado.length ? ordenado.map(function(v){
+      var contrib = totalKm > 0 ? (100 * (v.km_atual || 0) / totalKm).toFixed(1) : "0.0";
+      return "<tr><td>" + esc(v.placa) + "</td><td>" + esc(v.modelo_veiculo || "—") + "</td><td>" + esc(v.hub || "—") + "</td><td class=\"num\">" +
+        (v.km_atual != null ? Number(v.km_atual).toLocaleString("pt-BR") : "—") + "</td><td class=\"num\">" + contrib + "%</td></tr>";
+    }).join("") : '<tr><td colspan="5" class="empty-row">Nenhum veículo vinculado a este contrato.</td></tr>';
+    openModal("modal-pool-detalhe");
   }
 
   // ---------------- Manutenção ----------------
