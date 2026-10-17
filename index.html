@@ -114,7 +114,7 @@
   .frota-sticky-card-body table thead th{ position:sticky; top:var(--frota-head-h, 0px); background:var(--surface); z-index:4; box-shadow:0 1px 0 var(--line); }
   .card-head h2{ font-size:13.5px; font-weight:700; }
   .table-wrap{ overflow-x:auto; }
-  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  table{ width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
   th{ text-align:left; padding:9px 14px; font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--line); white-space:nowrap; }
   td{ padding:10px 14px; border-bottom:1px solid var(--line); vertical-align:middle; }
   tr:last-child td{ border-bottom:none; }
@@ -129,10 +129,14 @@
 
   .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
   .form-grid .span2{ grid-column:1 / -1; }
+  .section-sub{ font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:8px 0 -6px; padding-top:10px; border-top:1px solid var(--line); }
+  .form-grid .section-sub:first-child{ border-top:none; padding-top:0; margin-top:0; }
   @media (max-width:560px){ .form-grid{ grid-template-columns:1fr; } }
 
   .inline-add{ border-top:1px dashed var(--line-strong); padding:14px 16px; background:var(--surface-2); }
-  .inline-add-trigger{ font-size:12.5px; color:var(--accent); font-weight:600; background:none; border:none; padding:0; }
+  .inline-add-trigger{ font-size:12.5px; font-weight:700; color:var(--accent-ink); background:var(--accent); border:none; border-radius:7px; padding:7px 13px; white-space:nowrap; flex:none; }
+  .inline-add-trigger:hover{ opacity:.88; }
+  .card-head-actions{ display:flex; align-items:center; gap:10px; }
 
   .kpi-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
   .kpi-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; }
@@ -224,7 +228,7 @@
           <div class="kpi-row" id="frota-kpis"></div>
 
           <div class="card frota-sticky-card-head">
-            <div class="card-head"><h2>Veículos</h2><span class="count" id="frota-veic-count"></span></div>
+            <div class="card-head"><h2>Veículos</h2><div class="card-head-actions"><span class="count" id="frota-veic-count"></span><button class="inline-add-trigger" data-open-modal="modal-veiculo" data-edit="frota">+ Novo veículo</button></div></div>
             <div class="file-row" style="margin-bottom:10px; flex-wrap:wrap;">
               <input type="text" id="frota-busca" placeholder="Buscar placa ou modelo…" class="filter-select" style="min-width:200px;">
               <select id="frota-filtro-contrato" class="filter-select"><option value="">Todos os contratos</option></select>
@@ -244,36 +248,27 @@
               <tbody id="frota-veic-body"><tr><td colspan="11" class="empty-row">Carregando…</td></tr></tbody>
             </table>
           </div>
-          <div class="inline-add" data-edit="frota">
-            <button class="inline-add-trigger" data-open-modal="modal-veiculo">+ Novo veículo</button>
-          </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Hubs</h2><span class="count" id="frota-hub-count"></span></div>
+        <div class="card-head"><h2>Hubs</h2><div class="card-head-actions"><span class="count" id="frota-hub-count"></span><button class="inline-add-trigger" data-open-modal="modal-hub" data-edit="frota">+ Novo hub</button></div></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Nome</th><th>UF</th><th>Tipo</th></tr></thead>
             <tbody id="frota-hub-body"><tr><td colspan="3" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
-        <div class="inline-add" data-edit="frota">
-          <button class="inline-add-trigger" data-open-modal="modal-hub">+ Novo hub</button>
-        </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Contratos</h2><span class="count" id="frota-contrato-count"></span></div>
+        <div class="card-head"><h2>Contratos</h2><div class="card-head-actions"><span class="count" id="frota-contrato-count"></span><button class="inline-add-trigger" data-open-modal="modal-contrato" data-edit="frota">+ Novo contrato</button></div></div>
         <p class="section-desc" style="margin-top:-6px;">O que cada locadora cobre (manutenção, pneus, veículo reserva) — usado pelo módulo Manutenções para saber o que é coberto pelo contrato.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Contrato</th><th>Locadora</th><th>Qtde</th><th>Vencimento</th><th>Status</th><th class="num">Valor mensal</th><th>Manutenção</th><th>Pneus</th><th>Reserva</th></tr></thead>
             <tbody id="frota-contrato-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
           </table>
-        </div>
-        <div class="inline-add" data-edit="frota">
-          <button class="inline-add-trigger" data-open-modal="modal-contrato">+ Novo contrato</button>
         </div>
       </div>
 
@@ -310,7 +305,7 @@
       <div class="card">
         <div class="card-head">
           <h2>Ordens de serviço</h2>
-          <div style="display:flex; align-items:center; gap:10px;">
+          <div class="card-head-actions">
             <select id="man-os-filtro" class="filter-select">
               <option value="ativas" selected>Ativas (carro parado)</option>
               <option value="agendadas">Agendadas (futuro)</option>
@@ -318,6 +313,7 @@
               <option value="todas">Todas</option>
             </select>
             <span class="count" id="man-os-count"></span>
+            <button class="inline-add-trigger" data-open-modal="modal-os" data-edit="manutencao">+ Nova OS</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -329,21 +325,15 @@
             <tbody id="man-os-body"><tr><td colspan="10" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
-        <div class="inline-add" data-edit="manutencao">
-          <button class="inline-add-trigger" data-open-modal="modal-os">+ Nova OS</button>
-        </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Oficinas</h2><span class="count" id="man-of-count"></span></div>
+        <div class="card-head"><h2>Oficinas</h2><div class="card-head-actions"><span class="count" id="man-of-count"></span><button class="inline-add-trigger" data-open-modal="modal-oficina" data-edit="manutencao">+ Nova oficina</button></div></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Nome</th><th>Hub</th><th>Avaliação média</th></tr></thead>
             <tbody id="man-of-body"><tr><td colspan="3" class="empty-row">Carregando…</td></tr></tbody>
           </table>
-        </div>
-        <div class="inline-add" data-edit="manutencao">
-          <button class="inline-add-trigger" data-open-modal="modal-oficina">+ Nova oficina</button>
         </div>
       </div>
 
@@ -396,15 +386,12 @@
       <p class="section-desc">Fluxo completo: e-mail recebido → identificação do condutor → liderança → locadora → desconto em folha.</p>
 
       <div class="card">
-        <div class="card-head"><h2>Multas registradas</h2><span class="count" id="multas-count"></span></div>
+        <div class="card-head"><h2>Multas registradas</h2><div class="card-head-actions"><span class="count" id="multas-count"></span><button class="inline-add-trigger" data-open-modal="modal-multa" data-edit="multas">+ Nova multa</button></div></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Placa</th><th>Data infração</th><th>Status</th><th>Locadora</th><th>Paga por</th><th class="num">Valor</th><th class="num">Absorvido empresa</th></tr></thead>
-            <tbody id="multas-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr><th>Placa</th><th>Motorista</th><th>Data infração</th><th>Status</th><th>Alerta</th><th>Locadora</th><th>Supervisor</th><th class="num">Valor</th><th class="num">Absorvido empresa</th></tr></thead>
+            <tbody id="multas-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
           </table>
-        </div>
-        <div class="inline-add" data-edit="multas">
-          <button class="inline-add-trigger" data-open-modal="modal-multa">+ Nova multa</button>
         </div>
       </div>
     </section>
@@ -415,28 +402,22 @@
       <p class="section-desc">Fornecedores, notas fiscais e alertas de envio — substituindo o fluxo manual por e-mail e planilha.</p>
 
       <div class="card">
-        <div class="card-head"><h2>Notas fiscais</h2><span class="count" id="fin-nf-count"></span></div>
+        <div class="card-head"><h2>Notas fiscais</h2><div class="card-head-actions"><span class="count" id="fin-nf-count"></span><button class="inline-add-trigger" data-open-modal="modal-nota" data-edit="financeiro">+ Nova nota fiscal</button></div></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Fornecedor</th><th>Categoria</th><th>Nº nota</th><th>Vencimento</th><th>Status</th><th class="num">Valor</th></tr></thead>
             <tbody id="fin-nf-body"><tr><td colspan="6" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
-        <div class="inline-add" data-edit="financeiro">
-          <button class="inline-add-trigger" data-open-modal="modal-nota">+ Nova nota fiscal</button>
-        </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Fornecedores</h2><span class="count" id="fin-forn-count"></span></div>
+        <div class="card-head"><h2>Fornecedores</h2><div class="card-head-actions"><span class="count" id="fin-forn-count"></span><button class="inline-add-trigger" data-open-modal="modal-fornecedor" data-edit="financeiro">+ Novo fornecedor</button></div></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Nome</th><th>Tipo</th><th>Dia esperado de envio</th><th>Ativo</th></tr></thead>
             <tbody id="fin-forn-body"><tr><td colspan="4" class="empty-row">Carregando…</td></tr></tbody>
           </table>
-        </div>
-        <div class="inline-add" data-edit="financeiro">
-          <button class="inline-add-trigger" data-open-modal="modal-fornecedor">+ Novo fornecedor</button>
         </div>
       </div>
     </section>
@@ -447,15 +428,12 @@
       <p class="section-desc">Recarga, telemetria e comparação de custo/impacto ambiental frente à combustão.</p>
 
       <div class="card">
-        <div class="card-head"><h2>Recargas</h2><span class="count" id="elet-count"></span></div>
+        <div class="card-head"><h2>Recargas</h2><div class="card-head-actions"><span class="count" id="elet-count"></span><button class="inline-add-trigger" data-open-modal="modal-recarga" data-edit="eletrificacao">+ Nova recarga</button></div></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Veículo</th><th>Hub</th><th>Data/hora</th><th class="num">kWh</th><th class="num">Valor</th><th class="num">Km rodado</th></tr></thead>
             <tbody id="elet-body"><tr><td colspan="6" class="empty-row">Carregando…</td></tr></tbody>
           </table>
-        </div>
-        <div class="inline-add" data-edit="eletrificacao">
-          <button class="inline-add-trigger" data-open-modal="modal-recarga">+ Nova recarga</button>
         </div>
       </div>
     </section>
@@ -681,16 +659,54 @@
 </div>
 
 <div class="modal-overlay" id="modal-multa" hidden>
-  <div class="modal">
-    <div class="modal-head"><h3>Nova multa</h3><button class="modal-close" data-close-modal>×</button></div>
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-head"><h3 id="modal-multa-titulo">Nova multa</h3><button class="modal-close" data-close-modal>×</button></div>
     <form data-form="multa">
+      <input type="hidden" id="mu-id">
       <div class="form-grid">
         <div class="field"><label for="mu-veiculo">Veículo</label><select id="mu-veiculo" required><option value="">Selecione…</option></select></div>
         <div class="field"><label for="mu-locadora">Locadora (opcional)</label><select id="mu-locadora"><option value="">—</option></select></div>
-        <div class="field"><label for="mu-numero">Número da multa</label><input id="mu-numero"></div>
-        <div class="field"><label for="mu-valor">Valor (R$)</label><input id="mu-valor" type="number" step="0.01" required></div>
+
+        <div class="field span2 section-sub">Identificação da multa</div>
+        <div class="field"><label for="mu-numero">Número da notificação</label><input id="mu-numero"></div>
+        <div class="field"><label for="mu-auto">Auto de infração (AIT)</label><input id="mu-auto"></div>
+        <div class="field"><label for="mu-codigo">Código de enquadramento</label><input id="mu-codigo"></div>
+        <div class="field"><label for="mu-grau">Grau da infração</label>
+          <select id="mu-grau">
+            <option value="">—</option>
+            <option value="leve">Leve (3 pontos)</option>
+            <option value="media">Média (4 pontos)</option>
+            <option value="grave">Grave (5 pontos)</option>
+            <option value="gravissima">Gravíssima (7 pontos)</option>
+          </select>
+        </div>
+        <div class="field"><label for="mu-pontos">Pontos na CNH</label><input id="mu-pontos" type="number" min="0"></div>
+        <div class="field span2"><label for="mu-desc">Motivo da multa</label><textarea id="mu-desc" rows="2"></textarea></div>
+
+        <div class="field span2 section-sub">Valores</div>
+        <div class="field"><label for="mu-valor-bruto">Valor bruto (R$)</label><input id="mu-valor-bruto" type="number" step="0.01"></div>
+        <div class="field"><label for="mu-valor-desconto">Valor com desconto (R$)</label><input id="mu-valor-desconto" type="number" step="0.01"></div>
+        <div class="field"><label for="mu-valor">Valor considerado (R$)</label><input id="mu-valor" type="number" step="0.01" required></div>
+        <div class="field"><label for="mu-absorvido">Valor absorvido pela empresa (R$)</label><input id="mu-absorvido" type="number" step="0.01"></div>
+        <div class="field"><label for="mu-paga-por">Paga por</label><input id="mu-paga-por" placeholder="Ex.: motorista, empresa…"></div>
+
+        <div class="field span2 section-sub">Datas e prazos</div>
         <div class="field"><label for="mu-data-infracao">Data da infração</label><input id="mu-data-infracao" type="datetime-local" required></div>
         <div class="field"><label for="mu-data-recebimento">Recebimento do e-mail</label><input id="mu-data-recebimento" type="datetime-local" required></div>
+        <div class="field"><label for="mu-data-pipe">Data de abertura no Pipefy</label><input id="mu-data-pipe" type="date"></div>
+        <div class="field"><label for="mu-data-max-devolutiva">Data máx. devolutiva (liderança)</label><input id="mu-data-max-devolutiva" type="date"></div>
+        <div class="field"><label for="mu-data-limite-indicacao">Data limite p/ indicação (órgão)</label><input id="mu-data-limite-indicacao" type="date"></div>
+        <div class="field"><label for="mu-prazo">Prazo de resposta à locadora</label><input id="mu-prazo" type="date"></div>
+
+        <div class="field span2 section-sub">Pessoas e fluxo de indicação</div>
+        <div class="field"><label for="mu-motorista">Motorista identificado</label><select id="mu-motorista"><option value="">—</option></select></div>
+        <div class="field"><label for="mu-supervisor">Supervisor do motorista</label><input id="mu-supervisor"></div>
+        <div class="field"><label for="mu-lideranca">Liderança responsável (indicação)</label><input id="mu-lideranca"></div>
+        <div class="field"><label for="mu-data-envio-lideranca">Enviada à liderança em</label><input id="mu-data-envio-lideranca" type="datetime-local"></div>
+        <div class="field"><label for="mu-data-retorno-lideranca">Liderança devolveu em</label><input id="mu-data-retorno-lideranca" type="datetime-local"></div>
+        <div class="field"><label for="mu-data-envio-locadora">Documento enviado à locadora em</label><input id="mu-data-envio-locadora" type="datetime-local"></div>
+
+        <div class="field span2 section-sub">Status</div>
         <div class="field span2"><label for="mu-status">Status</label>
           <select id="mu-status">
             <option value="recebida_email">Recebida por e-mail</option>
@@ -706,13 +722,9 @@
             <option value="cancelada_recurso">Cancelada por recurso</option>
           </select>
         </div>
-        <div class="field"><label for="mu-prazo">Prazo de resposta à locadora</label><input id="mu-prazo" type="date"></div>
-        <div class="field"><label for="mu-paga-por">Paga por</label><input id="mu-paga-por" placeholder="Ex.: motorista, empresa…"></div>
-        <div class="field span2"><label for="mu-absorvido">Valor absorvido pela empresa (R$)</label><input id="mu-absorvido" type="number" step="0.01"></div>
-        <div class="field span2"><label for="mu-desc">Descrição</label><textarea id="mu-desc" rows="2"></textarea></div>
       </div>
       <div class="field-err" id="mu-err" hidden></div>
-      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar multa</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="mu-btn-salvar" style="width:auto">Salvar multa</button></div>
     </form>
   </div>
 </div>
@@ -1615,6 +1627,9 @@
     sel.value = current;
   }
 
+  var multasCache = [];
+  var PONTOS_POR_GRAU = { leve:3, media:4, grave:5, gravissima:7 };
+
   function loadMultas(){
     rest("veiculos?select=id,placa&order=placa").then(function(rows){
       fillSelect("mu-veiculo", rows, function(v){ return v.placa; }, "Selecione…");
@@ -1624,21 +1639,86 @@
       fillSelect("mu-locadora", rows, function(f){ return f.nome; }, "—");
     }).catch(function(){});
 
-    rest("multas?select=valor,data_infracao,status,paga_por,valor_absorvido_empresa,veiculos(placa),fornecedores(nome)&order=data_infracao.desc&limit=200").then(function(rows){
-      renderMultas(rows);
+    rest("v_motoristas_basico?select=id,nome&ativo=eq.true&order=nome").then(function(rows){
+      fillSelect("mu-motorista", rows, function(mo){ return mo.nome; }, "—");
+    }).catch(function(){});
+
+    rest("v_multas_detalhe?select=*&order=data_infracao.desc&limit=300").then(function(rows){
+      multasCache = rows || [];
+      renderMultas(multasCache);
     }).catch(function(e){ toast("Erro ao carregar multas: " + e.message, true); });
   }
 
   function renderMultas(rows){
     var body = document.getElementById("multas-body");
     document.getElementById("multas-count").textContent = rows.length + (rows.length === 1 ? " multa" : " multas");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma multa registrada ainda.</td></tr>'; return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="9" class="empty-row">Nenhuma multa registrada ainda.</td></tr>'; return; }
     body.innerHTML = rows.map(function(m){
-      return "<tr><td>" + esc(m.veiculos ? m.veiculos.placa : "—") + "</td><td>" + dateBR(m.data_infracao) + "</td><td>" +
-        pill(STATUS_MULTA_LABEL[m.status] || m.status, STATUS_MULTA_PILL[m.status]) + "</td><td>" +
-        esc(m.fornecedores ? m.fornecedores.nome : "—") + "</td><td>" + esc(m.paga_por || "—") + "</td><td class=\"num\">" +
+      var alerta = m.alerta_lideranca_sem_retorno ? pill("Liderança sem devolver", "crit") :
+        (m.dias_sem_retorno_lideranca != null ? pill(m.dias_sem_retorno_lideranca + "d sem retorno", "warn") : "—");
+      return '<tr class="os-row" data-multa-id="' + m.id + '">' +
+        "<td>" + esc(m.placa || "—") + "</td><td>" + esc(m.motorista_nome || "—") + "</td><td>" + dateBR(m.data_infracao) + "</td><td>" +
+        pill(STATUS_MULTA_LABEL[m.status] || m.status, STATUS_MULTA_PILL[m.status]) + "</td><td>" + alerta + "</td><td>" +
+        esc(m.locadora || "—") + "</td><td>" + esc(m.supervisor_responsavel || "—") + "</td><td class=\"num\">" +
         money(m.valor) + "</td><td class=\"num\">" + money(m.valor_absorvido_empresa) + "</td></tr>";
     }).join("");
+  }
+
+  document.getElementById("multas-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".os-row");
+    if (!tr || !canEdit("multas")) return;
+    abrirEdicaoMulta(tr.dataset.multaId);
+  });
+
+  function toDatetimeLocal(v){
+    if (!v) return "";
+    var d = new Date(v);
+    var pad = function(n){ return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function abrirEdicaoMulta(multaId){
+    var m = multasCache.filter(function(x){ return x.id === multaId; })[0];
+    if (!m) return;
+    document.getElementById("mu-id").value = m.id;
+    document.getElementById("mu-veiculo").value = m.veiculo_id || "";
+    document.getElementById("mu-locadora").value = m.locadora_id || "";
+    document.getElementById("mu-numero").value = m.numero_multa || "";
+    document.getElementById("mu-auto").value = m.auto_infracao || "";
+    document.getElementById("mu-codigo").value = m.codigo_enquadramento || "";
+    document.getElementById("mu-grau").value = m.grau_infracao || "";
+    document.getElementById("mu-pontos").value = m.pontos_cnh != null ? m.pontos_cnh : "";
+    document.getElementById("mu-desc").value = m.descricao || "";
+    document.getElementById("mu-valor-bruto").value = m.valor_bruto != null ? m.valor_bruto : "";
+    document.getElementById("mu-valor-desconto").value = m.valor_desconto != null ? m.valor_desconto : "";
+    document.getElementById("mu-valor").value = m.valor != null ? m.valor : "";
+    document.getElementById("mu-absorvido").value = m.valor_absorvido_empresa != null ? m.valor_absorvido_empresa : "";
+    document.getElementById("mu-paga-por").value = m.paga_por || "";
+    document.getElementById("mu-data-infracao").value = toDatetimeLocal(m.data_infracao);
+    document.getElementById("mu-data-recebimento").value = toDatetimeLocal(m.data_recebimento_email);
+    document.getElementById("mu-data-pipe").value = m.data_pipe || "";
+    document.getElementById("mu-data-max-devolutiva").value = m.data_max_devolutiva || "";
+    document.getElementById("mu-data-limite-indicacao").value = m.data_limite_indicacao || "";
+    document.getElementById("mu-prazo").value = m.prazo_resposta_locadora || "";
+    document.getElementById("mu-motorista").value = m.motorista_identificado_id || "";
+    document.getElementById("mu-supervisor").value = m.supervisor_responsavel || "";
+    document.getElementById("mu-lideranca").value = m.lideranca_responsavel || "";
+    document.getElementById("mu-data-envio-lideranca").value = toDatetimeLocal(m.data_envio_lideranca);
+    document.getElementById("mu-data-retorno-lideranca").value = toDatetimeLocal(m.data_retorno_lideranca);
+    document.getElementById("mu-data-envio-locadora").value = toDatetimeLocal(m.data_envio_locadora);
+    document.getElementById("mu-status").value = m.status;
+    document.getElementById("modal-multa-titulo").textContent = "Editar multa";
+    document.getElementById("mu-btn-salvar").textContent = "Salvar alterações";
+    setErr("mu-err", "");
+    openModal("modal-multa");
+  }
+
+  var selGrau = document.getElementById("mu-grau");
+  if (selGrau){
+    selGrau.addEventListener("change", function(){
+      var pontosEl = document.getElementById("mu-pontos");
+      if (!pontosEl.value && PONTOS_POR_GRAU[selGrau.value] != null) pontosEl.value = PONTOS_POR_GRAU[selGrau.value];
+    });
   }
 
   document.querySelector('[data-form="multa"]').addEventListener("submit", function(ev){
@@ -1652,23 +1732,49 @@
     var valor = parseFloat(document.getElementById("mu-valor").value);
     if (!valor){ setErr("mu-err", "Informe o valor da multa."); return; }
     var absorvido = document.getElementById("mu-absorvido").value;
+    var valorBruto = document.getElementById("mu-valor-bruto").value;
+    var valorDesconto = document.getElementById("mu-valor-desconto").value;
+    var pontos = document.getElementById("mu-pontos").value;
+    var dataEnvioLideranca = document.getElementById("mu-data-envio-lideranca").value;
+    var dataRetornoLideranca = document.getElementById("mu-data-retorno-lideranca").value;
+    var dataEnvioLocadora = document.getElementById("mu-data-envio-locadora").value;
     var body = {
       veiculo_id: veiculo,
       locadora_id: document.getElementById("mu-locadora").value || null,
       numero_multa: document.getElementById("mu-numero").value.trim() || null,
+      auto_infracao: document.getElementById("mu-auto").value.trim() || null,
+      codigo_enquadramento: document.getElementById("mu-codigo").value.trim() || null,
+      grau_infracao: document.getElementById("mu-grau").value || null,
+      pontos_cnh: pontos ? parseInt(pontos, 10) : null,
+      valor_bruto: valorBruto ? parseFloat(valorBruto) : null,
+      valor_desconto: valorDesconto ? parseFloat(valorDesconto) : null,
       valor: valor,
       data_infracao: new Date(dataInfracao).toISOString(),
       data_recebimento_email: new Date(dataRecebimento).toISOString(),
+      data_pipe: document.getElementById("mu-data-pipe").value || null,
+      data_max_devolutiva: document.getElementById("mu-data-max-devolutiva").value || null,
+      data_limite_indicacao: document.getElementById("mu-data-limite-indicacao").value || null,
       status: document.getElementById("mu-status").value,
       prazo_resposta_locadora: document.getElementById("mu-prazo").value || null,
       paga_por: document.getElementById("mu-paga-por").value.trim() || null,
       valor_absorvido_empresa: absorvido ? parseFloat(absorvido) : null,
-      descricao: document.getElementById("mu-desc").value.trim() || null
+      descricao: document.getElementById("mu-desc").value.trim() || null,
+      motorista_identificado_id: document.getElementById("mu-motorista").value || null,
+      supervisor_responsavel: document.getElementById("mu-supervisor").value.trim() || null,
+      lideranca_responsavel: document.getElementById("mu-lideranca").value.trim() || null,
+      data_envio_lideranca: dataEnvioLideranca ? new Date(dataEnvioLideranca).toISOString() : null,
+      data_retorno_lideranca: dataRetornoLideranca ? new Date(dataRetornoLideranca).toISOString() : null,
+      data_envio_locadora: dataEnvioLocadora ? new Date(dataEnvioLocadora).toISOString() : null
     };
-    rest("multas", {method:"POST", body: body}).then(function(){
-      toast("Multa cadastrada.");
+    var editId = document.getElementById("mu-id").value;
+    var req = editId
+      ? rest("multas?id=eq." + encodeURIComponent(editId), {method:"PATCH", body: body})
+      : rest("multas", {method:"POST", body: body});
+    req.then(function(){
+      toast(editId ? "Multa atualizada." : "Multa cadastrada.");
       document.getElementById("modal-multa").hidden = true;
       ev.target.reset();
+      document.getElementById("mu-id").value = "";
       loadMultas();
     }).catch(function(e){ setErr("mu-err", e.message); });
   });
