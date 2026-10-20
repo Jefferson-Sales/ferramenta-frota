@@ -116,6 +116,12 @@
      das linhas). Com overflow visível, o sticky passa a valer pela página. */
   .frota-sticky-card-body, .frota-sticky-card-body .table-wrap{ overflow:visible; }
   .frota-sticky-card-body table thead th{ position:sticky; top:var(--frota-head-h, 0px); background:var(--surface); z-index:4; box-shadow:0 1px 0 var(--line); }
+  /* Mesmo formato para as demais tabelas: o título do card (card-head) fica
+     preso no topo enquanto o card está na tela, e os títulos das colunas
+     ficam logo abaixo dele. A classe é aplicada via JS (prepararTabelasFixas). */
+  .card.sticky-table-card, .sticky-table-card > .table-wrap{ overflow:visible; }
+  .sticky-table-card > .card-head{ position:sticky; top:0; z-index:5; background:var(--surface); border-radius:var(--radius) var(--radius) 0 0; }
+  .sticky-table-card table thead th{ position:sticky; top:var(--card-head-h, 0px); background:var(--surface); z-index:4; box-shadow:0 1px 0 var(--line); }
   .card-head h2{ font-size:13.5px; font-weight:700; }
   .table-wrap{ overflow-x:auto; overflow-y:visible; }
   table{ width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
@@ -1111,6 +1117,25 @@
     });
   }
   window.addEventListener("resize", ajustarStickyFrota);
+
+  // Aplica o formato "título do card + títulos das colunas fixos" em todas as
+  // tabelas dos painéis (a de Veículos já tem o seu próprio, acima). A altura
+  // do card-head é medida com ResizeObserver porque painéis ocultos medem 0 e
+  // só ganham altura quando abertos (ou quando os filtros quebram de linha).
+  function prepararTabelasFixas(){
+    var cards = document.querySelectorAll(".panel .card");
+    Array.prototype.forEach.call(cards, function(card){
+      if (card.classList.contains("frota-sticky-card-body")) return;
+      var head = card.querySelector(":scope > .card-head");
+      var wrap = card.querySelector(":scope > .table-wrap");
+      if (!head || !wrap) return;
+      card.classList.add("sticky-table-card");
+      var medir = function(){ card.style.setProperty("--card-head-h", head.offsetHeight + "px"); };
+      if (window.ResizeObserver) new ResizeObserver(medir).observe(head);
+      else { medir(); window.addEventListener("resize", medir); }
+    });
+  }
+  prepararTabelasFixas();
 
   function applyFrotaFiltros(){
     var f = frotaFiltros;
