@@ -166,7 +166,18 @@
   var SUPA_URL = "https://efmpzjkqiwyuumaoumof.supabase.co";
   var SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbXB6amtxaXd5dXVtYW91bW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NjkzMDAsImV4cCI6MjEwNzE0NTMwMH0.k0AFjsUrT1HDjNe4D-k75LYgZ3DeOVDGCZvq-2cNozw";
   var FN_URL = SUPA_URL + "/functions/v1/checklist";
-  var DRAFT_KEY = "ck_rascunho_v1", SESSION_KEY = "ck_sessao_v1";
+  var DRAFT_KEY = "ck_rascunho_v1", SESSION_KEY = "ck_sessao_v1", APARELHO_KEY = "ck_aparelho_v1";
+  // Id aleatório deste aparelho, só para o limite de tentativas de matrícula (o servidor guarda cifrado).
+  var APARELHO = (function(){
+    var id = null;
+    try{ id = localStorage.getItem(APARELHO_KEY); }catch(e){}
+    if (!id){
+      var b = new Uint8Array(16); (window.crypto || window.msCrypto).getRandomValues(b);
+      id = Array.prototype.map.call(b, function(x){ return ("0" + x.toString(16)).slice(-2); }).join("");
+      try{ localStorage.setItem(APARELHO_KEY, id); }catch(e){}
+    }
+    return id;
+  })();
 
   var STEP_NAMES = ["Identificação", "Itens do veículo", "Combustível e fotos", "Revisão e envio"];
   var TIPOS = { retirada:"Retirada", devolucao:"Devolução", inspecao_tecnica:"Inspeção técnica" };
@@ -242,7 +253,7 @@
     return ensureFreshSession().then(function(){
       var headers = { "apikey":SUPA_ANON, "Content-Type":"application/json" };
       if (session) headers["Authorization"] = "Bearer " + session.access_token;
-      var body = Object.assign({ acao:acao }, dados || {});
+      var body = Object.assign({ acao:acao, aparelho:APARELHO }, dados || {});
       return fetch(FN_URL, { method:"POST", headers:headers, body: JSON.stringify(body) });
     }).then(function(r){
       return r.json().catch(function(){ return {}; }).then(function(j){

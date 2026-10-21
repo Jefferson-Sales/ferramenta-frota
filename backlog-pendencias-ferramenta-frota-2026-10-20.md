@@ -38,9 +38,10 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 - [x] Puxar o contato da oficina automaticamente (a partir do cadastro dela), ao selecioná-la na OS.
 - [x] No cadastro de oficina, pedir: nome, telefone, endereço e CNPJ. _(21/10/2026: colunas `telefone`, `endereco`, `cnpj` criadas em `frota.oficinas`; telefone obrigatório no formulário, endereço e CNPJ opcionais; oficinas agora podem ser editadas clicando na linha.)_
 - [x] Criar checklist para os auxiliares de frota, com campo para incluir fotos de avarias — permitindo gestão visual da frota dentro do próprio sistema. _(21/10/2026: fases 1 a 5 prontas — tabelas, catálogo, bucket `checklist-fotos`, formulário mobile `checklist.html`, módulo "Qualidade da Frota" no `index.html` (painel por status, anomalias abertas com Resolvida/Descartar, histórico por veículo com fotos) e e-mail automático de anomalia nova para frota@beepsaude.com.br, enviado pela conta do Jefferson.)_
+- [x] Checklist: grupo "Equipamentos" (Celular, Cabo de carregador, Carregador, Suporte do celular) nos três tipos. _(22/10/2026)_
 - [ ] Checklist: "Abrir OS" direto de uma anomalia (preenche a OS com placa/motivo e liga a anomalia à OS) — adiado, sem mexer no fluxo de OS por enquanto.
 - [ ] Checklist (cosmético, baixa prioridade): na mensagem "Faltam fotos obrigatórias" da Inspeção técnica, listar as fotos sempre na mesma ordem (painel, frontal, traseira) — hoje a ordem varia (`finalizar_checklist` usa `string_agg` sem `order by`).
-- [ ] Checklist: limitar tentativas de matrícula por aparelho/IP na Edge Function `checklist`. Hoje a matrícula (4 dígitos) não tem limite de tentativas, então dá para chutar matrículas e enviar checklists falsos. A resposta só mostra primeiro e último nome, sem dado sensível. Não trava o lançamento, mas tratar em breve.
+- [x] Checklist: limitar tentativas de matrícula por aparelho/IP na Edge Function `checklist`. _(22/10/2026: 5 erros em 15 min bloqueiam 15 min por aparelho e por IP; IP/aparelho guardados só cifrados.)_  Hoje a matrícula (4 dígitos) não tem limite de tentativas, então dá para chutar matrículas e enviar checklists falsos. A resposta só mostra primeiro e último nome, sem dado sensível. Não trava o lançamento, mas tratar em breve.
 
 ---
 

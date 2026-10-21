@@ -29,12 +29,30 @@ function nomeCurto(n: string) {
   return partes.length > 1 ? partes[0] + " " + partes[partes.length - 1] : partes[0] || "";
 }
 
-async function colaborador(matricula: unknown) {
+// Quem está chamando: IP (do proxy da Supabase) e id aleatório do aparelho (gerado pelo checklist.html).
+// Só servem para o limite de tentativas; o banco guarda apenas um código cifrado (HMAC) deles.
+type Cliente = { ip: string; aparelho: string };
+function clienteDe(req: Request, body: any): Cliente {
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "";
+  return { ip, aparelho: String(body?.aparelho || "").slice(0, 100) };
+}
+const horaBR = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+
+// Limite: 5 matrículas erradas em 15 min (por aparelho ou por IP) bloqueiam por 15 min. Acerto não conta.
+async function colaborador(matricula: unknown, cli: Cliente) {
+  const { data: ate, error: e0 } = await db().rpc("checklist_bloqueado_ate", { p_ip: cli.ip, p_aparelho: cli.aparelho });
+  if (e0) throw e0;
+  if (ate && new Date(ate) > new Date())
+    throw new Falha("Muitas tentativas de matrícula erradas. Tente de novo às " + horaBR(ate) + ".", 429);
+  const errou = async (msg: string, status = 400): Promise<never> => {
+    await db().rpc("checklist_registrar_erro", { p_ip: cli.ip, p_aparelho: cli.aparelho });
+    throw new Falha(msg, status);
+  };
   const m = String(matricula || "").trim();
-  if (!/^\d{1,10}$/.test(m)) throw new Falha("Matrícula inválida.");
+  if (!/^\d{1,10}$/.test(m)) await errou("Matrícula inválida.");
   const { data, error } = await db().rpc("buscar_colaborador", { p_matricula: m });
   if (error) throw error;
-  if (!data || !data.length) throw new Falha("Matrícula não encontrada ou inativa.", 404);
+  if (!data || !data.length) await errou("Matrícula não encontrada ou inativa.", 404);
   // se a matrícula existir nas duas tabelas, prefere o motorista (tem motorista_id)
   const c = data.find((r: any) => r.origem === "motorista") || data[0];
   return { matricula: m, nome: c.nome as string, hub_id: c.hub_id, motorista_id: c.motorista_id,
@@ -84,8 +102,8 @@ async function veiculoPorPlaca(placa: unknown) {
   return data;
 }
 
-async function acaoIdentificar(body: any, aux: any) {
-  const c = await colaborador(body.matricula);
+async function acaoIdentificar(body: any, aux: any, cli: Cliente) {
+  const c = await colaborador(body.matricula, cli);
   const liberados = await hubsLiberados(aux, c);
   let qHubs = db().from("hubs").select("id, nome").eq("ativo", true).order("nome");
   if (liberados) qHubs = qHubs.in("id", liberados.length ? liberados : ["00000000-0000-0000-0000-000000000000"]);
@@ -99,8 +117,8 @@ async function acaoIdentificar(body: any, aux: any) {
   return { nome: nomeCurto(c.nome), hub_id: c.hub_id, auxiliar: !!aux, hubs, catalogo };
 }
 
-async function acaoVeiculo(body: any, aux: any) {
-  const c = await colaborador(body.matricula);
+async function acaoVeiculo(body: any, aux: any, cli: Cliente) {
+  const c = await colaborador(body.matricula, cli);
   const v = await veiculoPorPlaca(body.placa);
   exigirHub(await hubsLiberados(aux, c), v);
 
@@ -135,8 +153,8 @@ async function acaoVeiculo(body: any, aux: any) {
   };
 }
 
-async function acaoUpload(body: any, aux: any) {
-  const c = await colaborador(body.matricula);
+async function acaoUpload(body: any, aux: any, cli: Cliente) {
+  const c = await colaborador(body.matricula, cli);
   const v = await veiculoPorPlaca(body.placa);
   exigirHub(await hubsLiberados(aux, c), v);
   const cid = String(body.checklist_id || "");
@@ -151,8 +169,8 @@ async function acaoUpload(body: any, aux: any) {
   return { path, signedUrl: data.signedUrl };
 }
 
-async function acaoEnviar(body: any, aux: any) {
-  const c = await colaborador(body.matricula);
+async function acaoEnviar(body: any, aux: any, cli: Cliente) {
+  const c = await colaborador(body.matricula, cli);
   const ck = body.checklist || {};
   if (!["retirada", "devolucao", "inspecao_tecnica"].includes(ck.tipo)) throw new Falha("Tipo de checklist inválido.");
   if (ck.tipo === "inspecao_tecnica" && !aux) throw new Falha("Inspeção técnica exige login de auxiliar de frota.", 403);
@@ -181,12 +199,13 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const aux = await auxiliarLogado(req);
+    const cli = clienteDe(req, body);
     switch (body.acao) {
       case "sessao": return json(aux ? { auxiliar: true, nome: aux.nome, matricula: aux.matricula } : { auxiliar: false });
-      case "identificar": return json(await acaoIdentificar(body, aux));
-      case "veiculo": return json(await acaoVeiculo(body, aux));
-      case "upload": return json(await acaoUpload(body, aux));
-      case "enviar": return json(await acaoEnviar(body, aux));
+      case "identificar": return json(await acaoIdentificar(body, aux, cli));
+      case "veiculo": return json(await acaoVeiculo(body, aux, cli));
+      case "upload": return json(await acaoUpload(body, aux, cli));
+      case "enviar": return json(await acaoEnviar(body, aux, cli));
       default: return json({ error: "Ação desconhecida." }, 400);
     }
   } catch (e) {
