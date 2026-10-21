@@ -37,7 +37,8 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 - [x] Incluir campo de busca por placa na abertura de OS.
 - [x] Puxar o contato da oficina automaticamente (a partir do cadastro dela), ao selecioná-la na OS.
 - [x] No cadastro de oficina, pedir: nome, telefone, endereço e CNPJ. _(21/10/2026: colunas `telefone`, `endereco`, `cnpj` criadas em `frota.oficinas`; telefone obrigatório no formulário, endereço e CNPJ opcionais; oficinas agora podem ser editadas clicando na linha.)_
-- [ ] Criar checklist para os auxiliares de frota, com campo para incluir fotos de avarias — permitindo gestão visual da frota dentro do próprio sistema.
+- [ ] Criar checklist para os auxiliares de frota, com campo para incluir fotos de avarias — permitindo gestão visual da frota dentro do próprio sistema. _(21/10/2026: fases 1 e 2 prontas — tabelas, catálogo, bucket `checklist-fotos`, Edge Function `checklist` e formulário mobile `checklist.html`. Faltam: fase 3 histórico por veículo no `index.html`, fase 4 e-mail de anomalia nova para frota@beepsaude.com.br via SMTP do Workspace (aguardando segredos `SMTP_USER`/`SMTP_PASS`), fase 5 painel de qualidade.)_
+- [ ] Checklist: limitar tentativas de matrícula por aparelho/IP na Edge Function `checklist`. Hoje a matrícula (4 dígitos) não tem limite de tentativas, então dá para chutar matrículas e enviar checklists falsos. A resposta só mostra primeiro e último nome, sem dado sensível. Não trava o lançamento, mas tratar em breve.
 
 ---
 
