@@ -1069,6 +1069,7 @@
 
 <div id="toast-host"></div>
 
+<script src="regras.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1668,7 +1669,7 @@
     body.innerHTML = relevantes.map(function(r){
       var temPool = r.km_contratado_pool != null;
       var pct = r.pct_utilizado_pool;
-      var pctCls = pct == null ? "neutral" : (pct >= 100 ? "crit" : (pct >= 85 ? "warn" : "good"));
+      var pctCls = Regras.faixaFranquia(pct);
       var saldo = r.km_excedente_pool;
       var saldoTxt = saldo == null ? "—" : (saldo > 0 ? "+" + Number(saldo).toLocaleString("pt-BR") + " excedente" : Number(Math.abs(saldo)).toLocaleString("pt-BR") + " de sobra");
       var saldoStyle = saldo != null && saldo > 0 ? ' style="color:var(--critical); font-weight:600;"' : "";
@@ -1695,7 +1696,7 @@
     var veiculosDoContrato = cadastroFrotaCache.filter(function(v){ return v.contrato_id === contratoId; });
     document.getElementById("pd-titulo").textContent = (p.numero_contrato || "Contrato") + " — franquia de KM";
     var pct = p.pct_utilizado_pool;
-    var pctCls = pct == null ? "neutral" : (pct >= 100 ? "crit" : (pct >= 85 ? "warn" : "good"));
+    var pctCls = Regras.faixaFranquia(pct);
     document.getElementById("pd-resumo").innerHTML =
       '<div><div class="k">Locadora</div>' + esc(p.locadora || "—") + '</div>' +
       '<div><div class="k">Modo de cobrança</div>' + esc(p.cobranca_km_excedente || "—") + '</div>' +
@@ -1718,7 +1719,7 @@
   // ---------------- Manutenção ----------------
   var osCache = [];        // última leitura completa de ordens_servico
   var oficinasCache = [];
-  var OS_FECHADAS = ["concluida","cancelada"];
+  var OS_FECHADAS = Regras.OS_FECHADAS;
 
   var veiculosOsCache = [];  // placas para o select da abertura de OS (com busca)
 
@@ -1759,9 +1760,7 @@
   // ---------------- alerta de previsão de retorno vencida ----------------
   function osVencidas(rows){
     var agora = new Date();
-    return rows.filter(function(o){
-      return o.previsao_retorno && o.status !== "agendada" && OS_FECHADAS.indexOf(o.status) === -1 && new Date(o.previsao_retorno) < agora;
-    });
+    return rows.filter(function(o){ return Regras.osVencida(o, agora); });
   }
 
   function aplicarBadgeManutencao(rows){
@@ -2041,7 +2040,7 @@
   }
 
   var multasCache = [];
-  var PONTOS_POR_GRAU = { leve:3, media:4, grave:5, gravissima:7 };
+  var PONTOS_POR_GRAU = Regras.PONTOS_POR_GRAU;
 
   function loadMultas(){
     rest("veiculos?select=id,placa&order=placa").then(function(rows){
@@ -2378,12 +2377,7 @@
   var QF_COMB = { eletrico:"Elétrico", combustao:"Combustão", hibrido:"Híbrido" };
 
   // Status pela pior anomalia aberta agora (não pelo resultado gravado no último checklist).
-  function qfStatusDe(criticas, altas, total, temChecklist){
-    if (criticas > 0) return "urgente";
-    if (altas > 0) return "reparo";
-    if (total > 0) return "atencao";
-    return temChecklist ? "ok" : "sem";
-  }
+  function qfStatusDe(criticas, altas, total, temChecklist){ return Regras.statusQualidade(criticas, altas, total, temChecklist); }
   function qfDataHora(v){ if (!v) return "—"; var d = new Date(v); return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}); }
   function qfKm(v){ return v != null ? Number(v).toLocaleString("pt-BR") + " km" : "—"; }
   function qfItem(a){

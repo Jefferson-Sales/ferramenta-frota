@@ -158,6 +158,7 @@
 </div>
 <div id="toast"></div>
 
+<script src="regras.js"></script>
 <script>
 (function(){
   "use strict";
@@ -456,9 +457,9 @@
     return h + '</div>';
   }
   function avisoKm(){
-    if (!S.veiculo || !(Number(S.km) > 0)) return "";
-    var ref = Math.max(Number(S.ultimo && S.ultimo.km) || 0, Number(S.veiculo.km_atual) || 0);
-    return ref && Number(S.km) < ref ? '<div class="warn">KM menor que o último registrado (' + fmtKm(ref) + '). Confira o painel.</div>' : "";
+    if (!S.veiculo) return "";
+    var ref = Regras.kmAbaixoDoUltimo(S.km, S.ultimo && S.ultimo.km, S.veiculo.km_atual);
+    return ref ? '<div class="warn">KM menor que o último registrado (' + fmtKm(ref) + '). Confira o painel.</div>' : "";
   }
 
   function renderStep1(){

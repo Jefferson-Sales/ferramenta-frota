@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testes das regras</title>
+<style>
+  :root{ --paper:#f6f5f0; --surface:#ffffff; --ink:#1a231f; --muted:#5c645d; --line:#e2e0d5; --good:#1e8e4f; --good-soft:#e5f4ea; --critical:#c23b3b; --critical-soft:#fbe9e8; }
+  @media (prefers-color-scheme: dark){ :root{ --paper:#141815; --surface:#1b201c; --ink:#eef0ea; --muted:#a4aa9f; --line:#2b3129; --good:#4cbf7c; --good-soft:#173325; --critical:#e5716d; --critical-soft:#3a1d1c; } }
+  body{ margin:0; padding:24px 16px 48px; background:var(--paper); color:var(--ink); font:14px/1.45 "IBM Plex Sans", system-ui, sans-serif; }
+  main{ max-width:820px; margin:0 auto; }
+  h1{ font-size:20px; margin:0 0 4px; }
+  p{ color:var(--muted); margin:0 0 16px; }
+  #resumo{ padding:12px 16px; border-radius:8px; font-weight:700; margin-bottom:16px; }
+  #resumo.ok{ background:var(--good-soft); color:var(--good); }
+  #resumo.falha{ background:var(--critical-soft); color:var(--critical); }
+  section{ background:var(--surface); border:1px solid var(--line); border-radius:10px; margin-bottom:14px; overflow:hidden; }
+  h2{ font-size:14px; margin:0; padding:10px 14px; border-bottom:1px solid var(--line); }
+  ul{ list-style:none; margin:0; padding:4px 0; }
+  li{ padding:5px 14px; display:flex; gap:10px; }
+  li .st{ font-weight:700; flex:none; width:44px; }
+  li.ok .st{ color:var(--good); }
+  li.falha{ background:var(--critical-soft); }
+  li.falha .st{ color:var(--critical); }
+  li .det{ color:var(--critical); font-family:ui-monospace, monospace; font-size:12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Testes das regras de cálculo</h1>
+  <p>Confere as regras do <code>regras.js</code> (as mesmas que o painel e o checklist usam). Basta abrir esta página; nada é gravado em lugar nenhum. As regras do banco ficam em <code>testes/regras.test.sql</code>.</p>
+  <div id="resumo">Rodando…</div>
+  <div id="saida"></div>
+</main>
+<script src="../regras.js"></script>
+<script>
+(function(){
+  "use strict";
+  var grupos = [], atual = null, total = 0, falhas = 0;
+  function grupo(nome){ atual = { nome: nome, casos: [] }; grupos.push(atual); }
+  function igual(desc, obtido, esperado){
+    total++;
+    var ok = JSON.stringify(obtido) === JSON.stringify(esperado);
+    if (!ok) falhas++;
+    atual.casos.push({ desc: desc, ok: ok, obtido: obtido, esperado: esperado });
+  }
+  var R = window.Regras;
+  if (!R){ document.getElementById("resumo").textContent = "Não carregou o regras.js."; document.getElementById("resumo").className = "falha"; return; }
+
+  // ----------------------------------------------------------------------------
+  grupo("Qualidade da Frota — status do veículo (pior anomalia aberta)");
+  igual("1 crítica → Urgente",                       R.statusQualidade(1, 0, 1, true), "urgente");
+  igual("1 alta → Reparo",                           R.statusQualidade(0, 1, 1, true), "reparo");
+  igual("1 média (ou baixa) → Atenção",              R.statusQualidade(0, 0, 1, true), "atencao");
+  igual("nenhuma aberta, já teve checklist → OK",    R.statusQualidade(0, 0, 0, true), "ok");
+  igual("nunca teve checklist → Sem checklist",      R.statusQualidade(0, 0, 0, false), "sem");
+  igual("crítica + alta + baixa → Urgente (a pior manda)", R.statusQualidade(1, 1, 3, true), "urgente");
+  igual("alta + baixa → Reparo",                     R.statusQualidade(0, 1, 2, true), "reparo");
+  igual("anomalia aberta sem checklist registrado → ainda conta", R.statusQualidade(0, 0, 1, false), "atencao");
+
+  // ----------------------------------------------------------------------------
+  grupo("Franquia de km (pool) — cor do % utilizado");
+  igual("45,5% → verde",               R.faixaFranquia(45.5), "good");
+  igual("84,9% → verde",               R.faixaFranquia(84.9), "good");
+  igual("85% exato → amarelo",          R.faixaFranquia(85), "warn");
+  igual("99,9% → amarelo",              R.faixaFranquia(99.9), "warn");
+  igual("100% exato → vermelho",        R.faixaFranquia(100), "crit");
+  igual("104,2% → vermelho",            R.faixaFranquia(104.2), "crit");
+  igual("sem dado (contrato sem franquia) → neutro", R.faixaFranquia(null), "neutral");
+  igual("0% → verde",                   R.faixaFranquia(0), "good");
+
+  // ----------------------------------------------------------------------------
+  grupo("Manutenções — OS vencida (badge e aviso)");
+  var agora = new Date("2026-10-21T15:00:00-03:00");
+  igual("em execução, previsão ontem → vencida",
+        R.osVencida({ status: "em_execucao", previsao_retorno: "2026-10-20T12:00:00-03:00" }, agora), true);
+  igual("em execução, previsão amanhã → não",
+        R.osVencida({ status: "em_execucao", previsao_retorno: "2026-10-22T12:00:00-03:00" }, agora), false);
+  igual("aguardando peça, previsão passada → vencida",
+        R.osVencida({ status: "aguardando_peca", previsao_retorno: "2026-10-01T12:00:00-03:00" }, agora), true);
+  igual("só agendada (carro não parou), previsão passada → não",
+        R.osVencida({ status: "agendada", previsao_retorno: "2026-10-01T12:00:00-03:00" }, agora), false);
+  igual("concluída, previsão passada → não",
+        R.osVencida({ status: "concluida", previsao_retorno: "2026-10-01T12:00:00-03:00" }, agora), false);
+  igual("cancelada, previsão passada → não",
+        R.osVencida({ status: "cancelada", previsao_retorno: "2026-10-01T12:00:00-03:00" }, agora), false);
+  igual("sem previsão de retorno → não",
+        R.osVencida({ status: "em_execucao", previsao_retorno: null }, agora), false);
+
+  // ----------------------------------------------------------------------------
+  grupo("Checklist — aviso de km menor que o último registrado");
+  igual("informou 9.900, último checklist 10.000 → avisa (ref. 10.000)", R.kmAbaixoDoUltimo(9900, 10000, 9500), 10000);
+  igual("compara com o maior entre checklist e cadastro (cadastro 10.050)", R.kmAbaixoDoUltimo(10020, 10000, 10050), 10050);
+  igual("igual ao último → não avisa",                    R.kmAbaixoDoUltimo(10000, 10000, 9000), 0);
+  igual("maior que o último → não avisa",                 R.kmAbaixoDoUltimo(10100, 10000, 10050), 0);
+  igual("veículo sem km conhecido → não avisa",           R.kmAbaixoDoUltimo(500, null, null), 0);
+  igual("km ainda não preenchido → não avisa",            R.kmAbaixoDoUltimo("", 10000, 10000), 0);
+  igual("km digitado como texto (\"9900\") → avisa",       R.kmAbaixoDoUltimo("9900", "10000", null), 10000);
+
+  // ----------------------------------------------------------------------------
+  grupo("Multas — pontos na CNH por grau");
+  igual("leve = 3",       R.PONTOS_POR_GRAU.leve, 3);
+  igual("média = 4",      R.PONTOS_POR_GRAU.media, 4);
+  igual("grave = 5",      R.PONTOS_POR_GRAU.grave, 5);
+  igual("gravíssima = 7", R.PONTOS_POR_GRAU.gravissima, 7);
+
+  // ---------------------------------------------------------------- mostra
+  var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
+  document.getElementById("saida").innerHTML = grupos.map(function(g){
+    return "<section><h2>" + esc(g.nome) + "</h2><ul>" + g.casos.map(function(c){
+      return '<li class="' + (c.ok ? "ok" : "falha") + '"><span class="st">' + (c.ok ? "ok" : "FALHA") + "</span><span>" + esc(c.desc) +
+        (c.ok ? "" : '<br><span class="det">esperado: ' + esc(JSON.stringify(c.esperado)) + " · obtido: " + esc(JSON.stringify(c.obtido)) + "</span>") + "</span></li>";
+    }).join("") + "</ul></section>";
+  }).join("");
+  var r = document.getElementById("resumo");
+  r.className = falhas ? "falha" : "ok";
+  r.textContent = falhas ? (falhas + " de " + total + " testes falharam") : ("Todos os " + total + " testes passaram");
+  document.title = (falhas ? "FALHA " : "OK ") + "Testes das regras";
+  window.RESULTADO_TESTES = { total: total, falhas: falhas };
+})();
+</script>
+</body>
+</html>
