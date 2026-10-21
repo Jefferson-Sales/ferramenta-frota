@@ -45,7 +45,7 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 
 ## 4. Controle de acesso por Hub
 
-- [ ] Criar grupos de acesso por Hub, filtrando as placas visíveis conforme o usuário logado.
+- [x] Criar grupos de acesso por Hub, filtrando as placas visíveis conforme o usuário logado. _(21/10/2026: vale só em Manutenções e Qualidade da Frota — e na busca de placa do auxiliar no `checklist.html`; admin vê tudo; hubs marcados por usuário na tela Gerenciar acessos; demais módulos sem filtro de hub.)_
   - Exemplo: auxiliar de frota de Alphaville só vê os carros daquele hub.
 
 ---
