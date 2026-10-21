@@ -91,7 +91,38 @@
   .user-chip .who{ min-width:0; }
   .user-chip .who .nm{ font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .user-chip .who .role{ font-size:11px; color:var(--muted); text-transform:capitalize; }
-  .logout{ width:100%; margin-top:8px; font-size:12px; }
+  button.user-chip{ width:100%; background:none; border:none; border-radius:7px; text-align:left; color:var(--ink); }
+  button.user-chip:hover, button.user-chip[aria-expanded="true"]{ background:var(--surface-2); }
+  button.user-chip:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .user-chip .who{ flex:1; }
+  .user-chip .caret{ font-size:12px; color:var(--muted); flex:none; }
+  .user-menu-wrap{ position:relative; }
+  .user-menu{ position:absolute; left:0; right:0; bottom:calc(100% + 6px); background:var(--surface); border:1px solid var(--line-strong); border-radius:8px; box-shadow:var(--shadow); padding:4px; z-index:30; }
+  .user-menu button{ display:block; width:100%; text-align:left; background:none; border:none; border-radius:6px; padding:8px 10px; font-size:13px; font-weight:600; color:var(--ink); }
+  .user-menu button:hover, .user-menu button:focus-visible{ background:var(--surface-2); outline:none; }
+  /* Gerenciar acessos */
+  .ac-busca{ width:170px; }
+  .ac-head{ flex-wrap:wrap; }
+  .ac-head .card-head-actions{ flex-wrap:wrap; }
+  .ac-row{ cursor:pointer; }
+  .ac-row:hover td{ background:var(--surface-2); }
+  .ac-row.inativo td{ color:var(--faint); }
+  .ac-row.inativo .pill{ opacity:.7; }
+  .ac-mods{ font-size:12px; color:var(--muted); max-width:200px; }
+  .ac-email{ font-size:12.5px; color:var(--muted); }
+  .ac-mat{ font-family:var(--font-mono); }
+  .ac-tabela-mod{ width:100%; border:1px solid var(--line); border-radius:8px; border-collapse:separate; overflow:hidden; }
+  .ac-tabela-mod th, .ac-tabela-mod td{ padding:7px 12px; }
+  .ac-tabela-mod th:not(:first-child), .ac-tabela-mod td:not(:first-child){ text-align:center; width:80px; }
+  .ac-tabela-mod input{ width:16px; height:16px; }
+  .ac-tabela-mod.desab td{ color:var(--faint); }
+  .ac-hint{ font-size:12px; color:var(--muted); line-height:1.5; margin-top:6px; }
+  .ac-senha-row{ display:flex; gap:8px; }
+  .ac-senha-row input{ flex:1; font-family:var(--font-mono); }
+  .ac-status-box{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:13px; }
+  .btn-danger{ color:var(--critical); border-color:var(--critical); background:none; }
+  .ac-cred{ font-family:var(--font-mono); font-size:13.5px; background:var(--surface-2); border-radius:8px; padding:12px 14px; line-height:1.8; word-break:break-all; }
+  .ac-aviso{ background:var(--warning-soft); color:var(--warning); border-radius:7px; padding:8px 11px; font-size:12.5px; margin-top:12px; }
 
   .main{ flex:1; min-width:0; padding:22px 28px 60px; max-width:1040px; }
   .topline{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:4px; flex-wrap:wrap; }
@@ -247,11 +278,17 @@
     <div class="brand"><div class="mark">CF</div><div class="name">Ferramenta da Frota</div></div>
     <nav id="nav" aria-label="Módulos"></nav>
     <div class="sidebar-foot">
-      <div class="user-chip">
-        <div class="av" id="user-av">–</div>
-        <div class="who"><div class="nm" id="user-name">–</div><div class="role" id="user-role">–</div></div>
+      <div class="user-menu-wrap">
+        <div class="user-menu" id="user-menu" role="menu" hidden>
+          <button type="button" role="menuitem" id="menu-acessos" hidden>Gerenciar acessos</button>
+          <button type="button" role="menuitem" id="btn-logout">Sair</button>
+        </div>
+        <button type="button" class="user-chip" id="user-chip" aria-haspopup="menu" aria-expanded="false">
+          <div class="av" id="user-av">–</div>
+          <div class="who"><div class="nm" id="user-name">–</div><div class="role" id="user-role">–</div></div>
+          <span class="caret" aria-hidden="true">▴</span>
+        </button>
       </div>
-      <button class="btn btn-ghost logout" id="btn-logout">Sair</button>
     </div>
   </div>
 
@@ -534,6 +571,40 @@
       </div>
     </section>
 
+    <!-- GERENCIAR ACESSOS (só admin; aberto pelo menu do nome) -->
+    <section class="panel" data-panel="acessos">
+      <div class="topline"><h1>Gerenciar acessos</h1></div>
+      <p class="section-desc">Quem pode entrar na ferramenta e o que cada pessoa vê ou opera. Desativar corta as permissões na hora e bloqueia o login, sem apagar o usuário. Clique numa linha para editar.</p>
+
+      <div class="card">
+        <div class="card-head ac-head">
+          <h2>Usuários</h2>
+          <div class="card-head-actions">
+            <input type="search" id="ac-busca" class="filter-select ac-busca" placeholder="Nome ou e-mail" autocomplete="off">
+            <select id="ac-papel" class="filter-select">
+              <option value="">Todos os papéis</option>
+              <option value="admin">Admin</option>
+              <option value="operador">Operador</option>
+              <option value="visualizador">Visualizador</option>
+            </select>
+            <select id="ac-status" class="filter-select">
+              <option value="">Ativos e inativos</option>
+              <option value="ativo">Só ativos</option>
+              <option value="inativo">Só inativos</option>
+            </select>
+            <span class="count" id="ac-count"></span>
+            <button type="button" class="inline-add-trigger" id="ac-novo">+ Novo usuário</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Vê</th><th>Opera</th><th>Matrícula</th><th>Último acesso</th><th>Status</th></tr></thead>
+            <tbody id="ac-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- SEM ACESSO -->
     <section class="panel" data-panel="sem-acesso">
       <div class="topline"><h1>Sem módulos liberados</h1></div>
@@ -587,6 +658,62 @@
   <div class="modal" style="max-width:860px;">
     <div class="modal-head"><h3 id="qfv-titulo">Veículo</h3><button class="modal-close" data-close-modal>×</button></div>
     <div id="qfv-corpo"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-usuario" hidden>
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-head"><h3 id="ac-titulo">Novo usuário</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form id="ac-form" autocomplete="off">
+      <input type="hidden" id="ac-id">
+      <div class="form-grid">
+        <div class="field span2"><label for="ac-nome">Nome</label><input id="ac-nome" required maxlength="120"></div>
+        <div class="field span2"><label for="ac-email">E-mail (login)</label><input id="ac-email" type="email" required autocomplete="off"></div>
+        <div class="field span2" id="ac-senha-field">
+          <label for="ac-senha">Senha inicial</label>
+          <div class="ac-senha-row">
+            <input id="ac-senha" type="text" minlength="8" autocomplete="new-password" placeholder="Em branco = gerar automaticamente" spellcheck="false">
+            <button type="button" class="btn" id="ac-gerar">Gerar</button>
+          </div>
+          <div class="ac-hint">Mínimo de 8 caracteres. A senha não fica salva em lugar nenhum; ela aparece uma única vez depois de criar.</div>
+        </div>
+        <div class="field"><label for="ac-papel-f">Papel</label>
+          <select id="ac-papel-f">
+            <option value="operador">Operador</option>
+            <option value="visualizador">Visualizador</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="field"><label for="ac-matricula">Matrícula (checklist)</label><input id="ac-matricula" inputmode="numeric" maxlength="10" placeholder="Opcional"></div>
+        <div class="field span2">
+          <label>Módulos</label>
+          <table class="ac-tabela-mod" id="ac-mods">
+            <thead><tr><th>Módulo</th><th>Vê</th><th>Opera</th></tr></thead>
+            <tbody id="ac-mods-body"></tbody>
+          </table>
+          <div class="ac-hint" id="ac-mods-hint"></div>
+        </div>
+        <div class="field span2" id="ac-status-field" hidden>
+          <label>Acesso</label>
+          <div class="ac-status-box">
+            <span id="ac-status-txt"></span>
+            <button type="button" class="btn" id="ac-toggle-ativo"></button>
+          </div>
+        </div>
+      </div>
+      <div class="field-err" id="ac-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="ac-btn-salvar" style="width:auto">Criar usuário</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-usuario-criado" data-sem-fechar-fora hidden>
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-head"><h3>Usuário criado</h3><button class="modal-close" data-close-modal>×</button></div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Envie estes dados para a pessoa por um canal privado. Ela entra em <strong id="ac-cred-url"></strong>.</p>
+    <div class="ac-cred" id="ac-cred"></div>
+    <div class="ac-aviso">Esta senha não será mostrada de novo.</div>
+    <div class="modal-actions"><button type="button" class="btn" id="ac-copiar">Copiar e-mail e senha</button><button type="button" class="btn btn-primary" data-close-modal style="width:auto">Concluir</button></div>
   </div>
 </div>
 
@@ -1074,7 +1201,7 @@
   // "Qualidade da Frota" não é um módulo próprio no perfil: aparece para quem tem
   // 'checklist' (auxiliares de frota) ou 'manutencao' — a mesma regra do RLS (posso_ver_checklist).
   function canView(mod){
-    if (!perfil) return false;
+    if (!perfil || perfil.ativo === false) return false;
     if (mod === "qualidade") return canView("checklist") || canView("manutencao");
     if (perfil.papel === "admin") return true;
     var vis = perfil.modulos_visualizacao || [];
@@ -1082,7 +1209,7 @@
     return vis.indexOf(mod) > -1 || ope.indexOf(mod) > -1;
   }
   function canEdit(mod){
-    if (!perfil) return false;
+    if (!perfil || perfil.ativo === false) return false;
     if (mod === "qualidade") return canEdit("checklist") || canEdit("manutencao");
     if (perfil.papel === "admin") return true;
     return (perfil.modulos_operador || []).indexOf(mod) > -1;
@@ -1096,6 +1223,10 @@
     nav.innerHTML = "";
     var visible = MODULES.filter(function(m){ return canView(m.key); });
     if (!visible.length){
+      var semAcesso = document.querySelector('[data-panel="sem-acesso"] .section-desc');
+      semAcesso.textContent = (perfil && perfil.ativo === false)
+        ? "Seu acesso está desativado. Fale com o administrador da frota."
+        : "Seu usuário está ativo, mas ainda não tem nenhum módulo liberado para visualização. Fale com o administrador da frota.";
       currentPanel = "sem-acesso";
       showPanel("sem-acesso");
       return;
@@ -1112,7 +1243,10 @@
     atualizarBadgeManutencaoInicial();
   }
 
+  function souAdmin(){ return !!(perfil && perfil.ativo !== false && perfil.papel === "admin"); }
+
   function showPanel(key){
+    if (key === "acessos" && !souAdmin()) return;
     currentPanel = key;
     document.querySelectorAll(".panel").forEach(function(p){
       p.classList.toggle("active", p.dataset.panel === key);
@@ -1130,6 +1264,7 @@
     if (key === "multas") loadMultas();
     if (key === "financeiro") loadFinanceiro();
     if (key === "eletrificacao") loadEletrificacao();
+    if (key === "acessos") loadAcessos();
   }
 
   // ---------------- status pill helpers ----------------
@@ -2540,7 +2675,7 @@
     }
     var closeTrigger = ev.target.closest("[data-close-modal]");
     if (closeTrigger){ closeModal(closeTrigger); return; }
-    if (ev.target.classList.contains("modal-overlay")){ ev.target.hidden = true; }
+    if (ev.target.classList.contains("modal-overlay") && !ev.target.hasAttribute("data-sem-fechar-fora")){ ev.target.hidden = true; }
   });
 
   function setErr(id, msg){
@@ -2900,6 +3035,322 @@
     });
   });
 
+  // ---------------- Gerenciar acessos (só admin) ----------------
+  // Tudo passa pela Edge Function `usuarios`, que confere no servidor se quem chama é admin ativo.
+  var AC_MODULOS = [
+    {key:"frota", label:"Cadastro da Frota"},
+    {key:"manutencao", label:"Manutenções"},
+    {key:"checklist", label:"Checklist / Qualidade da Frota"},
+    {key:"multas", label:"Multas"},
+    {key:"financeiro", label:"Financeiro"},
+    {key:"eletrificacao", label:"Carros Elétricos"}
+  ];
+  var AC_CURTO = {frota:"Frota", manutencao:"Manutenção", checklist:"Checklist", multas:"Multas", financeiro:"Financeiro", eletrificacao:"Elétricos"};
+  var AC = { lista: [], carregando: false, editando: null };
+
+  function chamarUsuarios(acao, dados){
+    return ensureFreshSession().catch(function(){
+      forceReLogin("Sua sessão expirou. Faça login novamente.");
+      throw new Error("Sessão expirada.");
+    }).then(function(){
+      var body = Object.assign({ acao: acao }, dados || {});
+      return fetch(SUPA_URL + "/functions/v1/usuarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : "") },
+        body: JSON.stringify(body)
+      });
+    }).then(function(r){
+      return r.text().then(function(t){
+        var j; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = null; }
+        if (r.status === 401){ forceReLogin("Sua sessão expirou. Faça login novamente."); }
+        if (!r.ok) throw new Error((j && j.error) || ("Erro " + r.status));
+        return j;
+      });
+    });
+  }
+
+  function fmtDataHora(iso){
+    if (!iso) return "";
+    var d = new Date(iso);
+    return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+  }
+
+  function loadAcessos(){
+    var tb = document.getElementById("ac-body");
+    if (!AC.lista.length) tb.innerHTML = '<tr><td colspan="8" class="empty-row">Carregando…</td></tr>';
+    AC.carregando = true;
+    return chamarUsuarios("listar").then(function(res){
+      AC.lista = (res && res.usuarios) || [];
+      renderAcessos();
+    }).catch(function(e){
+      if (!session) return;
+      tb.innerHTML = '<tr><td colspan="8" class="empty-row">Não foi possível carregar: ' + esc(e.message) + '</td></tr>';
+    }).finally(function(){ AC.carregando = false; });
+  }
+
+  function acModsTxt(u, campo){
+    if (u.papel === "admin") return "Tudo";
+    if (campo === "modulos_operador" && u.papel === "visualizador") return "—";
+    var l = (u[campo] || []).map(function(m){ return AC_CURTO[m] || m; });
+    return l.length ? l.join(", ") : "—";
+  }
+
+  function renderAcessos(){
+    var busca = document.getElementById("ac-busca").value.trim().toLowerCase();
+    var papel = document.getElementById("ac-papel").value;
+    var status = document.getElementById("ac-status").value;
+    var linhas = AC.lista.filter(function(u){
+      if (busca && (String(u.nome || "") + " " + String(u.email || "")).toLowerCase().indexOf(busca) < 0) return false;
+      if (papel && u.papel !== papel) return false;
+      if (status === "ativo" && !u.ativo) return false;
+      if (status === "inativo" && u.ativo) return false;
+      return true;
+    });
+    document.getElementById("ac-count").textContent = linhas.length + (linhas.length === 1 ? " usuário" : " usuários");
+    var tb = document.getElementById("ac-body");
+    if (!linhas.length){ tb.innerHTML = '<tr><td colspan="8" class="empty-row">Nenhum usuário com esses filtros.</td></tr>'; return; }
+    var PAPEL = {admin:"Admin", operador:"Operador", visualizador:"Visualizador"};
+    tb.innerHTML = linhas.map(function(u){
+      var st;
+      if (u.sem_perfil) st = '<span class="pill warn">Sem perfil</span>';
+      else if (!u.ativo) st = '<span class="pill neutral">Inativo</span>';
+      else if (u.login_bloqueado) st = '<span class="pill warn" title="Perfil ativo, mas o login está bloqueado">Login bloqueado</span>';
+      else st = '<span class="pill good">Ativo</span>';
+      var eu = session && session.user && u.user_id === session.user.id;
+      return '<tr class="ac-row' + (u.ativo ? '' : ' inativo') + '" data-uid="' + esc(u.user_id) + '" tabindex="0">' +
+        '<td><strong>' + esc(u.nome || "(sem nome)") + '</strong>' + (eu ? ' <span class="qf-sub">(você)</span>' : '') + '</td>' +
+        '<td class="ac-email">' + esc(u.email || (u.sem_login ? "login não encontrado" : "")) + '</td>' +
+        '<td>' + (u.papel ? '<span class="pill ' + (u.papel === "admin" ? "good" : "neutral") + '">' + PAPEL[u.papel] + '</span>' : '—') + '</td>' +
+        '<td class="ac-mods">' + esc(acModsTxt(u, "modulos_visualizacao")) + '</td>' +
+        '<td class="ac-mods">' + esc(acModsTxt(u, "modulos_operador")) + '</td>' +
+        '<td class="ac-mat">' + esc(u.matricula || "—") + '</td>' +
+        '<td class="qf-sub">' + esc(u.ultimo_acesso ? fmtDataHora(u.ultimo_acesso) : "Nunca entrou") + '</td>' +
+        '<td>' + st + '</td></tr>';
+    }).join("");
+  }
+
+  ["ac-busca","ac-papel","ac-status"].forEach(function(id){
+    document.getElementById(id).addEventListener(id === "ac-busca" ? "input" : "change", renderAcessos);
+  });
+  document.getElementById("ac-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".ac-row"); if (!tr) return;
+    var u = AC.lista.filter(function(x){ return x.user_id === tr.dataset.uid; })[0];
+    if (u) abrirUsuario(u);
+  });
+  document.getElementById("ac-body").addEventListener("keydown", function(ev){
+    if (ev.key !== "Enter") return;
+    var tr = ev.target.closest(".ac-row"); if (tr) tr.click();
+  });
+
+  // tabela de módulos do formulário
+  function acMontarMods(vis, ope){
+    document.getElementById("ac-mods-body").innerHTML = AC_MODULOS.map(function(m){
+      return '<tr><td>' + esc(m.label) + '</td>' +
+        '<td><input type="checkbox" data-ac-vis="' + m.key + '" aria-label="Vê ' + esc(m.label) + '"' + (vis.indexOf(m.key) > -1 ? ' checked' : '') + '></td>' +
+        '<td><input type="checkbox" data-ac-ope="' + m.key + '" aria-label="Opera ' + esc(m.label) + '"' + (ope.indexOf(m.key) > -1 ? ' checked' : '') + '></td></tr>';
+    }).join("");
+    acAjustarMods();
+  }
+  function acAjustarMods(){
+    var papel = document.getElementById("ac-papel-f").value;
+    var tabela = document.getElementById("ac-mods");
+    var hint = document.getElementById("ac-mods-hint");
+    tabela.classList.toggle("desab", papel === "admin");
+    document.querySelectorAll("#ac-mods-body input").forEach(function(cb){
+      var ehOpe = cb.hasAttribute("data-ac-ope");
+      if (papel === "admin"){ cb.disabled = true; cb.checked = true; }
+      else if (papel === "visualizador" && ehOpe){ cb.disabled = true; cb.checked = false; }
+      else cb.disabled = false;
+    });
+    if (papel === "admin") hint.textContent = "Admin vê e opera todos os módulos e acessa esta tela.";
+    else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada.";
+    else hint.textContent = "Quem opera um módulo também vê. Auxiliar de frota: papel Operador, Checklist em \"Opera\" e matrícula preenchida (libera a Inspeção técnica no formulário do checklist).";
+  }
+  document.getElementById("ac-papel-f").addEventListener("change", function(){
+    // ao sair de admin, desmarca o "tudo marcado" que era só visual
+    if (this.value !== "admin" && document.getElementById("ac-mods").classList.contains("desab")){
+      var u = AC.editando;
+      var manter = u && u.papel !== "admin";
+      acMontarMods(manter ? (u.modulos_visualizacao || []) : [], manter ? (u.modulos_operador || []) : []);
+    } else acAjustarMods();
+  });
+  document.getElementById("ac-mods-body").addEventListener("change", function(ev){
+    var cb = ev.target;
+    if (cb.hasAttribute("data-ac-ope") && cb.checked){
+      document.querySelector('[data-ac-vis="' + cb.dataset.acOpe + '"]').checked = true;
+    }
+    if (cb.hasAttribute("data-ac-vis") && !cb.checked){
+      document.querySelector('[data-ac-ope="' + cb.dataset.acVis + '"]').checked = false;
+    }
+  });
+
+  function acGerarSenha(){
+    var letras = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ", todos = letras + "23456789";
+    for (;;){
+      var buf = new Uint32Array(12); crypto.getRandomValues(buf);
+      var s = Array.prototype.map.call(buf, function(n){ return todos[n % todos.length]; }).join("");
+      if (/\d/.test(s) && /[a-z]/.test(s) && /[A-Z]/.test(s)) return s;
+    }
+  }
+  document.getElementById("ac-gerar").addEventListener("click", function(){
+    document.getElementById("ac-senha").value = acGerarSenha();
+  });
+
+  function abrirUsuario(u){
+    AC.editando = u || null;
+    var novo = !u;
+    var eu = !novo && session && session.user && u.user_id === session.user.id;
+    document.getElementById("ac-form").reset();
+    document.getElementById("ac-id").value = novo ? "" : u.user_id;
+    document.getElementById("ac-titulo").textContent = novo ? "Novo usuário" : (u.sem_perfil ? "Configurar acesso" : "Editar usuário");
+    document.getElementById("ac-btn-salvar").textContent = novo ? "Criar usuário" : "Salvar alterações";
+    document.getElementById("ac-nome").value = novo ? "" : (u.nome || "");
+    var em = document.getElementById("ac-email");
+    em.value = novo ? "" : (u.email || "");
+    em.readOnly = !novo; em.required = novo;
+    document.getElementById("ac-senha-field").hidden = !novo;
+    var pf = document.getElementById("ac-papel-f");
+    pf.value = novo ? "operador" : (u.papel || "operador");
+    pf.disabled = !!eu; // não tirar o próprio admin
+    document.getElementById("ac-matricula").value = novo ? "" : (u.matricula || "");
+    acMontarMods(novo ? [] : (u.modulos_visualizacao || []), novo ? [] : (u.modulos_operador || []));
+
+    var stField = document.getElementById("ac-status-field");
+    stField.hidden = novo || u.sem_perfil;
+    if (!stField.hidden){
+      var btn = document.getElementById("ac-toggle-ativo");
+      document.getElementById("ac-status-txt").textContent = u.ativo
+        ? (eu ? "Ativo. Você não pode desativar o seu próprio acesso." : (u.login_bloqueado ? "Perfil ativo, mas o login está bloqueado. Reative para liberar." : "Ativo"))
+        : "Inativo: sem permissões e com o login bloqueado.";
+      btn.hidden = !!eu;
+      btn.disabled = false;
+      if (u.ativo && !u.login_bloqueado){ btn.textContent = "Desativar acesso"; btn.className = "btn btn-danger"; btn.dataset.acao = "desativar"; }
+      else { btn.textContent = "Reativar acesso"; btn.className = "btn"; btn.dataset.acao = "ativar"; }
+    }
+    setErr("ac-err", "");
+    openModal("modal-usuario");
+    setTimeout(function(){ document.getElementById("ac-nome").focus(); }, 30);
+  }
+  document.getElementById("ac-novo").addEventListener("click", function(){ abrirUsuario(null); });
+
+  function acColetarMods(attr){
+    return Array.prototype.filter.call(document.querySelectorAll("#ac-mods-body [" + attr + "]"), function(cb){ return cb.checked; })
+      .map(function(cb){ return cb.getAttribute(attr); });
+  }
+
+  document.getElementById("ac-form").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("ac-err", "");
+    var id = document.getElementById("ac-id").value;
+    var papel = document.getElementById("ac-papel-f").value;
+    var dados = {
+      nome: document.getElementById("ac-nome").value.trim(),
+      papel: papel,
+      matricula: document.getElementById("ac-matricula").value.trim(),
+      modulos_visualizacao: papel === "admin" ? [] : acColetarMods("data-ac-vis"),
+      modulos_operador: papel === "admin" ? [] : acColetarMods("data-ac-ope")
+    };
+    if (dados.matricula && !/^\d{1,10}$/.test(dados.matricula)){ setErr("ac-err", "Matrícula deve ter só números."); return; }
+    if (papel !== "admin" && !dados.modulos_visualizacao.length && !dados.modulos_operador.length){
+      setErr("ac-err", "Marque pelo menos um módulo (ou escolha o papel Admin)."); return;
+    }
+    var senha = "";
+    if (!id){
+      dados.email = document.getElementById("ac-email").value.trim();
+      senha = document.getElementById("ac-senha").value;
+      if (senha && senha.length < 8){ setErr("ac-err", "A senha precisa ter pelo menos 8 caracteres."); return; }
+      dados.senha = senha;
+    } else dados.user_id = id;
+
+    var btn = document.getElementById("ac-btn-salvar");
+    var txt = btn.textContent;
+    btn.disabled = true; btn.textContent = "Salvando…";
+    chamarUsuarios(id ? "editar" : "criar", dados).then(function(res){
+      document.getElementById("modal-usuario").hidden = true;
+      if (!id){
+        mostrarCredenciais(res.email, res.senha_gerada || senha);
+      } else {
+        toast("Alterações salvas.");
+        if (session && id === session.user.id) recarregarMeuPerfil();
+      }
+      loadAcessos();
+    }).catch(function(e){
+      setErr("ac-err", e.message);
+    }).finally(function(){ btn.disabled = false; btn.textContent = txt; });
+  });
+
+  document.getElementById("ac-toggle-ativo").addEventListener("click", function(){
+    var u = AC.editando; if (!u) return;
+    var acao = this.dataset.acao;
+    var nome = u.nome || u.email;
+    var pergunta = acao === "desativar"
+      ? "Desativar o acesso de " + nome + "?\n\nA pessoa perde as permissões na hora e não consegue mais entrar. O usuário não é apagado e pode ser reativado depois."
+      : "Reativar o acesso de " + nome + "?";
+    if (!confirm(pergunta)) return;
+    var btn = this; btn.disabled = true;
+    chamarUsuarios(acao, { user_id: u.user_id }).then(function(res){
+      document.getElementById("modal-usuario").hidden = true;
+      if (res && res.aviso) toast(res.aviso, true);
+      else toast(acao === "desativar" ? "Acesso de " + nome + " desativado." : "Acesso de " + nome + " reativado.");
+      loadAcessos();
+    }).catch(function(e){
+      setErr("ac-err", e.message);
+      btn.disabled = false;
+    });
+  });
+
+  var acCredTexto = "";
+  function mostrarCredenciais(email, senha){
+    var url = location.origin + location.pathname.replace(/[^/]*$/, "");
+    document.getElementById("ac-cred-url").textContent = url;
+    document.getElementById("ac-cred").innerHTML = "E-mail: " + esc(email) + "<br>Senha: " + esc(senha);
+    acCredTexto = "Ferramenta da Frota: " + url + "\nE-mail: " + email + "\nSenha: " + senha;
+    openModal("modal-usuario-criado");
+  }
+  document.getElementById("ac-copiar").addEventListener("click", function(){
+    var btn = this;
+    var feito = function(){ btn.textContent = "Copiado ✓"; setTimeout(function(){ btn.textContent = "Copiar e-mail e senha"; }, 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(acCredTexto).then(feito, function(){ toast("Não foi possível copiar. Selecione o texto e copie manualmente.", true); });
+    } else toast("Não foi possível copiar. Selecione o texto e copie manualmente.", true);
+  });
+  // ao fechar, a senha some da tela (não fica no DOM)
+  document.getElementById("modal-usuario-criado").addEventListener("click", function(ev){
+    if (ev.target.closest("[data-close-modal]")){ document.getElementById("ac-cred").textContent = ""; acCredTexto = ""; }
+  });
+
+  function recarregarMeuPerfil(){
+    rest("usuarios_perfil?user_id=eq." + session.user.id + "&select=*").then(function(rows){
+      if (rows && rows[0]){
+        perfil = rows[0];
+        document.getElementById("user-name").textContent = perfil.nome || (session.user.email || "");
+      }
+    }).catch(function(){});
+  }
+
+  // menu do nome (canto inferior esquerdo)
+  var userChip = document.getElementById("user-chip");
+  var userMenu = document.getElementById("user-menu");
+  function fecharMenuUsuario(){ userMenu.hidden = true; userChip.setAttribute("aria-expanded", "false"); }
+  userChip.addEventListener("click", function(ev){
+    ev.stopPropagation();
+    var abrir = userMenu.hidden;
+    document.getElementById("menu-acessos").hidden = !souAdmin();
+    userMenu.hidden = !abrir;
+    userChip.setAttribute("aria-expanded", abrir ? "true" : "false");
+    if (abrir) userMenu.querySelector("button:not([hidden])").focus();
+  });
+  document.addEventListener("click", function(ev){
+    if (!userMenu.hidden && !ev.target.closest("#user-menu")) fecharMenuUsuario();
+  });
+  document.addEventListener("keydown", function(ev){
+    if (ev.key === "Escape" && !userMenu.hidden){ fecharMenuUsuario(); userChip.focus(); }
+  });
+  document.getElementById("menu-acessos").addEventListener("click", function(){
+    fecharMenuUsuario();
+    showPanel("acessos");
+  });
+
   // ---------------- boot / login flow ----------------
   function decodeJwtSub(token){
     try{
@@ -2927,6 +3378,8 @@
       perfil = (rows && rows[0]) || null;
       if (!perfil){
         toast("Seu acesso ainda não foi configurado pelo administrador.", true);
+      } else if (perfil.ativo === false){
+        toast("Seu acesso está desativado. Fale com o administrador da frota.", true);
       }
       enterApp();
     }).catch(function(e){
@@ -2955,7 +3408,9 @@
       loadPerfilAndEnter();
     }).catch(function(e){
       var el = document.getElementById("login-error");
-      el.textContent = e.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : e.message;
+      el.textContent = e.message === "Invalid login credentials" ? "E-mail ou senha incorretos."
+        : /banned/i.test(e.message) ? "Seu acesso está desativado. Fale com o administrador da frota."
+        : e.message;
       el.hidden = false;
     }).finally(function(){
       btn.disabled = false; btn.textContent = "Entrar";
@@ -2963,6 +3418,8 @@
   });
 
   document.getElementById("btn-logout").addEventListener("click", function(){
+    fecharMenuUsuario();
+    AC.lista = [];
     forceReLogin();
     document.getElementById("login-pass").value = "";
   });
