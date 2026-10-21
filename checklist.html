@@ -116,6 +116,16 @@
   .bottom{ position:fixed; left:0; right:0; bottom:0; background:var(--surface); border-top:1px solid var(--line); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); z-index:6; }
   .bottom .row{ max-width:960px; margin:0 auto; }
   .hidden{ display:none !important; }
+  .papeis{ display:grid; gap:12px; }
+  .papel{ display:flex; align-items:center; gap:14px; width:100%; min-height:92px; padding:16px; text-align:left;
+    background:var(--surface); color:var(--ink); border:2px solid var(--line-strong); border-radius:12px; box-shadow:var(--shadow); }
+  .papel:active{ border-color:var(--accent); background:var(--accent-soft); }
+  .papel .ico{ font-size:34px; line-height:1; flex:none; }
+  .papel b{ display:block; font-family:var(--font-display); font-size:19px; }
+  .papel span.sub{ display:block; font-size:14px; color:var(--muted); margin-top:2px; }
+  .papel-topo{ display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .papel-topo .badge{ font-size:12.5px; }
+  .tc{ display:inline-block; margin-top:4px; font-size:12px; font-weight:600; padding:2px 8px; border-radius:10px; background:var(--surface); border:1px solid var(--accent-soft-line); }
   #toast{ position:fixed; left:16px; right:16px; bottom:calc(92px + env(safe-area-inset-bottom)); z-index:9; display:flex; justify-content:center; pointer-events:none; }
   #toast div{ background:var(--ink); color:var(--paper); padding:10px 14px; border-radius:8px; font-size:14px; max-width:520px; box-shadow:var(--shadow); }
   #toast div.e{ background:var(--critical); color:#fff; }
@@ -164,12 +174,12 @@
   var HUBS = [], CAT = [];
   var session = null;     // auxiliar logado {access_token, refresh_token, expires_at, nome, matricula}
   var auxiliar = false;
-  var busy = false, enviando = false, carregando = false;
+  var busy = false, enviando = false, carregando = false, loginEmail = "";
   var arquivosPendentes = {}; // fotoKey -> Blob comprimido (para "tentar de novo")
 
   var S = novoEstado();
   function novoEstado(){
-    return { id: uuid(), step:0, matricula:"", nome:"", placa:"", veiculo:null, ultimo:null, abertas:[],
+    return { id: uuid(), step:0, papel:null, matricula:"", nome:"", placa:"", veiculo:null, ultimo:null, abertas:[],
       tipo:null, hub_id:"", km:"", grupos:{}, prefill:{}, confirmacoes:{}, novas:[],
       nivel:"", bateria:"", fixas:{}, observacoes:"", enviado:null, salvo_em:Date.now() };
   }
@@ -323,8 +333,9 @@
     Object.keys(S.fixas).forEach(function(k){ if (S.fixas[k]) l.push(S.fixas[k]); });
     return l;
   }
-  function usaCombustivel(){ return S.veiculo && S.veiculo.tipo_combustivel !== "eletrico"; }
-  function usaBateria(){ return S.veiculo && S.veiculo.tipo_combustivel !== "combustao"; }
+  // Bateria só para carro elétrico (pelo cadastro); os demais informam nível de combustível.
+  function usaBateria(){ return !!S.veiculo && S.veiculo.tipo_combustivel === "eletrico"; }
+  function usaCombustivel(){ return !!S.veiculo && !usaBateria(); }
 
   function validar(step){
     var e = [];
@@ -358,7 +369,7 @@
     }
     if (step === 2){
       if (usaCombustivel() && !S.nivel) e.push("Informe o nível de combustível.");
-      if (S.veiculo && S.veiculo.tipo_combustivel === "eletrico" && S.bateria === "") e.push("Informe o % de bateria.");
+      if (usaBateria() && S.bateria === "") e.push("Informe o % de bateria.");
       if (S.bateria !== "" && !(Number(S.bateria) >= 0 && Number(S.bateria) <= 100)) e.push("% de bateria deve estar entre 0 e 100.");
       if (S.tipo === "inspecao_tecnica") FIXAS.forEach(function(f){ if (!(S.fixas[f[0]] && S.fixas[f[0]].status === "ok")) e.push("Foto obrigatória: " + f[1] + "."); });
     }
@@ -374,9 +385,15 @@
     var steps = $("steps").children;
     for (var i = 0; i < steps.length; i++) steps[i].className = i <= S.step ? "on" : "";
     $("step-label").textContent = S.enviado ? "Enviado" : ("Etapa " + (S.step + 1) + " de 4 · " + STEP_NAMES[S.step]);
-    var html = carregando ? '<div class="card"><p class="hint" style="margin:0">Carregando…</p></div>' : S.enviado ? renderFinal() : [renderStep0, renderStep1, renderStep2, renderStep3][S.step]();
+    // antes das etapas: escolha Motorista/Auxiliar e, para auxiliar sem sessão, o login
+    var escolha = !carregando && !S.enviado && (!S.papel || (S.papel === "auxiliar" && !session));
+    var html = carregando ? '<div class="card"><p class="hint" style="margin:0">Carregando…</p></div>'
+      : escolha ? (S.papel ? renderLogin() : renderEscolha())
+      : S.enviado ? renderFinal() : [renderStep0, renderStep1, renderStep2, renderStep3][S.step]();
     $("main").innerHTML = html;
-    $("bottom").classList.toggle("hidden", !!S.enviado);
+    $("steps").classList.toggle("hidden", escolha);
+    $("step-label").classList.toggle("hidden", escolha);
+    $("bottom").classList.toggle("hidden", !!S.enviado || escolha);
     $("btn-voltar").disabled = S.step === 0 || busy;
     $("btn-proximo").disabled = busy;
     $("btn-proximo").textContent = S.step === 3 ? (enviando ? "Enviando…" : "Enviar checklist") : "Próximo";
@@ -387,15 +404,23 @@
       : "";
   }
 
+  function renderEscolha(){
+    return '<div class="card" style="padding:18px 16px"><h2 style="font-size:20px;margin-bottom:14px">Quem está preenchendo?</h2><div class="papeis">' +
+      '<button class="papel" data-act="papel" data-v="motorista"><span class="ico" aria-hidden="true">🚗</span><span><b>Sou Motorista</b><span class="sub">Retirada ou devolução do carro</span></span></button>' +
+      '<button class="papel" data-act="papel" data-v="auxiliar"><span class="ico" aria-hidden="true">🔧</span><span><b>Sou Auxiliar de Frota</b><span class="sub">Entrar com e-mail e senha</span></span></button>' +
+      '</div></div>';
+  }
+  function renderLogin(){
+    return '<div class="card"><h2>Entrar como Auxiliar de Frota</h2>' +
+      '<label class="lbl" for="lg-email">E-mail</label><input type="email" id="lg-email" autocomplete="username" inputmode="email" value="' + esc(loginEmail) + '">' +
+      '<label class="lbl" for="lg-senha">Senha</label><input type="password" id="lg-senha" autocomplete="current-password">' +
+      '<button class="btn primary" data-act="login" style="width:100%;margin-top:14px"' + (busy ? " disabled" : "") + '>' + (busy ? "Entrando…" : "Entrar") + '</button>' +
+      '<button class="btn ghost" data-act="trocar-papel" style="width:100%;margin-top:6px">Voltar — sou motorista</button></div>';
+  }
+
   function renderStep0(){
-    var h = '<div class="card"><h2>Quem está preenchendo</h2>';
-    if (!session){
-      h += '<div id="login-box" class="' + (renderStep0.login ? "" : "hidden") + '">' +
-        '<label class="lbl">E-mail</label><input type="email" id="lg-email" autocomplete="username">' +
-        '<label class="lbl">Senha</label><input type="password" id="lg-senha" autocomplete="current-password">' +
-        '<div class="row" style="margin-top:10px"><button class="btn" data-act="login-cancel">Cancelar</button><button class="btn primary" data-act="login">Entrar</button></div></div>' +
-        '<div class="' + (renderStep0.login ? "hidden" : "") + '"><button class="btn ghost" data-act="login-open" style="padding-left:0">Sou auxiliar de frota — entrar</button></div>';
-    }
+    var h = '<div class="card"><div class="papel-topo"><h2 style="margin:0">Quem está preenchendo</h2>' +
+      (S.papel === "auxiliar" ? '<span class="badge">Auxiliar de Frota</span>' : '<button class="btn ghost" data-act="trocar-papel" style="min-height:32px;padding:4px 0;font-size:13.5px">Não sou motorista</button>') + '</div>';
     h += '<label class="lbl" for="f-mat">Matrícula</label><div class="row">' +
       '<input type="text" inputmode="numeric" pattern="[0-9]*" id="f-mat" class="mono" maxlength="10" value="' + esc(S.matricula) + '" autocomplete="off">' +
       '<button class="btn flex-none" data-act="identificar">Confirmar</button></div>';
@@ -409,6 +434,7 @@
     if (S.veiculo){
       var v = S.veiculo, u = S.ultimo;
       h += '<div class="veic"><div><b>' + esc(v.placa) + '</b><div style="font-size:13.5px">' + esc(v.modelo || "") + '</div>' +
+        '<span class="tc">' + ({ eletrico:"⚡ Elétrico", combustao:"⛽ Combustão", hibrido:"Híbrido" }[v.tipo_combustivel] || "Combustível não cadastrado") + '</span>' +
         '<div class="hint" style="margin:2px 0 0">' + (u ? "Último: " + TIPOS[u.tipo] + " em " + fmtData(u.enviado_em) + " · " + fmtKm(u.km) : "Nenhum checklist anterior") + '</div></div>' +
         (S.abertas.length ? '<span class="badge alta">' + S.abertas.length + ' anomalia' + (S.abertas.length > 1 ? "s" : "") + ' aberta' + (S.abertas.length > 1 ? "s" : "") + '</span>' : '<span class="badge">sem pendências</span>') + '</div>';
 
@@ -424,7 +450,6 @@
     }
     return h + '</div>';
   }
-  renderStep0.login = false;
   function avisoKm(){
     if (!S.veiculo || !(Number(S.km) > 0)) return "";
     var ref = Math.max(Number(S.ultimo && S.ultimo.km) || 0, Number(S.veiculo.km_atual) || 0);
@@ -503,7 +528,7 @@
       h += '</div>';
     }
     if (usaBateria()){
-      h += '<label class="lbl" for="f-bat">% de bateria' + (S.veiculo.tipo_combustivel === "hibrido" ? " (opcional)" : "") + '</label>' +
+      h += '<h2>Bateria</h2><label class="lbl" for="f-bat" style="margin-top:0">% de bateria no painel</label>' +
         '<input type="number" inputmode="numeric" id="f-bat" class="mono" min="0" max="100" value="' + esc(S.bateria) + '">';
     }
     h += '</div><div class="card"><h2>Fotos do veículo</h2><p class="hint" style="margin-top:0">' +
@@ -572,8 +597,8 @@
       busy = false;
       var trocou = !S.veiculo || S.veiculo.placa !== r.veiculo.placa;
       if (trocou){
-        var keep = { matricula:S.matricula, nome:S.nome };
-        S = novoEstado(); S.matricula = keep.matricula; S.nome = keep.nome;
+        var keep = { matricula:S.matricula, nome:S.nome, papel:S.papel };
+        S = novoEstado(); S.matricula = keep.matricula; S.nome = keep.nome; S.papel = keep.papel;
       }
       S.placa = r.veiculo.placa; S.veiculo = r.veiculo; S.ultimo = r.ultimo; S.abertas = r.anomalias_abertas || [];
       if (trocou){
@@ -600,6 +625,7 @@
   }
   function login(){
     var email = $("lg-email").value.trim(), senha = $("lg-senha").value;
+    loginEmail = email; // sobrevive ao re-render (senha errada não apaga o e-mail)
     if (!email || !senha){ toast("Preencha e-mail e senha.", true); return; }
     busy = true; render();
     authToken("password", { email:email, password:senha }).then(function(j){
@@ -607,14 +633,14 @@
     }).then(function(r){
       busy = false;
       if (!r.auxiliar){ session = null; salvarSessao(); auxiliar = false; render(); toast("Seu usuário não tem acesso ao checklist de frota.", true); return; }
-      session.nome = r.nome; session.matricula = r.matricula; salvarSessao(); auxiliar = true; renderStep0.login = false;
-      if (r.matricula && !S.matricula){ S.matricula = r.matricula; render(); identificar(); } else render();
+      session.nome = r.nome; session.matricula = r.matricula; salvarSessao(); auxiliar = true; S.papel = "auxiliar";
+      if (r.matricula && !S.nome){ S.matricula = r.matricula; render(); identificar(); } else render();
     }).catch(function(e){ busy = false; render(); toast(e.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : e.message, true); });
   }
   function logout(){
     session = null; auxiliar = false; salvarSessao();
     if (S.tipo === "inspecao_tecnica"){ S.tipo = null; S.novas = []; aplicarPrefill(); }
-    render();
+    S.papel = null; salvarRascunho(); render();
   }
   function enviar(){
     var gs = gruposAtuais();
@@ -662,8 +688,12 @@
     switch (act){
       case "identificar": identificar(); break;
       case "buscar-placa": buscarPlaca(); break;
-      case "login-open": renderStep0.login = true; render(); $("lg-email").focus(); break;
-      case "login-cancel": renderStep0.login = false; render(); break;
+      case "papel":
+        $("toast").innerHTML = "";
+        S.papel = v; salvarRascunho(); render(); window.scrollTo(0, 0);
+        var foco = $(v === "auxiliar" ? "lg-email" : "f-mat"); if (foco && !foco.value) foco.focus();
+        return;
+      case "trocar-papel": $("toast").innerHTML = ""; S.papel = null; break;
       case "login": login(); break;
       case "logout": logout(); break;
       case "tipo": mudarTipo(v); break;
@@ -696,8 +726,11 @@
       case "rm-fixa": delete S.fixas[v]; break;
       case "nivel": S.nivel = v; break;
       case "novo":
+        // auxiliar logado continua; motorista volta para "Quem está preenchendo?" (celular pode ser compartilhado)
         var keep = { matricula:S.matricula, nome:S.nome };
-        S = novoEstado(); S.matricula = keep.matricula; S.nome = keep.nome; render(); window.scrollTo(0, 0); return;
+        S = novoEstado();
+        if (session){ S.papel = "auxiliar"; S.matricula = keep.matricula; S.nome = keep.nome; }
+        render(); window.scrollTo(0, 0); return;
       default: return;
     }
     salvarRascunho(); render();
@@ -736,6 +769,7 @@
       if (r && r.matricula && !r.enviado && Date.now() - (r.salvo_em || 0) < validoAte &&
           confirm("Há um checklist não enviado" + (r.placa ? " da placa " + r.placa : "") + ". Continuar de onde parou?")){
         S = r;
+        S.papel = session ? "auxiliar" : (r.papel === "motorista" ? "motorista" : null);
         // fotos que estavam subindo quando a página fechou precisam ser tiradas de novo
         todasFotos().forEach(function(f){ if (f.status !== "ok"){ f.status = "erro"; f.msg = "Tire a foto de novo."; } });
         busy = carregando = true; render();
@@ -750,7 +784,10 @@
         }).then(function(){ busy = carregando = false; render(); }).catch(function(e){ busy = carregando = false; S.step = 0; render(); toast(e.message, true); });
       }
       apagarRascunho();
-      if (session && session.matricula){ S.matricula = session.matricula; render(); return identificar(); }
+      if (session){
+        S.papel = "auxiliar";
+        if (session.matricula){ S.matricula = session.matricula; render(); return identificar(); }
+      }
       render();
     });
     render();
