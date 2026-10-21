@@ -158,6 +158,33 @@
   .filter-select{ font-size:12.5px; padding:5px 8px; border:1px solid var(--line-strong); border-radius:6px; background:var(--surface); color:var(--ink); }
   .os-row{ cursor:pointer; }
   .os-row:hover td{ background:var(--surface-2); }
+  /* Qualidade da Frota */
+  .pill.urgente{ background:var(--critical); color:#fff; }
+  .kpi-card.clickable{ cursor:pointer; }
+  .kpi-card.clickable:hover{ border-color:var(--line-strong); }
+  .kpi-card.sel{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .kpi-card.neutral .kpi-num{ color:var(--muted); }
+  .qf-busca{ width:120px; text-transform:uppercase; font-family:var(--font-mono); }
+  .qf-placa{ font-family:var(--font-mono); font-weight:600; }
+  .qf-link{ background:none; border:none; padding:0; color:var(--accent); font:inherit; font-family:var(--font-mono); font-weight:600; cursor:pointer; }
+  .qf-mini{ padding:4px 9px; font-size:12px; white-space:nowrap; }
+  .qf-sub{ font-size:11.5px; color:var(--muted); }
+  .qf-seg{ display:inline-flex; border:1px solid var(--line-strong); border-radius:7px; overflow:hidden; }
+  .qf-seg button{ background:none; border:none; padding:5px 11px; font-size:12px; color:var(--muted); }
+  .qf-seg button.on{ background:var(--accent-soft); color:var(--accent); font-weight:700; }
+  .qf-anom{ display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .qf-anom:last-child{ border-bottom:none; }
+  .qf-anom .txt{ flex:1; min-width:0; }
+  .qf-anom .acoes{ display:flex; gap:6px; flex:none; flex-wrap:wrap; justify-content:flex-end; }
+  .qf-foto{ width:64px; height:64px; flex:none; border-radius:6px; border:1px solid var(--line); background:var(--surface-2); object-fit:cover; display:block; }
+  .qf-thumbs{ display:flex; flex-wrap:wrap; gap:10px; margin-top:6px; }
+  .qf-thumbs a{ text-decoration:none; color:var(--muted); font-size:11px; text-align:center; }
+  .qf-thumbs img{ width:96px; height:96px; object-fit:cover; border-radius:6px; border:1px solid var(--line); display:block; margin-bottom:2px; background:var(--surface-2); }
+  .qf-ck{ border:1px solid var(--line); border-radius:8px; margin-bottom:8px; }
+  .qf-ck summary{ padding:10px 12px; cursor:pointer; font-size:13px; display:flex; gap:6px 10px; flex-wrap:wrap; align-items:center; }
+  .qf-ck .body{ padding:2px 12px 12px; font-size:13px; }
+  .qf-ck .body h5{ font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin:12px 0 6px; }
+  .qf-grupos{ display:flex; flex-wrap:wrap; gap:6px; }
   .anexo-chip{ display:inline-flex; align-items:center; gap:4px; font-size:11.5px; background:var(--surface-2); border-radius:999px; padding:2px 8px; margin:0 4px 4px 0; text-decoration:none; color:var(--ink); }
   .anexo-chip:hover{ background:var(--accent-soft); color:var(--accent); }
   .detail-section{ margin-top:4px; }
@@ -450,6 +477,63 @@
       </div>
     </section>
 
+    <!-- QUALIDADE DA FROTA (checklists) -->
+    <section class="panel" data-panel="qualidade">
+      <div class="topline"><h1>Qualidade da Frota</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
+      <p class="section-desc">Estado de cada veículo segundo os checklists de Retirada, Devolução e Inspeção técnica. O status considera as anomalias abertas agora. Clique num veículo para ver o histórico e as fotos.</p>
+
+      <div class="kpi-row" id="qf-kpis"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Veículos</h2>
+          <div class="card-head-actions">
+            <input type="text" id="qf-busca" class="filter-select qf-busca" placeholder="Placa" maxlength="8" autocomplete="off">
+            <select id="qf-hub" class="filter-select"><option value="">Todos os hubs</option></select>
+            <select id="qf-status" class="filter-select">
+              <option value="">Todos os status</option>
+              <option value="pendencia">Com pendência</option>
+              <option value="urgente">Urgente</option>
+              <option value="reparo">Reparo</option>
+              <option value="atencao">Atenção</option>
+              <option value="ok">OK</option>
+              <option value="sem">Sem checklist</option>
+            </select>
+            <span class="count" id="qf-veic-count"></span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Placa</th><th>Modelo</th><th>Hub</th><th>Status</th><th>Anomalias abertas</th><th>Último checklist</th><th>Dias desde</th></tr></thead>
+            <tbody id="qf-veic-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Anomalias abertas</h2>
+          <div class="card-head-actions">
+            <select id="qf-sev" class="filter-select">
+              <option value="">Todas as severidades</option>
+              <option value="critica">Crítica</option>
+              <option value="alta">Alta</option>
+              <option value="media">Média</option>
+              <option value="baixa">Baixa</option>
+            </select>
+            <select id="qf-an-hub" class="filter-select"><option value="">Todos os hubs</option></select>
+            <span class="count" id="qf-anom-count"></span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Severidade</th><th>Placa</th><th>Item</th><th>Descrição</th><th>Reportada</th><th>Últ. confirmação</th><th>Foto</th><th data-edit="qualidade">Ações</th></tr></thead>
+            <tbody id="qf-anom-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- SEM ACESSO -->
     <section class="panel" data-panel="sem-acesso">
       <div class="topline"><h1>Sem módulos liberados</h1></div>
@@ -492,9 +576,17 @@
   <div class="modal" style="max-width:640px;">
     <div class="modal-head"><h3 id="vd-titulo">Veículo</h3><button class="modal-close" data-close-modal>×</button></div>
     <div class="detail-grid" id="vd-resumo"></div>
-    <div class="modal-actions" data-edit="frota">
-      <button type="button" class="btn btn-primary" id="vd-btn-editar" style="width:auto;">Editar veículo</button>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="vd-btn-checklists" hidden>Ver checklists</button>
+      <button type="button" class="btn btn-primary" id="vd-btn-editar" data-edit="frota" style="width:auto;">Editar veículo</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-qf-veiculo" hidden>
+  <div class="modal" style="max-width:860px;">
+    <div class="modal-head"><h3 id="qfv-titulo">Veículo</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div id="qfv-corpo"></div>
   </div>
 </div>
 
@@ -844,6 +936,7 @@
   var MODULES = [
     {key:"frota", label:"Cadastro da Frota"},
     {key:"manutencao", label:"Manutenções"},
+    {key:"qualidade", label:"Qualidade da Frota"},
     {key:"multas", label:"Multas"},
     {key:"financeiro", label:"Financeiro"},
     {key:"eletrificacao", label:"Carros Elétricos"}
@@ -978,8 +1071,11 @@
   }
 
   // ---------------- permission ----------------
+  // "Qualidade da Frota" não é um módulo próprio no perfil: aparece para quem tem
+  // 'checklist' (auxiliares de frota) ou 'manutencao' — a mesma regra do RLS (posso_ver_checklist).
   function canView(mod){
     if (!perfil) return false;
+    if (mod === "qualidade") return canView("checklist") || canView("manutencao");
     if (perfil.papel === "admin") return true;
     var vis = perfil.modulos_visualizacao || [];
     var ope = perfil.modulos_operador || [];
@@ -987,6 +1083,7 @@
   }
   function canEdit(mod){
     if (!perfil) return false;
+    if (mod === "qualidade") return canEdit("checklist") || canEdit("manutencao");
     if (perfil.papel === "admin") return true;
     return (perfil.modulos_operador || []).indexOf(mod) > -1;
   }
@@ -1029,6 +1126,7 @@
     });
     if (key === "frota") { loadFrota(); ajustarStickyFrota(); }
     if (key === "manutencao") loadManutencao(true);
+    if (key === "qualidade") loadQualidade();
     if (key === "multas") loadMultas();
     if (key === "financeiro") loadFinanceiro();
     if (key === "eletrificacao") loadEletrificacao();
@@ -1223,6 +1321,7 @@
       '<div><div class="k">Valor mensal</div>' + money(v.valor_mensal) + '</div>' +
       '<div><div class="k">Combustível</div>' + esc(v.tipo_combustivel || "—") + '</div>' +
       '<div><div class="k">Finalidade</div>' + esc(v.finalidade || "—") + '</div>';
+    document.getElementById("vd-btn-checklists").hidden = !canView("qualidade");
     openModal("modal-veiculo-detalhe");
   }
 
@@ -2094,6 +2193,310 @@
       ev.target.reset();
       loadEletrificacao();
     }).catch(function(e){ setErr("rec-err", e.message); });
+  });
+
+  // ---------------- Qualidade da Frota (checklists) ----------------
+  // Dados: v_qualidade_frota, v_anomalias_abertas e, no histórico, checklists/anomalias/fotos
+  // do veículo. Fotos ficam no bucket privado checklist-fotos e são abertas por URL assinada
+  // gerada com o login de quem está vendo (nada de link persistido).
+  var QF = { veic:[], anom:[], hubs:{}, cat:{}, grupos:{}, base:null, veiculoAberto:null, histAba:"abertas" };
+  var QF_STATUS = {
+    urgente:{ label:"Urgente", pill:"urgente", kpi:"crit", ordem:0 },
+    reparo:{ label:"Reparo", pill:"crit", kpi:"crit", ordem:1 },
+    atencao:{ label:"Atenção", pill:"warn", kpi:"warn", ordem:2 },
+    ok:{ label:"OK", pill:"good", kpi:"good", ordem:3 },
+    sem:{ label:"Sem checklist", pill:"neutral", kpi:"neutral", ordem:4 }
+  };
+  var QF_SEV = { critica:{ label:"Crítica", pill:"urgente", o:0 }, alta:{ label:"Alta", pill:"crit", o:1 }, media:{ label:"Média", pill:"warn", o:2 }, baixa:{ label:"Baixa", pill:"neutral", o:3 } };
+  var QF_TIPO = { retirada:"Retirada", devolucao:"Devolução", inspecao_tecnica:"Inspeção técnica" };
+  var QF_RES = { ok:["OK","good"], atencao:["Atenção","warn"], reparo_necessario:["Reparo necessário","crit"], urgente:["Urgente","urgente"] };
+  var QF_FOTO = { painel:"Painel", frontal:"Frente", traseira:"Trás", anomalia:"Anomalia" };
+  var QF_COMB = { eletrico:"Elétrico", combustao:"Combustão", hibrido:"Híbrido" };
+
+  // Status pela pior anomalia aberta agora (não pelo resultado gravado no último checklist).
+  function qfStatusDe(criticas, altas, total, temChecklist){
+    if (criticas > 0) return "urgente";
+    if (altas > 0) return "reparo";
+    if (total > 0) return "atencao";
+    return temChecklist ? "ok" : "sem";
+  }
+  function qfDataHora(v){ if (!v) return "—"; var d = new Date(v); return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}); }
+  function qfKm(v){ return v != null ? Number(v).toLocaleString("pt-BR") + " km" : "—"; }
+  function qfItem(a){
+    var it = a.item_codigo ? QF.cat[a.item_codigo] : null;
+    return (it ? it.descricao : (a.item_descricao || "Outro problema")) + (a.subtipo ? " — " + a.subtipo : "");
+  }
+  function qfGrupo(g){ return QF.grupos[g] || g; }
+  function qfSevPill(s){ var x = QF_SEV[s] || { label:s, pill:"neutral" }; return pill(x.label, x.pill); }
+  function qfNorm(p){ return String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+
+  // Catálogo (nomes de itens/grupos) e hubs: carregados uma vez por sessão de tela.
+  function qfGarantirBase(){
+    if (QF.base) return QF.base;
+    QF.base = Promise.all([
+      rest("checklist_itens_catalogo?select=codigo,descricao,grupo,grupo_nome"),
+      rest("hubs?select=id,nome&order=nome")
+    ]).then(function(r){
+      (r[0] || []).forEach(function(i){ QF.cat[i.codigo] = i; QF.grupos[i.grupo] = i.grupo_nome; });
+      QF.hubs = {};
+      var opts = '<option value="">Todos os hubs</option>' + (r[1] || []).map(function(h){ QF.hubs[h.id] = h.nome; return '<option value="' + h.id + '">' + esc(h.nome) + '</option>'; }).join("");
+      ["qf-hub", "qf-an-hub"].forEach(function(id){ var s = document.getElementById(id), v = s.value; s.innerHTML = opts; s.value = v; });
+    }).catch(function(e){ QF.base = null; throw e; });
+    return QF.base;
+  }
+
+  function loadQualidade(){
+    return Promise.all([qfGarantirBase(), rest("v_qualidade_frota?select=*"), rest("v_anomalias_abertas?select=*")]).then(function(r){
+      QF.veic = (r[1] || []).map(function(v){
+        v._status = qfStatusDe(v.anomalias_criticas, v.anomalias_altas, v.anomalias_abertas, !!v.ultimo_checklist_id);
+        return v;
+      });
+      QF.anom = r[2] || [];
+      renderQfKpis(); renderQfVeiculos(); renderQfAnomalias();
+    }).catch(function(e){
+      var msg = '<tr><td colspan="8" class="empty-row" style="color:var(--critical)">Erro ao carregar: ' + esc(e.message) + '</td></tr>';
+      document.getElementById("qf-veic-body").innerHTML = msg;
+      document.getElementById("qf-anom-body").innerHTML = msg;
+    });
+  }
+
+  function renderQfKpis(){
+    var cont = { urgente:0, reparo:0, atencao:0, ok:0, sem:0 };
+    QF.veic.forEach(function(v){ cont[v._status]++; });
+    var sel = document.getElementById("qf-status").value;
+    document.getElementById("qf-kpis").innerHTML = Object.keys(QF_STATUS).map(function(k){
+      var s = QF_STATUS[k];
+      return '<div class="kpi-card clickable ' + s.kpi + (sel === k ? " sel" : "") + '" data-qf-kpi="' + k + '" title="Filtrar a lista">' +
+        '<div class="kpi-num">' + cont[k] + '</div><div class="kpi-label">' + esc(s.label) + '</div></div>';
+    }).join("");
+  }
+
+  function renderQfVeiculos(){
+    var hub = document.getElementById("qf-hub").value, st = document.getElementById("qf-status").value;
+    var busca = qfNorm(document.getElementById("qf-busca").value);
+    var lista = QF.veic.filter(function(v){
+      if (hub && v.hub_id !== hub) return false;
+      if (st === "pendencia" ? ["urgente","reparo","atencao"].indexOf(v._status) < 0 : (st && v._status !== st)) return false;
+      if (busca && v.placa.indexOf(busca) < 0) return false;
+      return true;
+    }).sort(function(a, b){ return QF_STATUS[a._status].ordem - QF_STATUS[b._status].ordem || a.placa.localeCompare(b.placa); });
+    document.getElementById("qf-veic-count").textContent = lista.length + " veículo" + (lista.length === 1 ? "" : "s");
+    var body = document.getElementById("qf-veic-body");
+    if (!lista.length){ body.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhum veículo com esse filtro.</td></tr>'; return; }
+    body.innerHTML = lista.map(function(v){
+      var s = QF_STATUS[v._status], partes = [];
+      if (v.anomalias_criticas) partes.push(v.anomalias_criticas + " crítica" + (v.anomalias_criticas > 1 ? "s" : ""));
+      if (v.anomalias_altas) partes.push(v.anomalias_altas + " alta" + (v.anomalias_altas > 1 ? "s" : ""));
+      if (v.anomalias_medias) partes.push(v.anomalias_medias + " média" + (v.anomalias_medias > 1 ? "s" : ""));
+      if (v.anomalias_baixas) partes.push(v.anomalias_baixas + " baixa" + (v.anomalias_baixas > 1 ? "s" : ""));
+      return '<tr class="os-row" data-qf-veic="' + v.veiculo_id + '">' +
+        '<td class="qf-placa">' + esc(v.placa) + '</td><td>' + esc(v.modelo || "—") + '</td><td>' + esc(QF.hubs[v.hub_id] || "—") + '</td>' +
+        '<td>' + pill(s.label, s.pill) + '</td><td>' + (partes.length ? esc(partes.join(" · ")) : '<span class="qf-sub">—</span>') + '</td>' +
+        '<td>' + (v.ultimo_checklist_id ? esc(QF_TIPO[v.ultimo_tipo] || v.ultimo_tipo) + ' <span class="qf-sub">' + dateBR(v.ultimo_checklist_em) + '</span>' : '<span class="qf-sub">—</span>') + '</td>' +
+        '<td class="num">' + (v.dias_desde_ultimo != null ? v.dias_desde_ultimo : "—") + '</td></tr>';
+    }).join("");
+  }
+
+  function renderQfAnomalias(){
+    var sev = document.getElementById("qf-sev").value, hub = document.getElementById("qf-an-hub").value;
+    var podeEditar = canEdit("qualidade");
+    var lista = QF.anom.filter(function(a){ return (!sev || a.severidade === sev) && (!hub || a.hub_id === hub); })
+      .sort(function(a, b){ return QF_SEV[a.severidade].o - QF_SEV[b.severidade].o || new Date(a.reportada_em) - new Date(b.reportada_em); });
+    document.getElementById("qf-anom-count").textContent = lista.length + " aberta" + (lista.length === 1 ? "" : "s");
+    var body = document.getElementById("qf-anom-body");
+    if (!lista.length){ body.innerHTML = '<tr><td colspan="8" class="empty-row">' + (QF.anom.length ? "Nenhuma anomalia com esse filtro." : "Nenhuma anomalia aberta.") + '</td></tr>'; return; }
+    body.innerHTML = lista.map(function(a){
+      return '<tr>' +
+        '<td>' + qfSevPill(a.severidade) + (a.status === "em_reparo" ? ' <span class="qf-sub">em reparo</span>' : "") + '</td>' +
+        '<td><button class="qf-link" data-qf-veic="' + a.veiculo_id + '">' + esc(a.placa) + '</button></td>' +
+        '<td>' + esc(qfItem(a)) + '<div class="qf-sub">' + esc(a.grupo_nome || qfGrupo(a.grupo)) + '</div></td>' +
+        '<td style="max-width:260px">' + (a.descricao ? esc(a.descricao) : '<span class="qf-sub">—</span>') + '</td>' +
+        '<td>' + dateBR(a.reportada_em) + ' <span class="qf-sub">(' + a.dias_aberta + 'd)</span><div class="qf-sub">' + esc(a.colaborador_nome || "") + (a.checklist_tipo ? " · " + esc(QF_TIPO[a.checklist_tipo] || "") : "") + '</div></td>' +
+        '<td>' + (a.ultima_confirmacao ? dateBR(a.ultima_confirmacao) + ' <span class="qf-sub">continua</span>' : '<span class="qf-sub">—</span>') + '</td>' +
+        '<td>' + (a.foto_path ? '<button class="btn qf-mini" data-qf-foto="' + esc(a.foto_path) + '">Ver foto</button>' : '<span class="qf-sub">—</span>') + '</td>' +
+        (podeEditar ? '<td style="white-space:nowrap"><button class="btn qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="resolvida">Resolvida</button> ' +
+          '<button class="btn btn-ghost qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="descartada">Descartar</button></td>' : "") +
+        '</tr>';
+    }).join("");
+  }
+
+  // URLs assinadas (1h) para várias fotos de uma vez, com o login de quem está vendo.
+  function qfAssinar(paths){
+    if (!paths.length) return Promise.resolve({});
+    return ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/sign/checklist-fotos", {
+        method: "POST",
+        headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 3600, paths: paths })
+      });
+    }).then(function(r){
+      return r.json().then(function(j){
+        if (!r.ok) throw new Error(j.message || j.error || ("Erro " + r.status));
+        var m = {};
+        (j || []).forEach(function(x){ if (x.signedURL) m[x.path] = SUPA_URL + "/storage/v1" + x.signedURL; });
+        return m;
+      });
+    });
+  }
+  function qfAbrirFoto(path){
+    var w = window.open("", "_blank"); // abre já no clique, senão o navegador bloqueia o pop-up
+    qfAssinar([path]).then(function(m){
+      if (!m[path]) throw new Error("foto não encontrada");
+      if (w) w.location = m[path]; else window.location.href = m[path];
+    }).catch(function(e){ if (w) w.close(); toast("Erro ao abrir foto: " + e.message, true); });
+  }
+
+  function qfMudarStatusAnomalia(id, novo){
+    var txt = novo === "resolvida" ? "Marcar esta anomalia como resolvida?" : "Descartar esta anomalia? Use para engano ou teste.";
+    if (!confirm(txt)) return;
+    rest("checklist_anomalias?id=eq." + id, { method:"PATCH", body:{ status:novo } }).then(function(rows){
+      if (!rows || !rows.length) throw new Error("sem permissão para alterar esta anomalia");
+      toast(novo === "resolvida" ? "Anomalia marcada como resolvida." : "Anomalia descartada.");
+      loadQualidade();
+      if (QF.veiculoAberto && !document.getElementById("modal-qf-veiculo").hidden) abrirHistoricoVeiculo(QF.veiculoAberto, true);
+    }).catch(function(e){ toast("Erro ao atualizar anomalia: " + e.message, true); });
+  }
+
+  // ---- histórico de um veículo ----
+  function abrirHistoricoVeiculo(veiculoId, manterAba){
+    QF.veiculoAberto = veiculoId;
+    if (!manterAba) QF.histAba = "abertas";
+    var corpo = document.getElementById("qfv-corpo");
+    if (!manterAba){ document.getElementById("qfv-titulo").textContent = "Veículo"; corpo.innerHTML = '<p class="qf-sub">Carregando…</p>'; }
+    openModal("modal-qf-veiculo");
+    var dados;
+    Promise.all([
+      qfGarantirBase(),
+      rest("veiculos?id=eq." + veiculoId + "&select=id,placa,modelo,hub_id,tipo_combustivel,km_atual"),
+      rest("checklists?veiculo_id=eq." + veiculoId + "&status=eq.enviado&select=id,tipo,enviado_em,km,nivel_combustivel,bateria_pct,colaborador_nome,resultado,observacoes,checklist_grupos(grupo,tem_anomalia),checklist_fotos(tipo,anomalia_id,storage_path)&order=enviado_em.desc&limit=50"),
+      rest("checklist_anomalias?veiculo_id=eq." + veiculoId + "&select=id,checklist_id,grupo,item_codigo,subtipo,descricao,severidade,nova,origem_anomalia_id,confirmacao,status,resolvida_em,resolvida_por,created_at&order=created_at.desc")
+    ]).then(function(r){
+      dados = { v:(r[1] || [])[0], cks:r[2] || [], anoms:r[3] || [] };
+      if (!dados.v) throw new Error("veículo não encontrado");
+      var paths = [];
+      dados.cks.forEach(function(c){ (c.checklist_fotos || []).forEach(function(f){ paths.push(f.storage_path); }); });
+      return qfAssinar(paths).catch(function(){ return {}; }); // sem fotos ainda mostra o resto
+    }).then(function(urls){
+      if (QF.veiculoAberto !== veiculoId) return; // usuário já abriu outro veículo
+      dados.urls = urls;
+      QF.hist = dados;
+      renderHistoricoVeiculo();
+    }).catch(function(e){ corpo.innerHTML = '<p style="color:var(--critical)">Erro ao carregar histórico: ' + esc(e.message) + '</p>'; });
+  }
+
+  function renderHistoricoVeiculo(){
+    var d = QF.hist, v = d.v, podeEditar = canEdit("qualidade");
+    var ckPorId = {}; d.cks.forEach(function(c){ ckPorId[c.id] = c; });
+    var fotoAnom = {}; // anomalia_id -> [fotos]
+    d.cks.forEach(function(c){ (c.checklist_fotos || []).forEach(function(f){ if (f.anomalia_id) (fotoAnom[f.anomalia_id] = fotoAnom[f.anomalia_id] || []).push(f); }); });
+    var raizes = d.anoms.filter(function(a){ return a.nova; });
+    var abertas = raizes.filter(function(a){ return a.status === "aberta" || a.status === "em_reparo"; });
+    var fechadas = raizes.filter(function(a){ return a.status === "resolvida" || a.status === "descartada"; });
+    var conf = {}; // raiz -> confirmação mais recente
+    d.anoms.forEach(function(a){ if (!a.nova && a.origem_anomalia_id && !conf[a.origem_anomalia_id]) conf[a.origem_anomalia_id] = a; });
+    var cnt = function(s){ return abertas.filter(function(a){ return a.severidade === s; }).length; };
+    var st = QF_STATUS[qfStatusDe(cnt("critica"), cnt("alta"), abertas.length, d.cks.length > 0)];
+
+    document.getElementById("qfv-titulo").innerHTML = '<span class="qf-placa">' + esc(v.placa) + '</span> — ' + esc(v.modelo || "") + ' ' + pill(st.label, st.pill);
+    var h = '<div class="detail-grid">' +
+      '<div><div class="k">Hub</div>' + esc(QF.hubs[v.hub_id] || "—") + '</div>' +
+      '<div><div class="k">Combustível</div>' + esc(QF_COMB[v.tipo_combustivel] || "—") + '</div>' +
+      '<div><div class="k">KM atual (cadastro)</div>' + qfKm(v.km_atual) + '</div>' +
+      '<div><div class="k">Checklists enviados</div>' + d.cks.length + (d.cks.length === 50 ? " (mostrando os 50 mais recentes)" : "") + '</div></div>';
+
+    var listaAnom = QF.histAba === "abertas" ? abertas : fechadas;
+    h += '<div class="detail-section"><h4 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">Anomalias ' +
+      '<span class="qf-seg"><button class="' + (QF.histAba === "abertas" ? "on" : "") + '" data-qf-aba="abertas">Abertas (' + abertas.length + ')</button>' +
+      '<button class="' + (QF.histAba === "fechadas" ? "on" : "") + '" data-qf-aba="fechadas">Resolvidas e descartadas (' + fechadas.length + ')</button></span></h4>';
+    if (!listaAnom.length) h += '<p class="qf-sub">' + (QF.histAba === "abertas" ? "Nenhuma anomalia aberta." : "Nenhuma anomalia resolvida ou descartada.") + '</p>';
+    listaAnom.forEach(function(a){
+      var c = ckPorId[a.checklist_id], f = (fotoAnom[a.id] || [])[0], u = f && d.urls[f.storage_path], cf = conf[a.id];
+      var linhaStatus = a.status === "em_reparo" ? "Em reparo" :
+        a.status === "resolvida" ? "Resolvida em " + dateBR(a.resolvida_em) + (a.resolvida_por ? " (pelo painel)" : " (no checklist: \"não existe mais\")") :
+        a.status === "descartada" ? "Descartada em " + dateBR(a.resolvida_em) : "";
+      h += '<div class="qf-anom">' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener"><img class="qf-foto" src="' + esc(u) + '" alt="Foto da anomalia"></a>' : '<div class="qf-foto"></div>') +
+        '<div class="txt"><div>' + qfSevPill(a.severidade) + ' <b>' + esc(qfItem(a)) + '</b> <span class="qf-sub">' + esc(qfGrupo(a.grupo)) + '</span></div>' +
+        (a.descricao ? '<div>' + esc(a.descricao) + '</div>' : "") +
+        '<div class="qf-sub">Reportada em ' + dateBR(a.created_at) + (c ? " por " + esc(c.colaborador_nome || "—") + " (" + esc(QF_TIPO[c.tipo] || "") + ")" : "") +
+        (cf ? ' · último checklist: <b>' + (cf.confirmacao === "continua" ? "continua" : "não existe mais") + '</b> em ' + dateBR(cf.created_at) : "") +
+        (linhaStatus ? ' · ' + esc(linhaStatus) : "") + '</div></div>' +
+        (podeEditar && QF.histAba === "abertas" ? '<div class="acoes"><button class="btn qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="resolvida">Resolvida</button>' +
+          '<button class="btn btn-ghost qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="descartada">Descartar</button></div>' : "") +
+        '</div>';
+    });
+    h += '</div>';
+
+    h += '<div class="detail-section"><h4>Checklists</h4>';
+    if (!d.cks.length) h += '<p class="qf-sub">Nenhum checklist enviado para este veículo.</p>';
+    d.cks.forEach(function(c, i){
+      var res = QF_RES[c.resultado] || ["—","neutral"];
+      var novas = d.anoms.filter(function(a){ return a.checklist_id === c.id && a.nova; });
+      var confs = d.anoms.filter(function(a){ return a.checklist_id === c.id && !a.nova; });
+      var raizPorId = {}; raizes.forEach(function(a){ raizPorId[a.id] = a; });
+      h += '<details class="qf-ck"' + (i === 0 ? " open" : "") + '><summary><b>' + qfDataHora(c.enviado_em) + '</b> ' + esc(QF_TIPO[c.tipo] || c.tipo) +
+        ' <span class="qf-sub">' + esc(c.colaborador_nome || "—") + ' · ' + qfKm(c.km) +
+        (c.nivel_combustivel ? " · combustível " + esc(c.nivel_combustivel) : "") + (c.bateria_pct != null ? " · bateria " + c.bateria_pct + "%" : "") + '</span> ' +
+        pill(res[0], res[1]) + '</summary><div class="body">';
+      h += '<h5>Grupos</h5><div class="qf-grupos">' + (c.checklist_grupos || []).map(function(g){
+        return pill(qfGrupo(g.grupo) + ": " + (g.tem_anomalia ? "problema" : "OK"), g.tem_anomalia ? "crit" : "good");
+      }).join("") + '</div>';
+      if (novas.length){
+        h += '<h5>Problemas novos</h5>' + novas.map(function(a){
+          return '<div style="margin-bottom:4px">' + qfSevPill(a.severidade) + ' ' + esc(qfItem(a)) + (a.descricao ? ' <span class="qf-sub">— ' + esc(a.descricao) + '</span>' : "") + '</div>';
+        }).join("");
+      }
+      if (confs.length){
+        h += '<h5>Pendências anteriores</h5>' + confs.map(function(a){
+          var o = raizPorId[a.origem_anomalia_id] || a;
+          return '<div style="margin-bottom:4px">' + esc(qfItem(o)) + ': <b>' + (a.confirmacao === "continua" ? "continua" : "não existe mais") + '</b></div>';
+        }).join("");
+      }
+      if (c.observacoes) h += '<h5>Observações</h5><div>' + esc(c.observacoes) + '</div>';
+      var fotos = (c.checklist_fotos || []).slice().sort(function(a, b){ return ["painel","frontal","traseira","anomalia"].indexOf(a.tipo) - ["painel","frontal","traseira","anomalia"].indexOf(b.tipo); });
+      if (fotos.length){
+        h += '<h5>Fotos</h5><div class="qf-thumbs">' + fotos.map(function(f){
+          var u = d.urls[f.storage_path];
+          return u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener"><img src="' + esc(u) + '" alt="" loading="lazy">' + esc(QF_FOTO[f.tipo] || f.tipo) + '</a>'
+                   : '<a>' + '<div class="qf-foto" style="width:96px;height:96px"></div>' + esc(QF_FOTO[f.tipo] || f.tipo) + '</a>';
+        }).join("") + '</div>';
+      }
+      h += '</div></details>';
+    });
+    h += '</div>';
+    document.getElementById("qfv-corpo").innerHTML = h;
+  }
+
+  // ---- eventos do módulo ----
+  ["qf-hub", "qf-status"].forEach(function(id){
+    document.getElementById(id).addEventListener("change", function(){ renderQfKpis(); renderQfVeiculos(); });
+  });
+  document.getElementById("qf-busca").addEventListener("input", renderQfVeiculos);
+  document.getElementById("qf-busca").addEventListener("keydown", function(ev){
+    if (ev.key !== "Enter") return;
+    var p = qfNorm(this.value), achados = QF.veic.filter(function(v){ return v.placa.indexOf(p) > -1; });
+    var exato = QF.veic.filter(function(v){ return v.placa === p; })[0] || (achados.length === 1 ? achados[0] : null);
+    if (exato) abrirHistoricoVeiculo(exato.veiculo_id);
+  });
+  ["qf-sev", "qf-an-hub"].forEach(function(id){ document.getElementById(id).addEventListener("change", renderQfAnomalias); });
+
+  document.addEventListener("click", function(ev){
+    var t;
+    if ((t = ev.target.closest("[data-qf-kpi]"))){
+      var sel = document.getElementById("qf-status");
+      sel.value = sel.value === t.dataset.qfKpi ? "" : t.dataset.qfKpi;
+      renderQfKpis(); renderQfVeiculos(); return;
+    }
+    if ((t = ev.target.closest("[data-qf-anom]"))){ qfMudarStatusAnomalia(t.dataset.qfAnom, t.dataset.qfNovo); return; }
+    if ((t = ev.target.closest("[data-qf-foto]"))){ qfAbrirFoto(t.dataset.qfFoto); return; }
+    if ((t = ev.target.closest("[data-qf-aba]"))){ QF.histAba = t.dataset.qfAba; renderHistoricoVeiculo(); return; }
+    if ((t = ev.target.closest("[data-qf-veic]"))){ abrirHistoricoVeiculo(t.dataset.qfVeic); return; }
+  });
+
+  // atalho no detalhe do veículo (Cadastro da Frota)
+  document.getElementById("vd-btn-checklists").addEventListener("click", function(){
+    if (!detalheVeiculoId) return;
+    document.getElementById("modal-veiculo-detalhe").hidden = true;
+    abrirHistoricoVeiculo(detalheVeiculoId);
   });
 
   // ---------------- modals ----------------
