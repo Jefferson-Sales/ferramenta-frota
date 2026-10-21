@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e7c66">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Checklist do Veículo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Formulário mobile do checklist (Retirada / Devolução / Inspeção técnica). Mesmos tokens do index.html. */
+  :root{
+    --paper:#f6f5f0; --surface:#ffffff; --surface-2:#efeee7; --ink:#1a231f; --muted:#5c645d; --faint:#8a8f87;
+    --line:#e2e0d5; --line-strong:#cfccbd; --accent:#0e7c66; --accent-ink:#ffffff; --accent-soft:#e2f2ee; --accent-soft-line:#bfe1d7;
+    --good:#1e8e4f; --good-soft:#e5f4ea; --warning:#a8690a; --warning-soft:#faf0dd; --critical:#c23b3b; --critical-soft:#fbe9e8;
+    --shadow: 0 1px 2px rgba(20,25,20,.04), 0 8px 24px rgba(20,25,20,.05); --radius:10px;
+    --font-display:"Archivo", ui-sans-serif, system-ui, sans-serif;
+    --font-body:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
+      --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
+      --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
+    --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
+    --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-body); font-size:16px; line-height:1.4; }
+  body{ padding-bottom:calc(84px + env(safe-area-inset-bottom)); -webkit-tap-highlight-color:transparent; }
+  header{ position:sticky; top:0; z-index:5; background:var(--surface); border-bottom:1px solid var(--line); padding:10px 16px 8px; }
+  .hdr-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; max-width:960px; margin:0 auto; }
+  h1{ font-family:var(--font-display); font-size:18px; margin:0; letter-spacing:-.01em; }
+  .who{ font-size:12.5px; color:var(--muted); text-align:right; }
+  .who button{ font-size:12.5px; }
+  .steps{ display:flex; gap:4px; max-width:960px; margin:8px auto 0; }
+  .steps div{ flex:1; height:4px; border-radius:2px; background:var(--line); }
+  .steps div.on{ background:var(--accent); }
+  .step-label{ max-width:960px; margin:4px auto 0; font-size:12px; color:var(--muted); }
+  main{ max-width:960px; margin:0 auto; padding:16px; }
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px; margin-bottom:12px; }
+  .card h2{ font-family:var(--font-display); font-size:16px; margin:0 0 10px; }
+  .card h3{ font-size:14px; margin:12px 0 6px; color:var(--muted); font-weight:600; }
+  label.lbl{ display:block; font-size:13px; font-weight:600; color:var(--muted); margin:12px 0 6px; }
+  input[type=text], input[type=number], input[type=email], input[type=password], select, textarea{
+    width:100%; font:inherit; font-size:16px; color:var(--ink); background:var(--surface); border:1px solid var(--line-strong);
+    border-radius:8px; padding:12px; min-height:48px; }
+  textarea{ min-height:80px; resize:vertical; }
+  input:focus, select:focus, textarea:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .mono{ font-family:var(--font-mono); letter-spacing:.04em; }
+  .row{ display:flex; gap:8px; }
+  .row > *{ flex:1; }
+  button{ font:inherit; cursor:pointer; }
+  .btn{ min-height:48px; border-radius:8px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); padding:10px 14px; font-weight:600; }
+  .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.ghost{ background:transparent; border-color:transparent; color:var(--accent); min-height:36px; padding:6px 8px; }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  .flex-none{ flex:none !important; }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{ min-height:44px; padding:8px 14px; border-radius:22px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font-weight:500; }
+  .chip.on{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .chip.sev-baixa.on{ background:var(--muted); border-color:var(--muted); color:var(--paper); }
+  .chip.sev-media.on{ background:var(--warning); border-color:var(--warning); color:#fff; }
+  .chip.sev-alta.on{ background:var(--critical); border-color:var(--critical); color:#fff; opacity:.85; }
+  .chip.sev-critica.on{ background:var(--critical); border-color:var(--critical); color:#fff; }
+  .choice{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .choice .chip{ border-radius:8px; min-height:52px; font-weight:600; }
+  .chip.ok.on{ background:var(--good); border-color:var(--good); color:#fff; }
+  .chip.bad.on{ background:var(--critical); border-color:var(--critical); color:#fff; }
+  .badge{ display:inline-block; font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:10px; background:var(--surface-2); color:var(--muted); }
+  .badge.baixa{ background:var(--surface-2); color:var(--muted); }
+  .badge.media{ background:var(--warning-soft); color:var(--warning); }
+  .badge.alta{ background:var(--critical-soft); color:var(--critical); }
+  .badge.critica{ background:var(--critical); color:#fff; }
+  .hint{ font-size:13px; color:var(--muted); margin:6px 0 0; }
+  .warn{ font-size:13px; color:var(--warning); background:var(--warning-soft); border-radius:8px; padding:8px 10px; margin-top:8px; }
+  .err{ font-size:13.5px; color:var(--critical); background:var(--critical-soft); border-radius:8px; padding:8px 10px; margin-top:8px; }
+  .okbox{ font-size:13.5px; color:var(--good); background:var(--good-soft); border-radius:8px; padding:8px 10px; margin-top:8px; }
+  .veic{ display:flex; justify-content:space-between; gap:8px; align-items:flex-start; background:var(--accent-soft); border:1px solid var(--accent-soft-line); border-radius:8px; padding:10px 12px; margin-top:10px; }
+  .veic b{ font-family:var(--font-mono); font-size:17px; }
+  .grupo{ border-left:4px solid var(--line-strong); }
+  .grupo.st-ok{ border-left-color:var(--good); }
+  .grupo.st-problema{ border-left-color:var(--critical); }
+  .prev{ font-size:12px; color:var(--faint); font-weight:500; margin-left:6px; }
+  .abert{ border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--surface-2); }
+  .abert .top{ display:flex; gap:10px; align-items:flex-start; }
+  .abert img, .thumbs img{ width:64px; height:64px; object-fit:cover; border-radius:6px; border:1px solid var(--line); flex:none; background:var(--surface); }
+  .anom{ border:1px dashed var(--line-strong); border-radius:8px; padding:10px; margin-top:10px; }
+  .anom-hdr{ display:flex; justify-content:space-between; align-items:center; font-weight:600; font-size:14px; }
+  .thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; align-items:center; }
+  .thumb{ position:relative; }
+  .thumb .st{ position:absolute; left:0; right:0; bottom:0; font-size:10.5px; text-align:center; background:rgba(0,0,0,.6); color:#fff; border-radius:0 0 6px 6px; padding:1px 0; }
+  .thumb .st.err{ background:var(--critical); margin:0; padding:1px 0; }
+  .thumb .bar{ position:absolute; left:3px; right:3px; bottom:3px; height:4px; background:rgba(255,255,255,.4); border-radius:2px; overflow:hidden; }
+  .thumb .bar i{ display:block; height:100%; background:var(--accent); }
+  .cam{ width:64px; height:64px; border:1px dashed var(--line-strong); border-radius:6px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:11px; color:var(--muted); background:var(--surface); }
+  .cam svg{ width:22px; height:22px; margin-bottom:2px; }
+  .fixas{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .fixa{ border:1px solid var(--line); border-radius:8px; padding:8px; text-align:center; font-size:13px; font-weight:600; }
+  .fixa .cam, .fixa img{ width:100%; height:auto; aspect-ratio:1; margin-top:6px; }
+  .fixa img{ object-fit:cover; border-radius:6px; }
+  .resumo li{ margin-bottom:6px; }
+  .final{ text-align:center; padding:28px 16px; }
+  .final .big{ font-family:var(--font-display); font-size:24px; margin:10px 0; }
+  .res-ok{ color:var(--good); } .res-atencao{ color:var(--warning); } .res-reparo_necessario, .res-urgente{ color:var(--critical); }
+  .bottom{ position:fixed; left:0; right:0; bottom:0; background:var(--surface); border-top:1px solid var(--line); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); z-index:6; }
+  .bottom .row{ max-width:960px; margin:0 auto; }
+  .hidden{ display:none !important; }
+  #toast{ position:fixed; left:16px; right:16px; bottom:calc(92px + env(safe-area-inset-bottom)); z-index:9; display:flex; justify-content:center; pointer-events:none; }
+  #toast div{ background:var(--ink); color:var(--paper); padding:10px 14px; border-radius:8px; font-size:14px; max-width:520px; box-shadow:var(--shadow); }
+  #toast div.e{ background:var(--critical); color:#fff; }
+  @media (min-width:900px){
+    .grupos-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+    .grupos-grid .card{ margin-bottom:0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-row">
+    <h1>Checklist do Veículo</h1>
+    <div class="who" id="who"></div>
+  </div>
+  <div class="steps" id="steps"><div></div><div></div><div></div><div></div></div>
+  <div class="step-label" id="step-label"></div>
+</header>
+<main id="main"></main>
+<div class="bottom" id="bottom">
+  <div class="row">
+    <button class="btn flex-none" id="btn-voltar" type="button">Voltar</button>
+    <button class="btn primary" id="btn-proximo" type="button">Próximo</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var SUPA_URL = "https://efmpzjkqiwyuumaoumof.supabase.co";
+  var SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbXB6amtxaXd5dXVtYW91bW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NjkzMDAsImV4cCI6MjEwNzE0NTMwMH0.k0AFjsUrT1HDjNe4D-k75LYgZ3DeOVDGCZvq-2cNozw";
+  var FN_URL = SUPA_URL + "/functions/v1/checklist";
+  var DRAFT_KEY = "ck_rascunho_v1", SESSION_KEY = "ck_sessao_v1";
+
+  var STEP_NAMES = ["Identificação", "Itens do veículo", "Combustível e fotos", "Revisão e envio"];
+  var TIPOS = { retirada:"Retirada", devolucao:"Devolução", inspecao_tecnica:"Inspeção técnica" };
+  var SEV = { baixa:"Baixa", media:"Média", alta:"Alta", critica:"Crítica" };
+  var RES = { ok:"OK", atencao:"Atenção", reparo_necessario:"Reparo necessário", urgente:"Urgente — não rodar" };
+  var NIVEIS = ["reserva","1/4","1/2","3/4","cheio"];
+  var FIXAS = [["painel","Painel"],["frontal","Frente"],["traseira","Trás"]];
+  var CAM_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+
+  // --- dados que vêm do servidor (não vão pro rascunho) ---
+  var HUBS = [], CAT = [];
+  var session = null;     // auxiliar logado {access_token, refresh_token, expires_at, nome, matricula}
+  var auxiliar = false;
+  var busy = false, enviando = false, carregando = false;
+  var arquivosPendentes = {}; // fotoKey -> Blob comprimido (para "tentar de novo")
+
+  var S = novoEstado();
+  function novoEstado(){
+    return { id: uuid(), step:0, matricula:"", nome:"", placa:"", veiculo:null, ultimo:null, abertas:[],
+      tipo:null, hub_id:"", km:"", grupos:{}, prefill:{}, confirmacoes:{}, novas:[],
+      nivel:"", bateria:"", fixas:{}, observacoes:"", enviado:null, salvo_em:Date.now() };
+  }
+
+  // ---------------- utilidades ----------------
+  function uuid(){
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, function(c){
+      return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16); });
+  }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function $(id){ return document.getElementById(id); }
+  function toast(msg, isErr){
+    var host = $("toast"); host.innerHTML = '<div class="' + (isErr ? "e" : "") + '">' + esc(msg) + '</div>';
+    clearTimeout(toast.t); toast.t = setTimeout(function(){ host.innerHTML = ""; }, 4200);
+  }
+  function fmtData(iso){ if (!iso) return ""; var d = new Date(iso); return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}); }
+  function fmtKm(n){ return n == null || n === "" ? "—" : Number(n).toLocaleString("pt-BR") + " km"; }
+  function normPlaca(p){ return String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+
+  function salvarRascunho(){
+    if (S.enviado) return;
+    S.salvo_em = Date.now();
+    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(S)); }catch(e){}
+  }
+  function lerRascunho(){ try{ var r = localStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; } }
+  function apagarRascunho(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
+
+  // ---------------- sessão do auxiliar ----------------
+  function salvarSessao(){ try{ session ? localStorage.setItem(SESSION_KEY, JSON.stringify(session)) : localStorage.removeItem(SESSION_KEY); }catch(e){} }
+  function authToken(grant, body){
+    return fetch(SUPA_URL + "/auth/v1/token?grant_type=" + grant, {
+      method:"POST", headers:{ "apikey":SUPA_ANON, "Content-Type":"application/json" }, body: JSON.stringify(body)
+    }).then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.access_token) throw new Error(j.error_description || j.msg || "Falha no login"); return j; }); });
+  }
+  function aplicarToken(j){
+    session = { access_token:j.access_token, refresh_token:j.refresh_token, expires_at: Date.now() + (j.expires_in || 3600) * 1000,
+                nome: session && session.nome, matricula: session && session.matricula };
+    salvarSessao();
+  }
+  var refreshing = null;
+  function ensureFreshSession(){
+    if (!session) return Promise.resolve(null);
+    if (session.expires_at > Date.now() + 60000) return Promise.resolve(session);
+    if (refreshing) return refreshing;
+    refreshing = authToken("refresh_token", { refresh_token: session.refresh_token }).then(function(j){
+      refreshing = null; aplicarToken(j); return session;
+    }).catch(function(){ refreshing = null; session = null; auxiliar = false; salvarSessao(); renderWho(); return null; });
+    return refreshing;
+  }
+
+  // ---------------- chamadas à Edge Function ----------------
+  function api(acao, dados){
+    return ensureFreshSession().then(function(){
+      var headers = { "apikey":SUPA_ANON, "Content-Type":"application/json" };
+      if (session) headers["Authorization"] = "Bearer " + session.access_token;
+      var body = Object.assign({ acao:acao }, dados || {});
+      return fetch(FN_URL, { method:"POST", headers:headers, body: JSON.stringify(body) });
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if (!r.ok) throw new Error(j.error || ("Erro " + r.status));
+        return j;
+      });
+    }, function(e){ throw new Error(navigator.onLine === false ? "Sem conexão com a internet." : (e.message || "Falha de conexão.")); });
+  }
+
+  // ---------------- fotos: compressão + envio ----------------
+  function carregarImagem(file){
+    return new Promise(function(res, rej){
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function(){ res(img); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000); };
+      img.onerror = function(){ rej(new Error("Não foi possível ler a foto. Tente tirar de novo.")); };
+      img.src = url;
+    });
+  }
+  function redimensionar(img, max, q, comoDataUrl){
+    var w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, max / Math.max(w, h));
+    var c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    if (comoDataUrl) return Promise.resolve(c.toDataURL("image/jpeg", q));
+    return new Promise(function(res){ c.toBlob(res, "image/jpeg", q); });
+  }
+  function putComProgresso(url, blob, onProg){
+    return new Promise(function(res, rej){
+      var x = new XMLHttpRequest();
+      x.open("PUT", url); x.setRequestHeader("Content-Type", "image/jpeg"); x.setRequestHeader("x-upsert", "true");
+      x.upload.onprogress = function(ev){ if (ev.lengthComputable) onProg(ev.loaded / ev.total); };
+      x.onload = function(){ x.status >= 200 && x.status < 300 ? res() : rej(new Error("Falha ao enviar a foto (" + x.status + ")")); };
+      x.onerror = function(){ rej(new Error("Falha de conexão ao enviar a foto.")); };
+      x.send(blob);
+    });
+  }
+  // foto = objeto guardado no estado: {key, path, thumb, status:'enviando'|'ok'|'erro', prog}
+  function processarFoto(file, foto){
+    foto.status = "enviando"; foto.prog = 0; render();
+    return carregarImagem(file).then(function(img){
+      return Promise.all([redimensionar(img, 1600, 0.8, false), redimensionar(img, 240, 0.7, true)]);
+    }).then(function(r){
+      arquivosPendentes[foto.key] = r[0]; foto.thumb = r[1]; render();
+      return enviarFoto(foto);
+    }).catch(function(e){ foto.status = "erro"; foto.msg = e.message; render(); toast(e.message, true); });
+  }
+  function enviarFoto(foto){
+    var blob = arquivosPendentes[foto.key];
+    if (!blob){ foto.status = "erro"; foto.msg = "Tire a foto de novo."; render(); return Promise.resolve(); }
+    foto.status = "enviando"; foto.prog = 0; render();
+    return api("upload", { matricula:S.matricula, placa:S.placa, checklist_id:S.id, arquivo: foto.key + ".jpg" }).then(function(u){
+      return putComProgresso(u.signedUrl, blob, function(p){
+        foto.prog = p; var el = document.querySelector('[data-bar="' + foto.key + '"]'); if (el) el.style.width = Math.round(p * 100) + "%";
+      }).then(function(){ foto.path = u.path; foto.status = "ok"; delete arquivosPendentes[foto.key]; salvarRascunho(); render(); });
+    }).catch(function(e){ foto.status = "erro"; foto.msg = e.message; render(); toast(e.message, true); });
+  }
+  function pedirFoto(cb){
+    var inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment");
+    inp.style.display = "none";
+    document.body.appendChild(inp); // fora do DOM, alguns Safari (iOS) não disparam o onchange
+    inp.onchange = function(){ if (inp.files && inp.files[0]) cb(inp.files[0]); inp.remove(); };
+    inp.click();
+  }
+  function fotoKey(prefixo){ return (prefixo + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).toLowerCase().replace(/[^a-z0-9_-]/g, ""); }
+  function thumbHtml(f, acaoRemover){
+    var st = f.status === "ok" ? "" :
+      f.status === "erro" ? '<div class="st err" data-retry="' + f.key + '">tentar de novo</div>' :
+      '<div class="bar"><i data-bar="' + f.key + '" style="width:' + Math.round((f.prog || 0) * 100) + '%"></i></div>';
+    return '<div class="thumb">' + (f.thumb ? '<img src="' + f.thumb + '" alt="">' : '<div class="cam">…</div>') + st +
+      (acaoRemover ? '<button class="btn ghost" style="min-height:28px;padding:0 4px;font-size:12px;width:100%" ' + acaoRemover + '>remover</button>' : '') + '</div>';
+  }
+
+  // ---------------- regras ----------------
+  function gruposAtuais(){
+    if (!S.veiculo || !S.tipo) return [];
+    var tc = S.veiculo.tipo_combustivel, map = {}, arr = [];
+    CAT.forEach(function(it){
+      if (it.tipos.indexOf(S.tipo) < 0) return;
+      if (it.combustiveis && it.combustiveis.indexOf(tc) < 0) return;
+      if (!map[it.grupo]){ map[it.grupo] = { grupo:it.grupo, nome:it.grupo_nome, ordem:it.grupo_ordem, itens:[] }; arr.push(map[it.grupo]); }
+      map[it.grupo].itens.push(it);
+    });
+    return arr.sort(function(a, b){ return a.ordem - b.ordem; });
+  }
+  function itemPorCodigo(c){ for (var i = 0; i < CAT.length; i++) if (CAT[i].codigo === c) return CAT[i]; return null; }
+  function nomeGrupo(g){ for (var i = 0; i < CAT.length; i++) if (CAT[i].grupo === g) return CAT[i].grupo_nome; return g; }
+  function rotuloAnomalia(a){
+    var it = a.item_codigo ? itemPorCodigo(a.item_codigo) : null;
+    return (it ? it.descricao : "Outro problema") + (a.subtipo ? " — " + a.subtipo : "");
+  }
+  function todasFotos(){
+    var l = [];
+    S.novas.forEach(function(a){ a.fotos.forEach(function(f){ l.push(f); }); });
+    Object.keys(S.fixas).forEach(function(k){ if (S.fixas[k]) l.push(S.fixas[k]); });
+    return l;
+  }
+  function usaCombustivel(){ return S.veiculo && S.veiculo.tipo_combustivel !== "eletrico"; }
+  function usaBateria(){ return S.veiculo && S.veiculo.tipo_combustivel !== "combustao"; }
+
+  function validar(step){
+    var e = [];
+    if (step === 0){
+      if (!S.nome) e.push("Confirme sua matrícula.");
+      if (!S.veiculo) e.push("Busque a placa do veículo.");
+      if (!S.tipo) e.push("Escolha o tipo de checklist.");
+      if (S.tipo === "inspecao_tecnica" && !auxiliar) e.push("Inspeção técnica exige login de auxiliar de frota.");
+      if (!S.hub_id) e.push("Escolha o Hub.");
+      if (!(Number(S.km) > 0)) e.push("Informe o KM do painel.");
+    }
+    if (step === 1){
+      var gs = gruposAtuais();
+      gs.forEach(function(g){
+        var resp = S.grupos[g.grupo];
+        if (!resp){ e.push(g.nome + ": responda se está tudo OK."); return; }
+        S.abertas.forEach(function(a){ if (a.grupo === g.grupo && !S.confirmacoes[a.id]) e.push(g.nome + ": diga se \"" + rotuloAnomalia(a) + "\" continua."); });
+        if (resp === "problema"){
+          var ns = S.novas.filter(function(a){ return a.grupo === g.grupo; });
+          if (!ns.length) e.push(g.nome + ": adicione o problema ou marque Tudo OK.");
+          ns.forEach(function(a){
+            var nome = g.nome + " / " + rotuloAnomalia(a);
+            if (a.item_codigo === undefined) e.push(g.nome + ": escolha qual item tem problema.");
+            else if (a.item_codigo === "" && !String(a.descricao || "").trim()) e.push(nome + ": descreva o problema.");
+            var it = a.item_codigo ? itemPorCodigo(a.item_codigo) : null;
+            if (it && it.subtipos && !a.subtipo) e.push(nome + ": escolha qual luz.");
+            if (!a.fotos.some(function(f){ return f.status === "ok"; })) e.push(nome + ": foto obrigatória.");
+          });
+        }
+      });
+    }
+    if (step === 2){
+      if (usaCombustivel() && !S.nivel) e.push("Informe o nível de combustível.");
+      if (S.veiculo && S.veiculo.tipo_combustivel === "eletrico" && S.bateria === "") e.push("Informe o % de bateria.");
+      if (S.bateria !== "" && !(Number(S.bateria) >= 0 && Number(S.bateria) <= 100)) e.push("% de bateria deve estar entre 0 e 100.");
+      if (S.tipo === "inspecao_tecnica") FIXAS.forEach(function(f){ if (!(S.fixas[f[0]] && S.fixas[f[0]].status === "ok")) e.push("Foto obrigatória: " + f[1] + "."); });
+    }
+    if (step === 3){
+      if (todasFotos().some(function(f){ return f.status !== "ok"; })) e.push("Espere todas as fotos terminarem de enviar (ou remova as que falharam).");
+    }
+    return e;
+  }
+
+  // ---------------- render ----------------
+  function render(){
+    renderWho();
+    var steps = $("steps").children;
+    for (var i = 0; i < steps.length; i++) steps[i].className = i <= S.step ? "on" : "";
+    $("step-label").textContent = S.enviado ? "Enviado" : ("Etapa " + (S.step + 1) + " de 4 · " + STEP_NAMES[S.step]);
+    var html = carregando ? '<div class="card"><p class="hint" style="margin:0">Carregando…</p></div>' : S.enviado ? renderFinal() : [renderStep0, renderStep1, renderStep2, renderStep3][S.step]();
+    $("main").innerHTML = html;
+    $("bottom").classList.toggle("hidden", !!S.enviado);
+    $("btn-voltar").disabled = S.step === 0 || busy;
+    $("btn-proximo").disabled = busy;
+    $("btn-proximo").textContent = S.step === 3 ? (enviando ? "Enviando…" : "Enviar checklist") : "Próximo";
+  }
+  function renderWho(){
+    $("who").innerHTML = session
+      ? esc(session.nome || "Auxiliar") + ' · <button class="btn ghost" data-act="logout" style="min-height:28px;padding:0">sair</button>'
+      : "";
+  }
+
+  function renderStep0(){
+    var h = '<div class="card"><h2>Quem está preenchendo</h2>';
+    if (!session){
+      h += '<div id="login-box" class="' + (renderStep0.login ? "" : "hidden") + '">' +
+        '<label class="lbl">E-mail</label><input type="email" id="lg-email" autocomplete="username">' +
+        '<label class="lbl">Senha</label><input type="password" id="lg-senha" autocomplete="current-password">' +
+        '<div class="row" style="margin-top:10px"><button class="btn" data-act="login-cancel">Cancelar</button><button class="btn primary" data-act="login">Entrar</button></div></div>' +
+        '<div class="' + (renderStep0.login ? "hidden" : "") + '"><button class="btn ghost" data-act="login-open" style="padding-left:0">Sou auxiliar de frota — entrar</button></div>';
+    }
+    h += '<label class="lbl" for="f-mat">Matrícula</label><div class="row">' +
+      '<input type="text" inputmode="numeric" pattern="[0-9]*" id="f-mat" class="mono" maxlength="10" value="' + esc(S.matricula) + '" autocomplete="off">' +
+      '<button class="btn flex-none" data-act="identificar">Confirmar</button></div>';
+    if (S.nome) h += '<div class="okbox">Olá, <b>' + esc(S.nome) + '</b>.</div>';
+    h += '</div>';
+
+    h += '<div class="card"><h2>Veículo</h2><label class="lbl" for="f-placa">Placa</label><div class="row">' +
+      '<input type="text" id="f-placa" class="mono" maxlength="8" autocapitalize="characters" autocomplete="off" value="' + esc(S.placa) + '" placeholder="ABC1D23">' +
+      '<button class="btn flex-none" data-act="buscar-placa"' + (S.nome ? "" : " disabled") + '>Buscar</button></div>';
+    if (!S.nome) h += '<p class="hint">Confirme a matrícula antes de buscar a placa.</p>';
+    if (S.veiculo){
+      var v = S.veiculo, u = S.ultimo;
+      h += '<div class="veic"><div><b>' + esc(v.placa) + '</b><div style="font-size:13.5px">' + esc(v.modelo || "") + '</div>' +
+        '<div class="hint" style="margin:2px 0 0">' + (u ? "Último: " + TIPOS[u.tipo] + " em " + fmtData(u.enviado_em) + " · " + fmtKm(u.km) : "Nenhum checklist anterior") + '</div></div>' +
+        (S.abertas.length ? '<span class="badge alta">' + S.abertas.length + ' anomalia' + (S.abertas.length > 1 ? "s" : "") + ' aberta' + (S.abertas.length > 1 ? "s" : "") + '</span>' : '<span class="badge">sem pendências</span>') + '</div>';
+
+      h += '<label class="lbl">Tipo de checklist</label><div class="chips">';
+      ["retirada","devolucao"].concat(auxiliar ? ["inspecao_tecnica"] : []).forEach(function(t){
+        h += '<button class="chip' + (S.tipo === t ? " on" : "") + '" data-act="tipo" data-v="' + t + '">' + TIPOS[t] + '</button>';
+      });
+      h += '</div>';
+      h += '<label class="lbl" for="f-hub">Hub</label><select id="f-hub"><option value="">Selecione…</option>' +
+        HUBS.map(function(x){ return '<option value="' + x.id + '"' + (S.hub_id === x.id ? " selected" : "") + '>' + esc(x.nome) + '</option>'; }).join("") + '</select>';
+      h += '<label class="lbl" for="f-km">KM do painel</label><input type="number" inputmode="numeric" id="f-km" class="mono" min="0" value="' + esc(S.km) + '">';
+      h += '<div id="km-aviso">' + avisoKm() + '</div>';
+    }
+    return h + '</div>';
+  }
+  renderStep0.login = false;
+  function avisoKm(){
+    if (!S.veiculo || !(Number(S.km) > 0)) return "";
+    var ref = Math.max(Number(S.ultimo && S.ultimo.km) || 0, Number(S.veiculo.km_atual) || 0);
+    return ref && Number(S.km) < ref ? '<div class="warn">KM menor que o último registrado (' + fmtKm(ref) + '). Confira o painel.</div>' : "";
+  }
+
+  function renderStep1(){
+    var gs = gruposAtuais(), codigos = gs.map(function(g){ return g.grupo; });
+    var h = '<p class="hint" style="margin:0 0 12px">Para cada grupo, marque <b>Tudo OK</b> ou <b>Tem problema</b>. Problema novo precisa de foto.</p><div class="grupos-grid">';
+    gs.forEach(function(g){
+      var resp = S.grupos[g.grupo];
+      var abertas = S.abertas.filter(function(a){ return a.grupo === g.grupo; });
+      h += '<div class="card grupo' + (resp ? " st-" + resp : "") + '"><h2>' + esc(g.nome) +
+        (S.prefill[g.grupo] && resp === "ok" ? '<span class="prev">como no último checklist</span>' : "") + '</h2>';
+      if (abertas.length){
+        h += '<h3 style="margin-top:0">Já reportado antes — ainda existe?</h3>';
+        abertas.forEach(function(a){ h += abertaHtml(a, true); });
+      }
+      h += '<div class="choice">' +
+        '<button class="chip ok' + (resp === "ok" ? " on" : "") + '" data-act="grupo" data-g="' + g.grupo + '" data-v="ok">' + (abertas.length ? "Nada novo" : "Tudo OK") + '</button>' +
+        '<button class="chip bad' + (resp === "problema" ? " on" : "") + '" data-act="grupo" data-g="' + g.grupo + '" data-v="problema">Tem problema' + (abertas.length ? " novo" : "") + '</button></div>';
+      if (resp === "problema"){
+        S.novas.forEach(function(a, idx){ if (a.grupo === g.grupo) h += novaHtml(a, idx, g); });
+        h += '<button class="btn ghost" data-act="add-anom" data-g="' + g.grupo + '" style="margin-top:6px;padding-left:0">+ Outro problema neste grupo</button>';
+      }
+      h += '</div>';
+    });
+    h += '</div>';
+    var outras = S.abertas.filter(function(a){ return codigos.indexOf(a.grupo) < 0; });
+    if (outras.length){
+      h += '<div class="card"><h2>Outras pendências deste veículo</h2><p class="hint" style="margin-top:0">Registradas em outro tipo de checklist. Responder é opcional.</p>';
+      outras.forEach(function(a){ h += abertaHtml(a, true); });
+      h += '</div>';
+    }
+    return h;
+  }
+  function abertaHtml(a, comBotoes){
+    var c = S.confirmacoes[a.id];
+    var h = '<div class="abert"><div class="top">' + (a.foto_url ? '<a href="' + esc(a.foto_url) + '" target="_blank" rel="noopener"><img src="' + esc(a.foto_url) + '" alt="Foto da anomalia"></a>' : "") +
+      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">' + esc(rotuloAnomalia(a)) + ' <span class="badge ' + a.severidade + '">' + SEV[a.severidade] + '</span></div>' +
+      (a.descricao ? '<div style="font-size:13px">' + esc(a.descricao) + '</div>' : "") +
+      '<div class="hint" style="margin:2px 0 0">' + nomeGrupo(a.grupo) + ' · desde ' + fmtData(a.reportada_em).split(" ")[0] + (a.status === "em_reparo" ? " · em reparo" : "") + '</div></div></div>';
+    if (comBotoes) h += '<div class="choice" style="margin-top:8px">' +
+      '<button class="chip bad' + (c === "continua" ? " on" : "") + '" data-act="conf" data-id="' + a.id + '" data-v="continua">Continua</button>' +
+      '<button class="chip ok' + (c === "nao_existe" ? " on" : "") + '" data-act="conf" data-id="' + a.id + '" data-v="nao_existe">Não existe mais</button></div>';
+    return h + '</div>';
+  }
+  function novaHtml(a, idx, g){
+    var h = '<div class="anom"><div class="anom-hdr"><span>Problema</span><button class="btn ghost" data-act="rm-anom" data-i="' + idx + '" style="min-height:32px">remover</button></div>';
+    h += '<label class="lbl" style="margin-top:4px">Qual item?</label><div class="chips">';
+    g.itens.forEach(function(it){ h += '<button class="chip' + (a.item_codigo === it.codigo ? " on" : "") + '" data-act="item" data-i="' + idx + '" data-v="' + it.codigo + '">' + esc(it.descricao) + '</button>'; });
+    h += '<button class="chip' + (a.item_codigo === "" ? " on" : "") + '" data-act="item" data-i="' + idx + '" data-v="">Outro</button></div>';
+    var it = a.item_codigo ? itemPorCodigo(a.item_codigo) : null;
+    if (it && it.subtipos){
+      h += '<label class="lbl">Qual luz?</label><div class="chips">';
+      it.subtipos.forEach(function(s){ h += '<button class="chip' + (a.subtipo === s ? " on" : "") + '" data-act="subtipo" data-i="' + idx + '" data-v="' + esc(s) + '">' + esc(s) + '</button>'; });
+      h += '</div>';
+    }
+    if (a.item_codigo !== undefined){
+      h += '<label class="lbl">Gravidade</label><div class="chips">';
+      Object.keys(SEV).forEach(function(s){ h += '<button class="chip sev-' + s + (a.severidade === s ? " on" : "") + '" data-act="sev" data-i="' + idx + '" data-v="' + s + '">' + SEV[s] + '</button>'; });
+      h += '</div>';
+      h += '<label class="lbl">Descrição' + (a.item_codigo === "" ? "" : " (opcional)") + '</label><textarea data-desc="' + idx + '" rows="2">' + esc(a.descricao || "") + '</textarea>';
+      h += '<label class="lbl">Foto (obrigatória)</label><div class="thumbs">';
+      a.fotos.forEach(function(f, fi){ h += thumbHtml(f, 'data-act="rm-foto" data-i="' + idx + '" data-f="' + fi + '"'); });
+      h += '<button class="cam" data-act="foto-anom" data-i="' + idx + '">' + CAM_SVG + 'Tirar foto</button></div>';
+    }
+    return h + '</div>';
+  }
+
+  function renderStep2(){
+    var h = '<div class="card">';
+    if (usaCombustivel()){
+      h += '<h2>Nível de combustível</h2><div class="chips">';
+      NIVEIS.forEach(function(n){ h += '<button class="chip' + (S.nivel === n ? " on" : "") + '" data-act="nivel" data-v="' + n + '">' + (n === "reserva" ? "Reserva" : n === "cheio" ? "Cheio" : n) + '</button>'; });
+      h += '</div>';
+    }
+    if (usaBateria()){
+      h += '<label class="lbl" for="f-bat">% de bateria' + (S.veiculo.tipo_combustivel === "hibrido" ? " (opcional)" : "") + '</label>' +
+        '<input type="number" inputmode="numeric" id="f-bat" class="mono" min="0" max="100" value="' + esc(S.bateria) + '">';
+    }
+    h += '</div><div class="card"><h2>Fotos do veículo</h2><p class="hint" style="margin-top:0">' +
+      (S.tipo === "inspecao_tecnica" ? "Obrigatórias na Inspeção técnica." : "Opcionais.") + '</p><div class="fixas">';
+    FIXAS.forEach(function(f){
+      var foto = S.fixas[f[0]];
+      h += '<div class="fixa">' + f[1] + (foto ? thumbHtml(foto, 'data-act="rm-fixa" data-v="' + f[0] + '"') : '<button class="cam" data-act="foto-fixa" data-v="' + f[0] + '">' + CAM_SVG + 'Tirar foto</button>') + '</div>';
+    });
+    h += '</div></div><div class="card"><h2>Observações</h2><textarea id="f-obs" rows="3" placeholder="Opcional">' + esc(S.observacoes) + '</textarea></div>';
+    return h;
+  }
+
+  function renderStep3(){
+    var gs = gruposAtuais(), v = S.veiculo;
+    var hub = HUBS.filter(function(x){ return x.id === S.hub_id; })[0];
+    var h = '<div class="card"><h2>Confira antes de enviar</h2><ul class="resumo" style="padding-left:18px;margin:0">' +
+      '<li><b>' + TIPOS[S.tipo] + '</b> · <span class="mono">' + esc(v.placa) + '</span> ' + esc(v.modelo || "") + '</li>' +
+      '<li>' + esc(S.nome) + ' (matrícula ' + esc(S.matricula) + ') · Hub ' + esc(hub ? hub.nome : "") + '</li>' +
+      '<li>KM ' + fmtKm(S.km) + (S.nivel ? " · Combustível " + esc(S.nivel) : "") + (S.bateria !== "" ? " · Bateria " + esc(S.bateria) + "%" : "") + '</li></ul></div>';
+    var novas = S.novas.filter(function(a){ return S.grupos[a.grupo] === "problema"; });
+    h += '<div class="card"><h2>Problemas novos (' + novas.length + ')</h2>';
+    if (!novas.length) h += '<p class="hint" style="margin:0">Nenhum.</p>';
+    novas.forEach(function(a){ h += '<div style="margin-bottom:6px"><span class="badge ' + a.severidade + '">' + SEV[a.severidade] + '</span> ' + esc(nomeGrupo(a.grupo)) + ' — ' + esc(rotuloAnomalia(a)) + (a.descricao ? '<div class="hint" style="margin:0">' + esc(a.descricao) + '</div>' : "") + '</div>'; });
+    h += '</div>';
+    var conf = S.abertas.filter(function(a){ return S.confirmacoes[a.id]; });
+    if (conf.length){
+      h += '<div class="card"><h2>Pendências anteriores</h2>';
+      conf.forEach(function(a){ h += '<div style="margin-bottom:4px">' + esc(rotuloAnomalia(a)) + ': <b>' + (S.confirmacoes[a.id] === "continua" ? "continua" : "não existe mais") + '</b></div>'; });
+      h += '</div>';
+    }
+    var okGrupos = gs.filter(function(g){ return S.grupos[g.grupo] === "ok"; }).map(function(g){ return g.nome; });
+    if (okGrupos.length) h += '<div class="card"><h2>Tudo OK</h2><p class="hint" style="margin:0">' + esc(okGrupos.join(", ")) + '</p></div>';
+    if (renderStep3.erro) h += '<div class="err">' + esc(renderStep3.erro) + '</div>';
+    return h;
+  }
+  renderStep3.erro = "";
+
+  function renderFinal(){
+    var r = S.enviado.resultado;
+    return '<div class="card final"><div style="font-size:15px;color:var(--muted)">Checklist enviado</div>' +
+      '<div class="big res-' + r + '">' + RES[r] + '</div>' +
+      '<p class="hint">' + TIPOS[S.tipo] + ' · <span class="mono">' + esc(S.veiculo.placa) + '</span> · ' + fmtData(new Date().toISOString()) + '</p>' +
+      (r === "urgente" ? '<div class="err" style="text-align:left">Há problema crítico neste veículo. Avise a equipe de frota antes de rodar.</div>' : "") +
+      '<button class="btn primary" data-act="novo" style="margin-top:16px;width:100%">Fazer outro checklist</button></div>';
+  }
+
+  // ---------------- ações ----------------
+  function identificar(){
+    var m = $("f-mat").value.trim();
+    if (!/^\d+$/.test(m)){ toast("Digite só os números da matrícula.", true); return; }
+    S.matricula = m; busy = true; render();
+    return api("identificar", { matricula:m }).then(function(r){
+      HUBS = r.hubs || []; CAT = r.catalogo || []; auxiliar = !!r.auxiliar;
+      S.nome = r.nome; busy = false; salvarRascunho(); render();
+      var pl = $("f-placa"); if (pl && !S.veiculo) pl.focus();
+    }).catch(function(e){ busy = false; S.nome = ""; render(); toast(e.message, true); });
+  }
+  function buscarPlaca(){
+    var p = normPlaca($("f-placa").value);
+    if (p.length !== 7){ toast("Placa deve ter 7 caracteres (ex.: ABC1D23).", true); return; }
+    if (S.veiculo && S.veiculo.placa !== p && (S.novas.length || Object.keys(S.fixas).length)){
+      if (!confirm("Trocar de placa apaga os problemas e fotos já registrados. Continuar?")) return;
+    }
+    busy = true; render();
+    api("veiculo", { matricula:S.matricula, placa:p }).then(function(r){
+      busy = false;
+      var trocou = !S.veiculo || S.veiculo.placa !== r.veiculo.placa;
+      if (trocou){
+        var keep = { matricula:S.matricula, nome:S.nome };
+        S = novoEstado(); S.matricula = keep.matricula; S.nome = keep.nome;
+      }
+      S.placa = r.veiculo.placa; S.veiculo = r.veiculo; S.ultimo = r.ultimo; S.abertas = r.anomalias_abertas || [];
+      if (trocou){
+        S.tipo = r.tipo_sugerido;
+        if (S.ultimo && S.ultimo.nivel_combustivel) S.nivel = S.ultimo.nivel_combustivel;
+        aplicarPrefill();
+      }
+      salvarRascunho(); render();
+    }).catch(function(e){ busy = false; render(); toast(e.message, true); });
+  }
+  // Grupos que estavam OK no último checklist (e sem anomalia aberta) já vêm marcados como OK.
+  function aplicarPrefill(){
+    S.grupos = {}; S.prefill = {};
+    if (!S.ultimo) return;
+    (S.ultimo.grupos || []).forEach(function(g){
+      var temAberta = S.abertas.some(function(a){ return a.grupo === g.grupo; });
+      if (!g.tem_anomalia && !temAberta){ S.grupos[g.grupo] = "ok"; S.prefill[g.grupo] = true; }
+    });
+  }
+  function mudarTipo(t){
+    if (t === S.tipo) return;
+    if (S.novas.length && !confirm("Mudar o tipo apaga os problemas já registrados neste checklist. Continuar?")) return;
+    S.tipo = t; S.novas = []; aplicarPrefill(); salvarRascunho(); render();
+  }
+  function login(){
+    var email = $("lg-email").value.trim(), senha = $("lg-senha").value;
+    if (!email || !senha){ toast("Preencha e-mail e senha.", true); return; }
+    busy = true; render();
+    authToken("password", { email:email, password:senha }).then(function(j){
+      aplicarToken(j); return api("sessao");
+    }).then(function(r){
+      busy = false;
+      if (!r.auxiliar){ session = null; salvarSessao(); auxiliar = false; render(); toast("Seu usuário não tem acesso ao checklist de frota.", true); return; }
+      session.nome = r.nome; session.matricula = r.matricula; salvarSessao(); auxiliar = true; renderStep0.login = false;
+      if (r.matricula && !S.matricula){ S.matricula = r.matricula; render(); identificar(); } else render();
+    }).catch(function(e){ busy = false; render(); toast(e.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : e.message, true); });
+  }
+  function logout(){
+    session = null; auxiliar = false; salvarSessao();
+    if (S.tipo === "inspecao_tecnica"){ S.tipo = null; S.novas = []; aplicarPrefill(); }
+    render();
+  }
+  function enviar(){
+    var gs = gruposAtuais();
+    var novas = S.novas.filter(function(a){ return S.grupos[a.grupo] === "problema"; });
+    var fotos = [];
+    novas.forEach(function(a){ a.fotos.forEach(function(f){ fotos.push({ tipo:"anomalia", anomalia_id:a.id, path:f.path }); }); });
+    FIXAS.forEach(function(f){ var x = S.fixas[f[0]]; if (x && x.status === "ok") fotos.push({ tipo:f[0], path:x.path }); });
+    var ck = {
+      id:S.id, placa:S.placa, tipo:S.tipo, hub_id:S.hub_id, km:Number(S.km),
+      nivel_combustivel: usaCombustivel() ? S.nivel : null,
+      bateria_pct: S.bateria === "" ? null : Number(S.bateria),
+      observacoes:S.observacoes,
+      grupos: gs.map(function(g){ return g.grupo; }),
+      anomalias: novas.map(function(a){ return { id:a.id, grupo:a.grupo, item_codigo:a.item_codigo || null, subtipo:a.subtipo || null, descricao:a.descricao || null, severidade:a.severidade }; }),
+      confirmacoes: Object.keys(S.confirmacoes).map(function(k){ return { origem_id:k, confirmacao:S.confirmacoes[k] }; }),
+      fotos: fotos
+    };
+    busy = enviando = true; renderStep3.erro = ""; render();
+    api("enviar", { matricula:S.matricula, checklist:ck }).then(function(r){
+      busy = enviando = false; S.enviado = r; apagarRascunho(); render(); window.scrollTo(0, 0);
+    }).catch(function(e){ busy = enviando = false; renderStep3.erro = "Não foi possível enviar: " + e.message + " Seus dados continuam salvos neste aparelho; tente de novo."; render(); });
+  }
+
+  function proximo(){
+    var erros = validar(S.step);
+    if (erros.length){ toast(erros[0], true); return; }
+    if (S.step === 3){ enviar(); return; }
+    S.step++; salvarRascunho(); render(); window.scrollTo(0, 0);
+  }
+  function voltar(){ if (S.step > 0){ S.step--; salvarRascunho(); render(); window.scrollTo(0, 0); } }
+
+  // ---------------- eventos ----------------
+  $("btn-proximo").addEventListener("click", proximo);
+  $("btn-voltar").addEventListener("click", voltar);
+
+  document.addEventListener("click", function(ev){
+    var retry = ev.target.closest("[data-retry]");
+    if (retry){
+      var f = todasFotos().filter(function(x){ return x.key === retry.getAttribute("data-retry"); })[0];
+      if (f) enviarFoto(f);
+      return;
+    }
+    var b = ev.target.closest("[data-act]"); if (!b || b.disabled) return;
+    var act = b.getAttribute("data-act"), v = b.getAttribute("data-v"), i = Number(b.getAttribute("data-i"));
+    switch (act){
+      case "identificar": identificar(); break;
+      case "buscar-placa": buscarPlaca(); break;
+      case "login-open": renderStep0.login = true; render(); $("lg-email").focus(); break;
+      case "login-cancel": renderStep0.login = false; render(); break;
+      case "login": login(); break;
+      case "logout": logout(); break;
+      case "tipo": mudarTipo(v); break;
+      case "grupo":
+        var g = b.getAttribute("data-g");
+        S.grupos[g] = v; delete S.prefill[g];
+        if (v === "problema" && !S.novas.some(function(a){ return a.grupo === g; })) S.novas.push(novaAnomalia(g));
+        if (v === "ok") S.novas = S.novas.filter(function(a){ return a.grupo !== g; });
+        break;
+      case "conf": S.confirmacoes[b.getAttribute("data-id")] = v; break;
+      case "add-anom": S.novas.push(novaAnomalia(b.getAttribute("data-g"))); break;
+      case "rm-anom":
+        var gg = S.novas[i].grupo; S.novas.splice(i, 1);
+        if (!S.novas.some(function(a){ return a.grupo === gg; })) delete S.grupos[gg];
+        break;
+      case "item":
+        var a = S.novas[i]; a.item_codigo = v; a.subtipo = null;
+        var it = v ? itemPorCodigo(v) : null; a.severidade = it ? it.severidade_padrao : (a.severidade || "media");
+        break;
+      case "subtipo": S.novas[i].subtipo = v; break;
+      case "sev": S.novas[i].severidade = v; break;
+      case "foto-anom":
+        var an = S.novas[i];
+        pedirFoto(function(file){ var f = { key: fotoKey(an.id.slice(0, 8)), status:"enviando" }; an.fotos.push(f); processarFoto(file, f); });
+        return;
+      case "rm-foto": S.novas[i].fotos.splice(Number(b.getAttribute("data-f")), 1); break;
+      case "foto-fixa":
+        pedirFoto(function(file){ var f = { key: fotoKey(v), status:"enviando" }; S.fixas[v] = f; processarFoto(file, f); });
+        return;
+      case "rm-fixa": delete S.fixas[v]; break;
+      case "nivel": S.nivel = v; break;
+      case "novo":
+        var keep = { matricula:S.matricula, nome:S.nome };
+        S = novoEstado(); S.matricula = keep.matricula; S.nome = keep.nome; render(); window.scrollTo(0, 0); return;
+      default: return;
+    }
+    salvarRascunho(); render();
+  });
+  function novaAnomalia(g){ return { id: uuid(), grupo:g, item_codigo:undefined, subtipo:null, severidade:"media", descricao:"", fotos:[] }; }
+
+  document.addEventListener("input", function(ev){
+    var t = ev.target;
+    if (t.id === "f-km"){ S.km = t.value; $("km-aviso").innerHTML = avisoKm(); }
+    else if (t.id === "f-hub"){ S.hub_id = t.value; }
+    else if (t.id === "f-bat"){ S.bateria = t.value; }
+    else if (t.id === "f-obs"){ S.observacoes = t.value; }
+    else if (t.hasAttribute && t.hasAttribute("data-desc")){ S.novas[Number(t.getAttribute("data-desc"))].descricao = t.value; }
+    else if (t.id === "f-mat"){ if (S.nome && t.value.trim() !== S.matricula){ S.nome = ""; } return; }
+    else return;
+    salvarRascunho();
+  });
+  document.addEventListener("change", function(ev){ if (ev.target.id === "f-hub"){ S.hub_id = ev.target.value; salvarRascunho(); } });
+  document.addEventListener("keydown", function(ev){
+    if (ev.key !== "Enter") return;
+    if (ev.target.id === "f-mat"){ ev.preventDefault(); identificar(); }
+    else if (ev.target.id === "f-placa"){ ev.preventDefault(); buscarPlaca(); }
+    else if (ev.target.id === "lg-senha"){ ev.preventDefault(); login(); }
+  });
+
+  // ---------------- início ----------------
+  function iniciar(){
+    try{ session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }catch(e){ session = null; }
+    var r = lerRascunho();
+    var validoAte = 24 * 3600 * 1000;
+    var pSessao = session ? api("sessao").then(function(x){
+      auxiliar = !!x.auxiliar; if (!auxiliar){ session = null; salvarSessao(); } else { session.nome = x.nome; session.matricula = x.matricula; salvarSessao(); }
+    }).catch(function(){}) : Promise.resolve();
+
+    pSessao.then(function(){
+      if (r && r.matricula && !r.enviado && Date.now() - (r.salvo_em || 0) < validoAte &&
+          confirm("Há um checklist não enviado" + (r.placa ? " da placa " + r.placa : "") + ". Continuar de onde parou?")){
+        S = r;
+        // fotos que estavam subindo quando a página fechou precisam ser tiradas de novo
+        todasFotos().forEach(function(f){ if (f.status !== "ok"){ f.status = "erro"; f.msg = "Tire a foto de novo."; } });
+        busy = carregando = true; render();
+        return api("identificar", { matricula:S.matricula }).then(function(x){
+          HUBS = x.hubs || []; CAT = x.catalogo || []; auxiliar = !!x.auxiliar;
+          if (!S.placa) return;
+          return api("veiculo", { matricula:S.matricula, placa:S.placa }).then(function(v){
+            S.veiculo = v.veiculo; S.ultimo = v.ultimo; S.abertas = v.anomalias_abertas || [];
+            var ids = S.abertas.map(function(a){ return a.id; });
+            Object.keys(S.confirmacoes).forEach(function(k){ if (ids.indexOf(k) < 0) delete S.confirmacoes[k]; });
+          });
+        }).then(function(){ busy = carregando = false; render(); }).catch(function(e){ busy = carregando = false; S.step = 0; render(); toast(e.message, true); });
+      }
+      apagarRascunho();
+      if (session && session.matricula){ S.matricula = session.matricula; render(); return identificar(); }
+      render();
+    });
+    render();
+  }
+  iniciar();
+})();
+</script>
+</body>
+</html>
