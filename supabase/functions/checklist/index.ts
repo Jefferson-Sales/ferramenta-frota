@@ -37,7 +37,8 @@ async function colaborador(matricula: unknown) {
   if (!data || !data.length) throw new Falha("Matrícula não encontrada ou inativa.", 404);
   // se a matrícula existir nas duas tabelas, prefere o motorista (tem motorista_id)
   const c = data.find((r: any) => r.origem === "motorista") || data[0];
-  return { matricula: m, nome: c.nome as string, hub_id: c.hub_id, motorista_id: c.motorista_id };
+  return { matricula: m, nome: c.nome as string, hub_id: c.hub_id, motorista_id: c.motorista_id,
+           user_id: c.origem === "usuario" ? (c.user_id as string) : null };
 }
 
 // Auxiliar de frota logado: admin, ou operador com módulo checklist/manutenção.
@@ -54,6 +55,25 @@ async function auxiliarLogado(req: Request) {
   return ok ? { user_id: p.user_id as string, nome: p.nome as string, matricula: p.matricula as string | null } : null;
 }
 
+// Hubs liberados para quem está preenchendo. null = sem restrição.
+// - auxiliar logado: os hubs dele (admin: todos);
+// - matrícula de usuário do sistema (auxiliar que entrou como "Sou Motorista"): os hubs desse usuário,
+//   senão bastaria não fazer login para escapar da restrição;
+// - motorista (matrícula do cadastro de motoristas): sem restrição.
+async function hubsLiberados(aux: any, c: { user_id: string | null }): Promise<string[] | null> {
+  const uid = aux ? aux.user_id : c.user_id;
+  if (!uid) return null;
+  const { data: p } = await db().from("usuarios_perfil").select("papel, ativo").eq("user_id", uid).maybeSingle();
+  if (p && p.ativo && p.papel === "admin") return null;
+  const { data, error } = await db().from("usuarios_hubs").select("hub_id").eq("user_id", uid);
+  if (error) throw error;
+  return (data || []).map((r: any) => r.hub_id as string);
+}
+function exigirHub(hubs: string[] | null, v: { hub_id: string | null }) {
+  if (hubs && !(v.hub_id && hubs.includes(v.hub_id)))
+    throw new Falha("Esta placa é de um hub que não está liberado para você.", 403);
+}
+
 async function veiculoPorPlaca(placa: unknown) {
   const pl = normPlaca(placa);
   if (pl.length !== 7) throw new Falha("Placa inválida.");
@@ -66,8 +86,11 @@ async function veiculoPorPlaca(placa: unknown) {
 
 async function acaoIdentificar(body: any, aux: any) {
   const c = await colaborador(body.matricula);
+  const liberados = await hubsLiberados(aux, c);
+  let qHubs = db().from("hubs").select("id, nome").eq("ativo", true).order("nome");
+  if (liberados) qHubs = qHubs.in("id", liberados.length ? liberados : ["00000000-0000-0000-0000-000000000000"]);
   const [{ data: hubs, error: e1 }, { data: catalogo, error: e2 }] = await Promise.all([
-    db().from("hubs").select("id, nome").eq("ativo", true).order("nome"),
+    qHubs,
     db().from("checklist_itens_catalogo")
       .select("grupo, grupo_nome, grupo_ordem, codigo, descricao, tipos, severidade_padrao, subtipos, combustiveis, ordem")
       .eq("ativo", true).order("grupo_ordem").order("ordem"),
@@ -76,9 +99,10 @@ async function acaoIdentificar(body: any, aux: any) {
   return { nome: nomeCurto(c.nome), hub_id: c.hub_id, auxiliar: !!aux, hubs, catalogo };
 }
 
-async function acaoVeiculo(body: any) {
-  await colaborador(body.matricula);
+async function acaoVeiculo(body: any, aux: any) {
+  const c = await colaborador(body.matricula);
   const v = await veiculoPorPlaca(body.placa);
+  exigirHub(await hubsLiberados(aux, c), v);
 
   const { data: ult } = await db().from("checklists")
     .select("id, tipo, km, nivel_combustivel, bateria_pct, enviado_em, resultado, checklist_grupos(grupo, tem_anomalia)")
@@ -111,9 +135,10 @@ async function acaoVeiculo(body: any) {
   };
 }
 
-async function acaoUpload(body: any) {
-  await colaborador(body.matricula);
+async function acaoUpload(body: any, aux: any) {
+  const c = await colaborador(body.matricula);
   const v = await veiculoPorPlaca(body.placa);
+  exigirHub(await hubsLiberados(aux, c), v);
   const cid = String(body.checklist_id || "");
   const arq = String(body.arquivo || "");
   if (!UUID_RE.test(cid)) throw new Falha("Checklist inválido.");
@@ -132,6 +157,7 @@ async function acaoEnviar(body: any, aux: any) {
   if (!["retirada", "devolucao", "inspecao_tecnica"].includes(ck.tipo)) throw new Falha("Tipo de checklist inválido.");
   if (ck.tipo === "inspecao_tecnica" && !aux) throw new Falha("Inspeção técnica exige login de auxiliar de frota.", 403);
   const v = await veiculoPorPlaca(ck.placa);
+  exigirHub(await hubsLiberados(aux, c), v);
   const km = Number(ck.km);
   if (!isFinite(km) || km <= 0) throw new Falha("KM inválido.");
 
@@ -158,8 +184,8 @@ Deno.serve(async (req) => {
     switch (body.acao) {
       case "sessao": return json(aux ? { auxiliar: true, nome: aux.nome, matricula: aux.matricula } : { auxiliar: false });
       case "identificar": return json(await acaoIdentificar(body, aux));
-      case "veiculo": return json(await acaoVeiculo(body));
-      case "upload": return json(await acaoUpload(body));
+      case "veiculo": return json(await acaoVeiculo(body, aux));
+      case "upload": return json(await acaoUpload(body, aux));
       case "enviar": return json(await acaoEnviar(body, aux));
       default: return json({ error: "Ação desconhecida." }, 400);
     }

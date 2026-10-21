@@ -92,6 +92,39 @@ async function camposPerfil(body: any, userId: string | null) {
   return { nome, papel, modulos_operador: operador, modulos_visualizacao: visualizacao, matricula };
 }
 
+// Hubs valem só para Manutenções e Qualidade da Frota (checklist). Admin vê todos.
+const MODULOS_COM_HUB = ["manutencao", "checklist"];
+function usaHub(perfil: { papel: string; modulos_visualizacao: string[]; modulos_operador: string[] }) {
+  if (perfil.papel === "admin") return false;
+  return MODULOS_COM_HUB.some((m) => perfil.modulos_visualizacao.includes(m) || perfil.modulos_operador.includes(m));
+}
+async function validarHubs(v: unknown): Promise<string[]> {
+  if (!Array.isArray(v)) return [];
+  const ids = [...new Set(v.map((x) => String(x)))];
+  for (const id of ids) if (!UUID_RE.test(id)) throw new Falha("Hub inválido.");
+  if (!ids.length) return [];
+  const { data, error } = await db().from("hubs").select("id").in("id", ids);
+  if (error) throw error;
+  if ((data || []).length !== ids.length) throw new Falha("Algum hub marcado não existe mais. Recarregue a tela.");
+  return ids;
+}
+// Substitui a lista de hubs do usuário pela informada.
+async function gravarHubs(uid: string, hubs: string[]) {
+  const { data: atuais, error } = await db().from("usuarios_hubs").select("hub_id").eq("user_id", uid);
+  if (error) throw error;
+  const tem = new Set((atuais || []).map((r: any) => r.hub_id as string));
+  const sair = [...tem].filter((h) => !hubs.includes(h));
+  const entrar = hubs.filter((h) => !tem.has(h));
+  if (sair.length) {
+    const { error: e1 } = await db().from("usuarios_hubs").delete().eq("user_id", uid).in("hub_id", sair);
+    if (e1) throw e1;
+  }
+  if (entrar.length) {
+    const { error: e2 } = await db().from("usuarios_hubs").insert(entrar.map((h) => ({ user_id: uid, hub_id: h })));
+    if (e2) throw e2;
+  }
+}
+
 async function todosLogins() {
   const users: any[] = [];
   for (let page = 1; page < 50; page++) {
@@ -104,12 +137,18 @@ async function todosLogins() {
 }
 
 async function acaoListar() {
-  const [{ data: perfis, error }, logins] = await Promise.all([
+  const [{ data: perfis, error }, logins, { data: uh, error: e2 }, { data: hubs, error: e3 }] = await Promise.all([
     db().from("usuarios_perfil")
       .select("user_id, nome, papel, modulos_visualizacao, modulos_operador, matricula, ativo, created_at, updated_at"),
     todosLogins(),
+    db().from("usuarios_hubs").select("user_id, hub_id"),
+    db().from("hubs").select("id, nome").order("nome"),
   ]);
   if (error) throw error;
+  if (e2) throw e2;
+  if (e3) throw e3;
+  const hubsDe = new Map<string, string[]>();
+  for (const r of uh || []) hubsDe.set(r.user_id, [...(hubsDe.get(r.user_id) || []), r.hub_id]);
   const porId = new Map(logins.map((u) => [u.id, u]));
   const vistos = new Set<string>();
   const lista = (perfis || []).map((p: any) => {
@@ -117,6 +156,7 @@ async function acaoListar() {
     vistos.add(p.user_id);
     return {
       ...p,
+      hubs: hubsDe.get(p.user_id) || [],
       email: u?.email ?? null,
       ultimo_acesso: u?.last_sign_in_at ?? null,
       login_bloqueado: !!(u?.banned_until && new Date(u.banned_until) > new Date()),
@@ -127,20 +167,22 @@ async function acaoListar() {
   for (const u of logins) {
     if (vistos.has(u.id)) continue;
     lista.push({
-      user_id: u.id, nome: null, papel: null, modulos_visualizacao: [], modulos_operador: [], matricula: null,
+      user_id: u.id, nome: null, papel: null, modulos_visualizacao: [], modulos_operador: [], matricula: null, hubs: [],
       ativo: false, created_at: u.created_at, updated_at: null, email: u.email ?? null,
       ultimo_acesso: u.last_sign_in_at ?? null,
       login_bloqueado: !!(u.banned_until && new Date(u.banned_until) > new Date()), sem_perfil: true,
     });
   }
   lista.sort((a: any, b: any) => String(a.nome || a.email || "").localeCompare(String(b.nome || b.email || ""), "pt-BR"));
-  return { usuarios: lista, modulos: MODULOS };
+  return { usuarios: lista, modulos: MODULOS, hubs: hubs || [] };
 }
 
 async function acaoCriar(body: any) {
   const email = String(body.email || "").trim().toLowerCase();
   if (!EMAIL_RE.test(email)) throw new Falha("E-mail inválido.");
   const perfil = await camposPerfil(body, null);
+  const hubs = await validarHubs(body.hubs);
+  if (usaHub(perfil) && !hubs.length) throw new Falha("Marque pelo menos um hub (vale para Manutenções e Qualidade da Frota).");
   let senha = String(body.senha || "");
   const gerada = !senha;
   if (gerada) senha = gerarSenha();
@@ -161,6 +203,13 @@ async function acaoCriar(body: any) {
     await admin.auth.admin.deleteUser(uid).catch(() => {});
     throw new Falha("Não foi possível gravar o perfil: " + e2.message);
   }
+  if (usaHub(perfil)) {
+    try { await gravarHubs(uid, hubs); }
+    catch (e) {
+      await admin.auth.admin.deleteUser(uid).catch(() => {}); // perfil e hubs saem junto (cascade)
+      throw new Falha("Não foi possível gravar os hubs: " + (e as Error).message);
+    }
+  }
   return { ok: true, user_id: uid, email, senha_gerada: gerada ? senha : null };
 }
 
@@ -169,6 +218,8 @@ async function acaoEditar(body: any, eu: string) {
   if (!UUID_RE.test(uid)) throw new Falha("Usuário inválido.");
   const perfil = await camposPerfil(body, uid);
   if (uid === eu && perfil.papel !== "admin") throw new Falha("Você não pode tirar o seu próprio papel de admin.");
+  const hubs = await validarHubs(body.hubs);
+  if (usaHub(perfil) && !hubs.length) throw new Falha("Marque pelo menos um hub (vale para Manutenções e Qualidade da Frota).");
   const { data: u, error: eu1 } = await admin.auth.admin.getUserById(uid);
   if (eu1 || !u?.user) throw new Falha("Login não encontrado.", 404);
   const { data: atual } = await db().from("usuarios_perfil").select("user_id").eq("user_id", uid).maybeSingle();
@@ -179,6 +230,8 @@ async function acaoEditar(body: any, eu: string) {
     : await db().from("usuarios_perfil").insert({ user_id: uid, ativo: true, ...perfil });
   if (error) throw new Falha("Não foi possível salvar: " + error.message);
   if (!atual) await admin.auth.admin.updateUserById(uid, { ban_duration: "none" });
+  // sem Manutenções/Checklist (ou admin) a lista não vale: fica como está, não é apagada
+  if (usaHub(perfil)) await gravarHubs(uid, hubs);
   return { ok: true };
 }
 

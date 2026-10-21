@@ -117,6 +117,14 @@
   .ac-tabela-mod input{ width:16px; height:16px; }
   .ac-tabela-mod.desab td{ color:var(--faint); }
   .ac-hint{ font-size:12px; color:var(--muted); line-height:1.5; margin-top:6px; }
+  .ac-hubs-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .ac-hubs-sub{ font-weight:400; color:var(--faint); }
+  .ac-hubs-acoes{ display:flex; gap:6px; }
+  .ac-hubs{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:2px 12px; border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-top:6px; }
+  .ac-hubs label{ display:flex; align-items:center; gap:7px; font-size:13px; font-weight:500; color:var(--ink); padding:4px 0; cursor:pointer; }
+  .ac-hubs input{ width:15px; height:15px; flex:none; }
+  .ac-hubs.desab label{ color:var(--faint); cursor:default; }
+  @media (max-width:560px){ .ac-hubs{ grid-template-columns:1fr 1fr; } }
   .ac-senha-row{ display:flex; gap:8px; }
   .ac-senha-row input{ flex:1; font-family:var(--font-mono); }
   .ac-status-box{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:13px; }
@@ -354,7 +362,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Contrato</th><th>Locadora</th><th class="num">Veículos</th><th class="num">KM contratado (pool)</th><th class="num">KM usado (pool)</th><th class="num">Saldo</th><th class="num">% utilizado</th><th class="num">Custo se exceder</th></tr></thead>
-            <tbody id="frota-pool-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
+            <tbody id="frota-pool-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -565,7 +573,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Severidade</th><th>Placa</th><th>Item</th><th>Descrição</th><th>Reportada</th><th>Últ. confirmação</th><th>Foto</th><th data-edit="qualidade">Ações</th></tr></thead>
-            <tbody id="qf-anom-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
+            <tbody id="qf-anom-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -598,8 +606,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Vê</th><th>Opera</th><th>Matrícula</th><th>Último acesso</th><th>Status</th></tr></thead>
-            <tbody id="ac-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Vê</th><th>Opera</th><th>Hubs</th><th>Matrícula</th><th>Último acesso</th><th>Status</th></tr></thead>
+            <tbody id="ac-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -692,6 +700,14 @@
             <tbody id="ac-mods-body"></tbody>
           </table>
           <div class="ac-hint" id="ac-mods-hint"></div>
+        </div>
+        <div class="field span2" id="ac-hubs-field">
+          <div class="ac-hubs-head">
+            <label>Hubs <span class="ac-hubs-sub">(valem só para Manutenções e Qualidade da Frota)</span></label>
+            <span class="ac-hubs-acoes"><button type="button" class="btn qf-mini" id="ac-hubs-todos">Marcar todos</button><button type="button" class="btn qf-mini" id="ac-hubs-limpar">Limpar</button></span>
+          </div>
+          <div class="ac-hubs" id="ac-hubs"></div>
+          <div class="ac-hint" id="ac-hubs-hint"></div>
         </div>
         <div class="field span2" id="ac-status-field" hidden>
           <label>Acesso</label>
@@ -1059,6 +1075,14 @@
 
   var session = null; // {access_token, user}
   var perfil = null;  // row from usuarios_perfil
+  // Hubs liberados para Manutenções e Qualidade da Frota (null = todos, ex. admin).
+  // O banco já filtra pelo RLS; isto só evita mostrar opções que o banco recusaria
+  // (quem também tem Cadastro da Frota enxerga todos os veículos pela outra regra).
+  var meusHubs = null;
+  function hubsQS(col){
+    if (!meusHubs) return "";
+    return "&" + col + "=in.(" + (meusHubs.length ? meusHubs.join(",") : "00000000-0000-0000-0000-000000000000") + ")";
+  }
 
   var MODULES = [
     {key:"frota", label:"Cadastro da Frota"},
@@ -1694,7 +1718,7 @@
   var veiculosOsCache = [];  // placas para o select da abertura de OS (com busca)
 
   function loadManutencao(avisarVencidas){
-    rest("veiculos?select=id,placa&order=placa").then(function(rows){
+    rest("veiculos?select=id,placa&order=placa" + hubsQS("hub_id")).then(function(rows){
       veiculosOsCache = rows || [];
       renderVeiculosOS();
     }).catch(function(){});
@@ -2370,7 +2394,7 @@
     if (QF.base) return QF.base;
     QF.base = Promise.all([
       rest("checklist_itens_catalogo?select=codigo,descricao,grupo,grupo_nome"),
-      rest("hubs?select=id,nome&order=nome")
+      rest("hubs?select=id,nome&order=nome" + hubsQS("id"))
     ]).then(function(r){
       (r[0] || []).forEach(function(i){ QF.cat[i.codigo] = i; QF.grupos[i.grupo] = i.grupo_nome; });
       QF.hubs = {};
@@ -3046,7 +3070,8 @@
     {key:"eletrificacao", label:"Carros Elétricos"}
   ];
   var AC_CURTO = {frota:"Frota", manutencao:"Manutenção", checklist:"Checklist", multas:"Multas", financeiro:"Financeiro", eletrificacao:"Elétricos"};
-  var AC = { lista: [], carregando: false, editando: null };
+  var AC = { lista: [], hubs: [], carregando: false, editando: null };
+  var AC_MODULOS_COM_HUB = ["manutencao", "checklist"];
 
   function chamarUsuarios(acao, dados){
     return ensureFreshSession().catch(function(){
@@ -3077,14 +3102,15 @@
 
   function loadAcessos(){
     var tb = document.getElementById("ac-body");
-    if (!AC.lista.length) tb.innerHTML = '<tr><td colspan="8" class="empty-row">Carregando…</td></tr>';
+    if (!AC.lista.length) tb.innerHTML = '<tr><td colspan="9" class="empty-row">Carregando…</td></tr>';
     AC.carregando = true;
     return chamarUsuarios("listar").then(function(res){
       AC.lista = (res && res.usuarios) || [];
+      AC.hubs = (res && res.hubs) || [];
       renderAcessos();
     }).catch(function(e){
       if (!session) return;
-      tb.innerHTML = '<tr><td colspan="8" class="empty-row">Não foi possível carregar: ' + esc(e.message) + '</td></tr>';
+      tb.innerHTML = '<tr><td colspan="9" class="empty-row">Não foi possível carregar: ' + esc(e.message) + '</td></tr>';
     }).finally(function(){ AC.carregando = false; });
   }
 
@@ -3093,6 +3119,17 @@
     if (campo === "modulos_operador" && u.papel === "visualizador") return "—";
     var l = (u[campo] || []).map(function(m){ return AC_CURTO[m] || m; });
     return l.length ? l.join(", ") : "—";
+  }
+
+  function acHubsTxt(u){
+    if (u.papel === "admin") return "Todos";
+    var usa = AC_MODULOS_COM_HUB.some(function(m){ return (u.modulos_visualizacao || []).indexOf(m) > -1 || (u.modulos_operador || []).indexOf(m) > -1; });
+    if (!usa) return "—";
+    var ids = u.hubs || [];
+    if (!ids.length) return "Nenhum";
+    if (AC.hubs.length && ids.length >= AC.hubs.length) return "Todos (" + ids.length + ")";
+    var nomes = AC.hubs.filter(function(h){ return ids.indexOf(h.id) > -1; }).map(function(h){ return h.nome; });
+    return nomes.length > 2 ? nomes.slice(0, 2).join(", ") + " +" + (nomes.length - 2) : nomes.join(", ");
   }
 
   function renderAcessos(){
@@ -3108,7 +3145,7 @@
     });
     document.getElementById("ac-count").textContent = linhas.length + (linhas.length === 1 ? " usuário" : " usuários");
     var tb = document.getElementById("ac-body");
-    if (!linhas.length){ tb.innerHTML = '<tr><td colspan="8" class="empty-row">Nenhum usuário com esses filtros.</td></tr>'; return; }
+    if (!linhas.length){ tb.innerHTML = '<tr><td colspan="9" class="empty-row">Nenhum usuário com esses filtros.</td></tr>'; return; }
     var PAPEL = {admin:"Admin", operador:"Operador", visualizador:"Visualizador"};
     tb.innerHTML = linhas.map(function(u){
       var st;
@@ -3123,6 +3160,7 @@
         '<td>' + (u.papel ? '<span class="pill ' + (u.papel === "admin" ? "good" : "neutral") + '">' + PAPEL[u.papel] + '</span>' : '—') + '</td>' +
         '<td class="ac-mods">' + esc(acModsTxt(u, "modulos_visualizacao")) + '</td>' +
         '<td class="ac-mods">' + esc(acModsTxt(u, "modulos_operador")) + '</td>' +
+        '<td class="ac-mods">' + esc(acHubsTxt(u)) + '</td>' +
         '<td class="ac-mat">' + esc(u.matricula || "—") + '</td>' +
         '<td class="qf-sub">' + esc(u.ultimo_acesso ? fmtDataHora(u.ultimo_acesso) : "Nunca entrou") + '</td>' +
         '<td>' + st + '</td></tr>';
@@ -3165,7 +3203,45 @@
     if (papel === "admin") hint.textContent = "Admin vê e opera todos os módulos e acessa esta tela.";
     else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada.";
     else hint.textContent = "Quem opera um módulo também vê. Auxiliar de frota: papel Operador, Checklist em \"Opera\" e matrícula preenchida (libera a Inspeção técnica no formulário do checklist).";
+    acAjustarHubs();
   }
+
+  // ---- hubs (só Manutenções e Qualidade da Frota) ----
+  function acMontarHubs(selecionados){
+    document.getElementById("ac-hubs").innerHTML = AC.hubs.length ? AC.hubs.map(function(h){
+      return '<label><input type="checkbox" data-ac-hub="' + esc(h.id) + '"' + (selecionados.indexOf(h.id) > -1 ? " checked" : "") + '>' + esc(h.nome) + '</label>';
+    }).join("") : '<span class="qf-sub">Nenhum hub cadastrado.</span>';
+    acAjustarHubs();
+  }
+  function acUsaHub(){
+    if (document.getElementById("ac-papel-f").value === "admin") return false;
+    return AC_MODULOS_COM_HUB.some(function(m){
+      var v = document.querySelector('[data-ac-vis="' + m + '"]'), o = document.querySelector('[data-ac-ope="' + m + '"]');
+      return (v && v.checked) || (o && o.checked);
+    });
+  }
+  function acAjustarHubs(){
+    var box = document.getElementById("ac-hubs"); if (!box) return;
+    var admin = document.getElementById("ac-papel-f").value === "admin";
+    var usa = acUsaHub();
+    box.classList.toggle("desab", !usa);
+    box.querySelectorAll("input").forEach(function(cb){ cb.disabled = !usa; });
+    document.getElementById("ac-hubs-todos").disabled = !usa;
+    document.getElementById("ac-hubs-limpar").disabled = !usa;
+    document.getElementById("ac-hubs-hint").textContent = admin ? "Admin vê todos os hubs."
+      : !usa ? "Só vale para Manutenções e Qualidade da Frota. Marque um desses módulos para escolher os hubs."
+      : "A pessoa só vê veículos, OS, checklists e anomalias dos hubs marcados. Hub novo não entra sozinho: marque aqui quando for cadastrado.";
+  }
+  function acHubsMarcados(){
+    return Array.prototype.filter.call(document.querySelectorAll("#ac-hubs [data-ac-hub]"), function(cb){ return cb.checked; })
+      .map(function(cb){ return cb.getAttribute("data-ac-hub"); });
+  }
+  document.getElementById("ac-hubs-todos").addEventListener("click", function(){
+    document.querySelectorAll("#ac-hubs [data-ac-hub]").forEach(function(cb){ cb.checked = true; });
+  });
+  document.getElementById("ac-hubs-limpar").addEventListener("click", function(){
+    document.querySelectorAll("#ac-hubs [data-ac-hub]").forEach(function(cb){ cb.checked = false; });
+  });
   document.getElementById("ac-papel-f").addEventListener("change", function(){
     // ao sair de admin, desmarca o "tudo marcado" que era só visual
     if (this.value !== "admin" && document.getElementById("ac-mods").classList.contains("desab")){
@@ -3182,6 +3258,7 @@
     if (cb.hasAttribute("data-ac-vis") && !cb.checked){
       document.querySelector('[data-ac-ope="' + cb.dataset.acVis + '"]').checked = false;
     }
+    acAjustarHubs();
   });
 
   function acGerarSenha(){
@@ -3214,6 +3291,7 @@
     pf.disabled = !!eu; // não tirar o próprio admin
     document.getElementById("ac-matricula").value = novo ? "" : (u.matricula || "");
     acMontarMods(novo ? [] : (u.modulos_visualizacao || []), novo ? [] : (u.modulos_operador || []));
+    acMontarHubs(novo ? [] : (u.hubs || []));
 
     var stField = document.getElementById("ac-status-field");
     stField.hidden = novo || u.sem_perfil;
@@ -3253,6 +3331,10 @@
     if (dados.matricula && !/^\d{1,10}$/.test(dados.matricula)){ setErr("ac-err", "Matrícula deve ter só números."); return; }
     if (papel !== "admin" && !dados.modulos_visualizacao.length && !dados.modulos_operador.length){
       setErr("ac-err", "Marque pelo menos um módulo (ou escolha o papel Admin)."); return;
+    }
+    if (acUsaHub()){
+      dados.hubs = acHubsMarcados();
+      if (!dados.hubs.length){ setErr("ac-err", "Marque pelo menos um hub (vale para Manutenções e Qualidade da Frota)."); return; }
     }
     var senha = "";
     if (!id){
@@ -3376,6 +3458,13 @@
     var uid = session.user.id;
     rest("usuarios_perfil?user_id=eq." + uid + "&select=*").then(function(rows){
       perfil = (rows && rows[0]) || null;
+      meusHubs = null;
+      if (perfil && perfil.papel !== "admin"){
+        return rest("usuarios_hubs?select=hub_id&user_id=eq." + uid).then(function(h){
+          meusHubs = (h || []).map(function(r){ return r.hub_id; });
+        }).catch(function(){ meusHubs = []; });
+      }
+    }).then(function(){
       if (!perfil){
         toast("Seu acesso ainda não foi configurado pelo administrador.", true);
       } else if (perfil.ativo === false){
@@ -3420,6 +3509,8 @@
   document.getElementById("btn-logout").addEventListener("click", function(){
     fecharMenuUsuario();
     AC.lista = [];
+    meusHubs = null;
+    QF.base = null; // lista de hubs da Qualidade é por usuário
     forceReLogin();
     document.getElementById("login-pass").value = "";
   });
