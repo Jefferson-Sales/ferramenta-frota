@@ -213,6 +213,19 @@
   .qf-link{ background:none; border:none; padding:0; color:var(--accent); font:inherit; font-family:var(--font-mono); font-weight:600; cursor:pointer; }
   .qf-mini{ padding:var(--espaco-1) 9px; font-size:var(--fs-sm); white-space:nowrap; }
   .qf-sub{ font-size:var(--fs-xs); color:var(--muted); }
+  .qf-abas{ display:flex; gap:var(--espaco-1); border-bottom:1px solid var(--line); margin:0 0 var(--espaco-7); }
+  .qf-aba{ background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:var(--espaco-3) var(--espaco-5); font-size:var(--fs-md-2); font-weight:600; color:var(--muted); }
+  .qf-aba:hover{ color:var(--ink); }
+  .qf-aba.on{ color:var(--accent); border-bottom-color:var(--accent); }
+  .qf-aba:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
+  .qd-barra{ display:flex; align-items:center; gap:var(--espaco-4); flex-wrap:wrap; margin-bottom:var(--espaco-6); }
+  .qd-data{ display:flex; align-items:center; gap:var(--espaco-2); }
+  .qd-data input{ font-family:var(--font-mono); }
+  .qd-downloads{ display:flex; gap:var(--espaco-2); flex-wrap:wrap; margin-left:auto; }
+  .qd-aviso{ background:var(--warning-soft); color:var(--warning); border-radius:var(--raio-md-2); padding:var(--espaco-3) var(--espaco-5); font-size:var(--fs-sm-2); margin-bottom:var(--espaco-6); }
+  .qd-grupo td{ background:var(--surface-2); font-weight:700; font-size:var(--fs-sm); color:var(--muted); padding-top:var(--espaco-2); padding-bottom:var(--espaco-2); }
+  .qd-hora{ font-family:var(--font-mono); }
+  .qd-nota{ max-width:80ch; line-height:1.5; }
   .qf-seg{ display:inline-flex; border:1px solid var(--line-strong); border-radius:var(--raio-md-2); overflow:hidden; }
   .qf-seg button{ background:none; border:none; padding:5px 11px; font-size:var(--fs-sm); color:var(--muted); }
   .qf-seg button.on{ background:var(--accent-soft); color:var(--accent); font-weight:700; }
@@ -367,7 +380,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Contrato</th><th>Locadora</th><th class="num">Veículos</th><th class="num">KM contratado (pool)</th><th class="num">KM usado (pool)</th><th class="num">Saldo</th><th class="num">% utilizado</th><th class="num">Custo se exceder</th></tr></thead>
-            <tbody id="frota-pool-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
+            <tbody id="frota-pool-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -530,9 +543,15 @@
     <!-- QUALIDADE DA FROTA (checklists) -->
     <section class="panel" data-panel="qualidade">
       <div class="topline"><h1>Qualidade da Frota</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
-      <p class="section-desc">Estado de cada veículo segundo os checklists de Retirada, Devolução e Inspeção técnica. O status considera as anomalias abertas agora. Clique num veículo para ver o histórico e as fotos.</p>
+      <p class="section-desc">Estado de cada veículo segundo os checklists de Retirada, Devolução e Inspeção técnica. O status considera as anomalias abertas agora. Clique num veículo para ver o histórico e as fotos. Na <strong>Visão diária</strong>, veja quais carros fizeram (ou não) o checklist de retirada em cada dia.</p>
 
-      <div class="kpi-row" id="qf-kpis"></div>
+      <div class="qf-abas" role="tablist" aria-label="Visões da Qualidade da Frota">
+        <button type="button" role="tab" class="qf-aba on" data-qf-tela="geral" aria-selected="true">Visão geral</button>
+        <button type="button" role="tab" class="qf-aba" data-qf-tela="diaria" aria-selected="false">Visão diária</button>
+      </div>
+
+      <div id="qf-aba-geral">
+        <div class="kpi-row" id="qf-kpis"></div>
 
       <div class="card">
         <div class="card-head">
@@ -578,10 +597,50 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Severidade</th><th>Placa</th><th>Item</th><th>Descrição</th><th>Reportada</th><th>Últ. confirmação</th><th>Foto</th><th data-edit="qualidade">Ações</th></tr></thead>
-            <tbody id="qf-anom-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
+            <tbody id="qf-anom-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
+      </div><!-- /qf-aba-geral -->
+
+      <div id="qf-aba-diaria" hidden>
+        <div class="qd-barra">
+          <div class="qd-data">
+            <button type="button" class="btn qf-mini" id="qd-ant" aria-label="Dia anterior">‹</button>
+            <input type="date" id="qd-dia" class="filter-select" aria-label="Dia">
+            <button type="button" class="btn qf-mini" id="qd-prox" aria-label="Próximo dia">›</button>
+            <button type="button" class="btn qf-mini" id="qd-hoje">Hoje</button>
+          </div>
+          <select id="qd-hub" class="filter-select" aria-label="Hub"><option value="">Todos os hubs</option></select>
+          <div class="qd-downloads">
+            <button type="button" class="btn qf-mini" id="qd-xls-fez">⬇ Baixar Excel (fizeram)</button>
+            <button type="button" class="btn qf-mini" id="qd-xls-nao">⬇ Baixar Excel (não fizeram)</button>
+          </div>
+        </div>
+        <div class="qd-aviso" id="qd-aviso" hidden></div>
+        <div class="kpi-row" id="qd-kpis"></div>
+
+        <div class="card">
+          <div class="card-head"><h2>Não fizeram a retirada</h2><span class="count" id="qd-nao-count"></span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Placa</th><th>Modelo</th><th>Hub</th><th>Última retirada</th><th>Observação</th></tr></thead>
+              <tbody id="qd-nao-body"><tr><td colspan="5" class="empty-row">Carregando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Fizeram a retirada</h2><span class="count" id="qd-fez-count"></span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Placa</th><th>Modelo</th><th>Hub</th><th>Horário</th><th>Preenchido por</th><th>Resultado</th><th>Anomalias novas</th></tr></thead>
+              <tbody id="qd-fez-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="qf-sub qd-nota">"Deveriam fazer" = veículos com status Disponível no início do dia (lista gravada às 00:05; quem estava com OS aberta, indisponível, em mobilização, para desmobilizar ou devolvido não entra). Só o checklist de <strong>Retirada</strong> conta como feito. Carro que fez retirada sem estar na lista aparece como "fora da lista" e não entra no percentual.</p>
+      </div><!-- /qf-aba-diaria -->
     </section>
 
     <!-- GERENCIAR ACESSOS (só admin; aberto pelo menu do nome) -->
@@ -1290,7 +1349,7 @@
     });
     if (key === "frota") { loadFrota(); ajustarStickyFrota(); }
     if (key === "manutencao") loadManutencao(true);
-    if (key === "qualidade") loadQualidade();
+    if (key === "qualidade"){ loadQualidade(); if (QF.tela === "diaria") loadQualidadeDiaria(); }
     if (key === "multas") loadMultas();
     if (key === "financeiro") loadFinanceiro();
     if (key === "eletrificacao") loadEletrificacao();
@@ -2398,7 +2457,7 @@
       (r[0] || []).forEach(function(i){ QF.cat[i.codigo] = i; QF.grupos[i.grupo] = i.grupo_nome; });
       QF.hubs = {};
       var opts = '<option value="">Todos os hubs</option>' + (r[1] || []).map(function(h){ QF.hubs[h.id] = h.nome; return '<option value="' + h.id + '">' + esc(h.nome) + '</option>'; }).join("");
-      ["qf-hub", "qf-an-hub"].forEach(function(id){ var s = document.getElementById(id), v = s.value; s.innerHTML = opts; s.value = v; });
+      ["qf-hub", "qf-an-hub", "qd-hub"].forEach(function(id){ var s = document.getElementById(id), v = s.value; s.innerHTML = opts; s.value = v; });
     }).catch(function(e){ QF.base = null; throw e; });
     return QF.base;
   }
@@ -3058,6 +3117,210 @@
     });
   });
 
+  // ---------------- Qualidade da Frota: Visão diária ----------------
+  // "Deveriam fazer" = foto dos veículos Disponíveis às 00:05 (frota.checklist_frota_esperada).
+  // "Fez" = checklist de RETIRADA enviado no dia (horário de Brasília). Tudo vem de
+  // frota.checklist_visao_diaria(dia), que respeita o RLS (hubs liberados) de quem vê.
+  var QD = { dia: null, linhas: [], gerado: null, pedido: 0 };
+  var TZ_BR = "America/Sao_Paulo";
+  function qdHoje(){ return new Date().toLocaleDateString("en-CA", { timeZone: TZ_BR }); } // AAAA-MM-DD
+  function qdSomaDias(iso, n){ var d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  function qdDataBR(iso){ var p = iso.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+  function qdHora(ts){ return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: TZ_BR }); }
+  function qdDiaDe(ts){ return new Date(ts).toLocaleDateString("en-CA", { timeZone: TZ_BR }); }
+  function qdDiasEntre(isoA, isoB){ return Math.round((new Date(isoB + "T12:00:00Z") - new Date(isoA + "T12:00:00Z")) / 86400000); }
+  function qdHubNome(id){ return (id && QF.hubs[id]) || "Sem hub"; }
+
+  function qfTrocarTela(tela){
+    QF.tela = tela;
+    document.querySelectorAll(".qf-aba").forEach(function(b){
+      var on = b.dataset.qfTela === tela;
+      b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.getElementById("qf-aba-geral").hidden = tela !== "geral";
+    document.getElementById("qf-aba-diaria").hidden = tela !== "diaria";
+    if (tela === "diaria") loadQualidadeDiaria();
+  }
+  document.querySelectorAll(".qf-aba").forEach(function(b){
+    b.addEventListener("click", function(){ qfTrocarTela(b.dataset.qfTela); });
+  });
+
+  function loadQualidadeDiaria(){
+    var hoje = qdHoje();
+    if (!QD.dia || QD.dia > hoje) QD.dia = hoje;
+    var inp = document.getElementById("qd-dia");
+    inp.max = hoje; inp.value = QD.dia;
+    document.getElementById("qd-prox").disabled = QD.dia >= hoje;
+    var pedido = ++QD.pedido, dia = QD.dia;
+    document.getElementById("qd-nao-body").innerHTML = '<tr><td colspan="5" class="empty-row">Carregando…</td></tr>';
+    document.getElementById("qd-fez-body").innerHTML = '<tr><td colspan="7" class="empty-row">Carregando…</td></tr>';
+    return Promise.all([
+      qfGarantirBase(),
+      rest("rpc/checklist_visao_diaria", { method: "POST", body: { p_dia: dia } }),
+      rest("checklist_frota_esperada_dias?dia=eq." + dia + "&select=dia,gerado_em,qtd")
+    ]).then(function(r){
+      if (pedido !== QD.pedido) return; // o usuário já trocou de dia
+      QD.linhas = r[1] || [];
+      QD.gerado = (r[2] && r[2][0]) || null;
+      renderQualidadeDiaria();
+    }).catch(function(e){
+      if (pedido !== QD.pedido) return;
+      var msg = '<tr><td colspan="7" class="empty-row" style="color:var(--critical)">Erro ao carregar: ' + esc(e.message) + '</td></tr>';
+      document.getElementById("qd-nao-body").innerHTML = msg;
+      document.getElementById("qd-fez-body").innerHTML = msg;
+    });
+  }
+
+  function qdFiltradas(){
+    var hub = document.getElementById("qd-hub").value;
+    return QD.linhas.filter(function(l){ return !hub || l.hub_id === hub; });
+  }
+  function qdOrdem(a, b){
+    var ha = qdHubNome(a.hub_id), hb = qdHubNome(b.hub_id);
+    return ha === hb ? String(a.placa).localeCompare(String(b.placa)) : ha.localeCompare(hb, "pt-BR");
+  }
+  function qdListas(){
+    var ls = qdFiltradas();
+    return {
+      nao: ls.filter(function(l){ return l.na_lista && !l.fez; }).sort(qdOrdem),
+      fez: ls.filter(function(l){ return l.fez; }).sort(function(a, b){ return new Date(a.retirada_em) - new Date(b.retirada_em); }),
+      esperados: ls.filter(function(l){ return l.na_lista; }).length
+    };
+  }
+  function qdUltimaTxt(l){
+    if (!l.ultima_retirada_antes) return "nunca";
+    var d = qdDiaDe(l.ultima_retirada_antes), n = qdDiasEntre(d, QD.dia);
+    return qdDataBR(d).slice(0, 5) + " (" + n + (n === 1 ? " dia" : " dias") + ")";
+  }
+
+  function renderQualidadeDiaria(){
+    var L = qdListas(), gerado = !!QD.gerado;
+    var aviso = document.getElementById("qd-aviso");
+    if (!gerado){
+      aviso.hidden = false;
+      aviso.textContent = "A lista de quem deveria fazer não foi gerada para " + qdDataBR(QD.dia) + " (a visão diária começa em 21/10/2026). Aparecem só as retiradas feitas no dia.";
+    } else {
+      var hora = qdHora(QD.gerado.gerado_em);
+      aviso.hidden = hora <= "01:00";
+      aviso.textContent = "Lista de quem deveria fazer gravada às " + hora + " (normalmente é às 00:05) — carros que mudaram de status antes desse horário podem não estar certos.";
+    }
+    var fezNaLista = L.fez.filter(function(l){ return l.na_lista; }).length;
+    var fora = L.fez.length - fezNaLista;
+    var pct = L.esperados ? (100 * fezNaLista / L.esperados).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%" : "—";
+    var kpi = function(num, label, cls){ return '<div class="kpi-card ' + cls + '"><div class="kpi-num">' + num + '</div><div class="kpi-label">' + esc(label) + '</div></div>'; };
+    document.getElementById("qd-kpis").innerHTML = gerado
+      ? kpi(L.esperados, "Deveriam fazer", "neutral") + kpi(fezNaLista + ' <span class="qf-sub">' + pct + '</span>', "Fizeram a retirada", "good") +
+        kpi(L.nao.length, "Não fizeram", L.nao.length ? "crit" : "good") + kpi(fora, "Fora da lista", "neutral")
+      : kpi(L.fez.length, "Fizeram a retirada", "good");
+
+    document.getElementById("qd-nao-count").textContent = gerado ? L.nao.length + (L.nao.length === 1 ? " veículo" : " veículos") : "";
+    var nb = document.getElementById("qd-nao-body");
+    if (!gerado) nb.innerHTML = '<tr><td colspan="5" class="empty-row">Sem lista do dia para comparar.</td></tr>';
+    else if (!L.nao.length) nb.innerHTML = '<tr><td colspan="5" class="empty-row">Todos os veículos da lista fizeram a retirada. 🎉</td></tr>';
+    else {
+      var html = "", grupo = null;
+      L.nao.forEach(function(l){
+        var h = qdHubNome(l.hub_id);
+        if (h !== grupo){
+          grupo = h;
+          var n = L.nao.filter(function(x){ return qdHubNome(x.hub_id) === h; }).length;
+          html += '<tr class="qd-grupo"><td colspan="5">' + esc(h) + " · " + n + "</td></tr>";
+        }
+        html += "<tr><td><button type=\"button\" class=\"qf-link\" data-qd-veic=\"" + esc(l.veiculo_id) + "\">" + esc(l.placa) + "</button></td><td>" + esc(l.modelo || "—") +
+          "</td><td>" + esc(h) + "</td><td>" + esc(qdUltimaTxt(l)) + "</td><td>" +
+          (l.entrou_em_os_em ? pill("Entrou em OS às " + qdHora(l.entrou_em_os_em), "warn") : "") + "</td></tr>";
+      });
+      nb.innerHTML = html;
+    }
+
+    document.getElementById("qd-fez-count").textContent = L.fez.length + (L.fez.length === 1 ? " veículo" : " veículos");
+    var fb = document.getElementById("qd-fez-body");
+    fb.innerHTML = L.fez.length ? L.fez.map(function(l){
+      var res = QF_RES[l.resultado] || [l.resultado || "—", "neutral"];
+      return "<tr><td><button type=\"button\" class=\"qf-link\" data-qd-veic=\"" + esc(l.veiculo_id) + "\">" + esc(l.placa) + "</button>" +
+        (l.na_lista ? "" : " " + pill("fora da lista", "neutral")) + "</td><td>" + esc(l.modelo || "—") + "</td><td>" + esc(qdHubNome(l.hub_id)) +
+        "</td><td class=\"qd-hora\">" + esc(qdHora(l.retirada_em)) + (l.qtd_retiradas > 1 ? ' <span class="qf-sub">(' + l.qtd_retiradas + " retiradas)</span>" : "") +
+        "</td><td>" + esc(l.preenchido_por || "—") + "</td><td>" + pill(res[0], res[1]) + "</td><td class=\"num\">" + (l.anomalias_novas || 0) + "</td></tr>";
+    }).join("") : '<tr><td colspan="7" class="empty-row">Nenhuma retirada registrada neste dia.</td></tr>';
+
+    document.getElementById("qd-xls-fez").disabled = !L.fez.length;
+    document.getElementById("qd-xls-nao").disabled = !gerado || !L.nao.length;
+  }
+
+  document.getElementById("qd-dia").addEventListener("change", function(){
+    if (!this.value) return;
+    QD.dia = this.value > qdHoje() ? qdHoje() : this.value;
+    loadQualidadeDiaria();
+  });
+  document.getElementById("qd-ant").addEventListener("click", function(){ QD.dia = qdSomaDias(QD.dia || qdHoje(), -1); loadQualidadeDiaria(); });
+  document.getElementById("qd-prox").addEventListener("click", function(){ QD.dia = qdSomaDias(QD.dia || qdHoje(), 1); loadQualidadeDiaria(); });
+  document.getElementById("qd-hoje").addEventListener("click", function(){ QD.dia = qdHoje(); loadQualidadeDiaria(); });
+  document.getElementById("qd-hub").addEventListener("change", renderQualidadeDiaria);
+  document.getElementById("qf-aba-diaria").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-qd-veic]");
+    if (b) abrirHistoricoVeiculo(b.dataset.qdVeic);
+  });
+
+  // ---- Excel (.xlsx) gerado no navegador com SheetJS, baixado só no primeiro clique ----
+  var XLSX_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+  var XLSX_SRI = "sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw";
+  var xlsxCarregando = null;
+  function carregarXlsx(){
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (!xlsxCarregando) xlsxCarregando = new Promise(function(ok, falha){
+      var s = document.createElement("script");
+      s.src = XLSX_URL; s.integrity = XLSX_SRI; s.crossOrigin = "anonymous";
+      s.onload = function(){ window.XLSX ? ok(window.XLSX) : falha(new Error("gerador de Excel não carregou")); };
+      s.onerror = function(){ xlsxCarregando = null; falha(new Error("não foi possível baixar o gerador de Excel")); };
+      document.head.appendChild(s);
+    });
+    return xlsxCarregando;
+  }
+  // Data/hora do Excel (número de série) a partir do relógio de Brasília, independe do fuso do computador.
+  function xlsSerial(isoDia, hhmm){
+    var p = isoDia.split("-").map(Number), h = hhmm ? hhmm.split(":").map(Number) : [0, 0];
+    return (Date.UTC(p[0], p[1] - 1, p[2], h[0], h[1]) - Date.UTC(1899, 11, 30)) / 86400000;
+  }
+  function xlsData(isoDia){ return { t: "n", v: xlsSerial(isoDia), z: "dd/mm/yyyy" }; }
+  function xlsHora(ts){ var hh = qdHora(ts); return { t: "n", v: xlsSerial("1899-12-30", hh), z: "hh:mm" }; }
+  function xlsDataHora(ts){ return { t: "n", v: xlsSerial(qdDiaDe(ts), qdHora(ts)), z: "dd/mm/yyyy hh:mm" }; }
+  function qdNomeArquivo(tipo){
+    var hub = document.getElementById("qd-hub").value;
+    var nome = hub ? qdHubNome(hub).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") : "todos-hubs";
+    return "checklists_" + tipo + "_" + QD.dia + "_" + nome + ".xlsx";
+  }
+  function qdBaixar(tipo, btn){
+    var L = qdListas(), txt = btn.textContent;
+    btn.disabled = true; btn.textContent = "Gerando…";
+    carregarXlsx().then(function(X){
+      var linhas;
+      if (tipo === "fizeram"){
+        linhas = [["Data", "Placa", "Modelo", "Hub", "Horário da retirada", "Qtd. retiradas", "Preenchido por", "Resultado", "Anomalias novas", "Na lista do dia?"]]
+          .concat(L.fez.map(function(l){
+            return [xlsData(QD.dia), l.placa, l.modelo || "", qdHubNome(l.hub_id), xlsHora(l.retirada_em), l.qtd_retiradas,
+                    l.preenchido_por || "", (QF_RES[l.resultado] || [l.resultado || ""])[0], l.anomalias_novas || 0, l.na_lista ? "Sim" : "Não"];
+          }));
+      } else {
+        linhas = [["Data", "Placa", "Modelo", "Hub", "Última retirada", "Dias sem retirada", "Entrou em OS no dia"]]
+          .concat(L.nao.map(function(l){
+            var ult = l.ultima_retirada_antes;
+            return [xlsData(QD.dia), l.placa, l.modelo || "", qdHubNome(l.hub_id), ult ? xlsDataHora(ult) : "nunca",
+                    ult ? qdDiasEntre(qdDiaDe(ult), QD.dia) : "", l.entrou_em_os_em ? "Sim, às " + qdHora(l.entrou_em_os_em) : ""];
+          }));
+      }
+      var ws = X.utils.aoa_to_sheet(linhas);
+      ws["!cols"] = linhas[0].map(function(h){ return { wch: Math.max(12, h.length + 2) }; });
+      ws["!autofilter"] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: linhas.length - 1, c: linhas[0].length - 1 } }) };
+      var wb = X.utils.book_new();
+      X.utils.book_append_sheet(wb, ws, tipo === "fizeram" ? "Fizeram" : "Não fizeram");
+      X.writeFile(wb, qdNomeArquivo(tipo === "fizeram" ? "fizeram" : "nao_fizeram"));
+    }).catch(function(e){
+      toast("Não foi possível gerar o Excel: " + e.message, true);
+    }).finally(function(){ btn.textContent = txt; renderQualidadeDiaria(); });
+  }
+  document.getElementById("qd-xls-fez").addEventListener("click", function(){ qdBaixar("fizeram", this); });
+  document.getElementById("qd-xls-nao").addEventListener("click", function(){ qdBaixar("nao_fizeram", this); });
+
   // ---------------- Gerenciar acessos (só admin) ----------------
   // Tudo passa pela Edge Function `usuarios`, que confere no servidor se quem chama é admin ativo.
   var AC_MODULOS = [
@@ -3510,6 +3773,7 @@
     AC.lista = [];
     meusHubs = null;
     QF.base = null; // lista de hubs da Qualidade é por usuário
+    QD.linhas = []; QD.dia = null;
     forceReLogin();
     document.getElementById("login-pass").value = "";
   });
