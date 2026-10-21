@@ -178,6 +178,8 @@
   [hidden]{ display:none!important; }
 
   .modal-overlay{ position:fixed; inset:0; background:rgba(10,15,12,.4); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; z-index:40; overflow-y:auto; }
+  /* Modal aberto por cima de outro (ex.: nova oficina a partir da OS). */
+  .modal-overlay.modal-stacked{ z-index:45; }
   .modal{ background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); width:100%; max-width:560px; padding:22px; }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .modal-head h3{ font-size:16px; font-weight:700; }
@@ -341,8 +343,8 @@
         <div class="card-head"><h2>Oficinas</h2><div class="card-head-actions"><span class="count" id="man-of-count"></span><button class="inline-add-trigger" data-open-modal="modal-oficina" data-edit="manutencao">+ Nova oficina</button></div></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>Hub</th><th>Avaliação média</th></tr></thead>
-            <tbody id="man-of-body"><tr><td colspan="3" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr><th>Nome</th><th>Telefone</th><th>CNPJ</th><th>Endereço</th><th>Hub</th><th>Avaliação média</th></tr></thead>
+            <tbody id="man-of-body"><tr><td colspan="6" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -566,14 +568,18 @@
 
 <div class="modal-overlay" id="modal-oficina" hidden>
   <div class="modal">
-    <div class="modal-head"><h3>Nova oficina</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="modal-head"><h3 id="modal-oficina-titulo">Nova oficina</h3><button class="modal-close" data-close-modal>×</button></div>
     <form data-form="oficina">
+      <input type="hidden" id="of-id">
       <div class="form-grid">
         <div class="field span2"><label for="of-nome">Nome</label><input id="of-nome" required></div>
+        <div class="field"><label for="of-telefone">Telefone</label><input id="of-telefone" type="tel" required placeholder="(11) 99999-9999"></div>
+        <div class="field"><label for="of-cnpj">CNPJ (opcional)</label><input id="of-cnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></div>
+        <div class="field span2"><label for="of-endereco">Endereço (opcional)</label><input id="of-endereco" placeholder="Rua, número, bairro, cidade"></div>
         <div class="field span2"><label for="of-hub">Hub (opcional)</label><select id="of-hub"><option value="">—</option></select></div>
       </div>
       <div class="field-err" id="of-err" hidden></div>
-      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar oficina</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto" id="of-btn-salvar">Salvar oficina</button></div>
     </form>
   </div>
 </div>
@@ -583,7 +589,10 @@
     <div class="modal-head"><h3>Nova ordem de serviço</h3><button class="modal-close" data-close-modal>×</button></div>
     <form data-form="os">
       <div class="form-grid">
-        <div class="field span2"><label for="os-veiculo">Veículo</label><select id="os-veiculo" required><option value="">Selecione…</option></select></div>
+        <div class="field span2"><label for="os-busca-placa">Veículo</label>
+          <input id="os-busca-placa" type="search" placeholder="Buscar placa… (ex.: ABC1D23)" autocomplete="off" style="margin-bottom:6px; text-transform:uppercase">
+          <select id="os-veiculo" required aria-label="Veículo"><option value="">Selecione…</option></select>
+        </div>
         <div class="field span2">
           <label for="os-quando">Quando</label>
           <select id="os-quando">
@@ -596,8 +605,13 @@
         </div>
         <div class="field" id="os-data-parou-wrap"><label for="os-data-parou">Parou em</label><input id="os-data-parou" type="datetime-local" required></div>
         <div class="field span2"><label for="os-motivo">Motivo / tratativa</label><input id="os-motivo" placeholder="Ex.: ruído no motor, funilaria, revisão de km…"></div>
-        <div class="field"><label for="os-oficina">Oficina (opcional)</label><select id="os-oficina"><option value="">—</option></select></div>
-        <div class="field"><label for="os-contato">Contato da oficina (opcional)</label><input id="os-contato" placeholder="Nome / telefone"></div>
+        <div class="field"><label for="os-oficina">Oficina (opcional)</label>
+          <div style="display:flex; gap:6px;">
+            <select id="os-oficina" style="flex:1; min-width:0;"><option value="">—</option></select>
+            <button type="button" class="btn" id="os-nova-oficina" style="width:auto; white-space:nowrap;" title="Cadastrar uma oficina nova sem sair da OS">+ Nova</button>
+          </div>
+        </div>
+        <div class="field"><label for="os-contato">Contato da oficina (opcional)</label><input id="os-contato" placeholder="Preenchido ao escolher a oficina"></div>
         <div class="field"><label for="os-previsao">Previsão de retorno (opcional)</label><input id="os-previsao" type="date"></div>
         <div class="field"><label for="os-cobertura">Cobertura</label>
           <select id="os-cobertura"><option value="a_definir">A definir</option><option value="garantia_fabrica">Garantia fábrica</option><option value="garantia_oficina">Garantia oficina</option><option value="seguradora">Seguradora</option><option value="beep_saude">Beep Saúde</option></select>
@@ -1443,21 +1457,19 @@
   var oficinasCache = [];
   var OS_FECHADAS = ["concluida","cancelada"];
 
+  var veiculosOsCache = [];  // placas para o select da abertura de OS (com busca)
+
   function loadManutencao(avisarVencidas){
     rest("veiculos?select=id,placa&order=placa").then(function(rows){
-      var sel = document.getElementById("os-veiculo");
-      sel.innerHTML = '<option value="">Selecione…</option>' + rows.map(function(v){ return '<option value="' + v.id + '">' + esc(v.placa) + "</option>"; }).join("");
+      veiculosOsCache = rows || [];
+      renderVeiculosOS();
     }).catch(function(){});
 
-    rest("oficinas?select=id,nome,hubs(nome),avaliacao_media&order=nome").then(function(rows){
-      oficinasCache = rows || [];
-      renderOficinas(rows);
-      ["os-oficina","osd-oficina"].forEach(function(id){
-        var sel = document.getElementById(id);
-        sel.innerHTML = '<option value="">—</option>' + rows.map(function(o){ return '<option value="' + o.id + '">' + esc(o.nome) + "</option>"; }).join("");
-      });
-    }).catch(function(e){ toast("Erro ao carregar oficinas: " + e.message, true); });
+    // O formulário de oficina tem select de hub; garante que esteja preenchido
+    // mesmo se o usuário não passou pelo Cadastro da Frota antes.
+    rest("hubs?select=id,nome&order=nome").then(fillHubSelects).catch(function(){});
 
+    carregarOficinas();
     carregarOS(avisarVencidas);
     carregarSlaOficina();
     carregarRankingQuebra();
@@ -1572,14 +1584,123 @@
     }).join("");
   }
 
+  // Recarrega só as oficinas (tabela + selects da OS), preservando o que
+  // estiver selecionado — usado também depois de cadastrar oficina pela OS,
+  // sem recarregar o resto do formulário que o usuário está preenchendo.
+  function carregarOficinas(){
+    return rest("oficinas?select=id,nome,telefone,endereco,cnpj,hub_id,hubs(nome),avaliacao_media&order=nome").then(function(rows){
+      oficinasCache = rows || [];
+      renderOficinas(oficinasCache);
+      ["os-oficina","osd-oficina"].forEach(function(id){
+        var sel = document.getElementById(id);
+        var atual = sel.value;
+        sel.innerHTML = '<option value="">—</option>' + oficinasCache.map(function(o){ return '<option value="' + o.id + '">' + esc(o.nome) + "</option>"; }).join("");
+        sel.value = atual;
+      });
+      return oficinasCache;
+    }).catch(function(e){ toast("Erro ao carregar oficinas: " + e.message, true); return []; });
+  }
+
+  function formatarCnpj(d){
+    d = (d || "").replace(/\D/g, "");
+    if (d.length !== 14) return d;
+    return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  }
+
   function renderOficinas(rows){
     var body = document.getElementById("man-of-body");
+    var podeEditar = canEdit("manutencao");
     document.getElementById("man-of-count").textContent = rows.length + (rows.length === 1 ? " oficina" : " oficinas");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhuma oficina cadastrada ainda.</td></tr>'; return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhuma oficina cadastrada ainda.</td></tr>'; return; }
     body.innerHTML = rows.map(function(o){
-      return "<tr><td>" + esc(o.nome) + "</td><td>" + esc(o.hubs ? o.hubs.nome : "—") + "</td><td>" + (o.avaliacao_media != null ? Number(o.avaliacao_media).toFixed(1) : "—") + "</td></tr>";
+      return "<tr" + (podeEditar ? ' class="os-row" data-oficina-id="' + o.id + '" title="Clique para editar"' : "") + ">" +
+        "<td>" + esc(o.nome) + "</td>" +
+        "<td>" + esc(o.telefone || "—") + "</td>" +
+        "<td>" + esc(o.cnpj ? formatarCnpj(o.cnpj) : "—") + "</td>" +
+        "<td>" + esc(o.endereco || "—") + "</td>" +
+        "<td>" + esc(o.hubs ? o.hubs.nome : "—") + "</td>" +
+        "<td>" + (o.avaliacao_media != null ? Number(o.avaliacao_media).toFixed(1) : "—") + "</td></tr>";
     }).join("");
   }
+
+  document.getElementById("man-of-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest(".os-row");
+    if (!tr || !tr.dataset.oficinaId) return;
+    abrirEdicaoOficina(tr.dataset.oficinaId);
+  });
+
+  function limparFormOficina(){
+    document.querySelector('[data-form="oficina"]').reset();
+    document.getElementById("of-id").value = "";
+    document.getElementById("modal-oficina-titulo").textContent = "Nova oficina";
+    document.getElementById("of-btn-salvar").textContent = "Salvar oficina";
+    setErr("of-err", "");
+  }
+
+  function abrirEdicaoOficina(oficinaId){
+    var o = oficinasCache.filter(function(x){ return x.id === oficinaId; })[0];
+    if (!o) return;
+    limparFormOficina();
+    document.getElementById("of-id").value = o.id;
+    document.getElementById("of-nome").value = o.nome || "";
+    document.getElementById("of-telefone").value = o.telefone || "";
+    document.getElementById("of-cnpj").value = o.cnpj ? formatarCnpj(o.cnpj) : "";
+    document.getElementById("of-endereco").value = o.endereco || "";
+    document.getElementById("of-hub").value = o.hub_id || "";
+    document.getElementById("modal-oficina-titulo").textContent = "Editar oficina";
+    document.getElementById("of-btn-salvar").textContent = "Salvar alterações";
+    openModal("modal-oficina");
+  }
+
+  // ---- abertura de OS: busca por placa ----
+  function normalizarPlaca(s){ return (s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+
+  function renderVeiculosOS(){
+    var sel = document.getElementById("os-veiculo");
+    var termo = normalizarPlaca(document.getElementById("os-busca-placa").value);
+    var atual = sel.value;
+    var lista = termo
+      ? veiculosOsCache.filter(function(v){ return normalizarPlaca(v.placa).indexOf(termo) !== -1; })
+      : veiculosOsCache;
+    var vazio = termo
+      ? (lista.length ? lista.length + (lista.length === 1 ? " placa encontrada" : " placas encontradas") : "Nenhuma placa encontrada")
+      : "Selecione…";
+    sel.innerHTML = '<option value="">' + esc(vazio) + "</option>" +
+      lista.map(function(v){ return '<option value="' + v.id + '">' + esc(v.placa) + "</option>"; }).join("");
+    if (lista.length === 1) sel.value = lista[0].id;
+    else if (lista.some(function(v){ return v.id === atual; })) sel.value = atual;
+  }
+
+  document.getElementById("os-busca-placa").addEventListener("input", renderVeiculosOS);
+
+  // ---- contato da oficina preenchido automaticamente ----
+  // Só sobrescreve o campo se ele estiver vazio ou ainda com o valor que nós
+  // mesmos preenchemos (não apaga um contato digitado à mão).
+  function ligarContatoOficina(selId, contatoId){
+    var sel = document.getElementById(selId);
+    var contato = document.getElementById(contatoId);
+    sel.addEventListener("change", function(){
+      var o = oficinasCache.filter(function(x){ return x.id === sel.value; })[0];
+      var auto = contato.dataset.auto || "";
+      if (contato.value.trim() && contato.value !== auto) return;
+      var novo = o && o.telefone ? o.telefone : "";
+      contato.value = novo;
+      contato.dataset.auto = novo;
+    });
+  }
+  ligarContatoOficina("os-oficina", "os-contato");
+  ligarContatoOficina("osd-oficina", "osd-contato");
+
+  // ---- nova oficina sem sair da OS ----
+  var oficinaAbertaPelaOS = false;
+  document.getElementById("os-nova-oficina").addEventListener("click", function(){
+    limparFormOficina();
+    oficinaAbertaPelaOS = true;
+    var m = document.getElementById("modal-oficina");
+    m.classList.add("modal-stacked");
+    openModal("modal-oficina");
+    document.getElementById("of-nome").focus();
+  });
 
   function carregarSlaOficina(){
     rest("v_sla_oficina?select=*&order=dias_medio_atraso.desc.nullslast").then(function(rows){
@@ -1994,6 +2115,10 @@
       document.getElementById("modal-hub-titulo").textContent = "Novo hub";
       document.getElementById("h-btn-salvar").textContent = "Salvar hub";
       setErr("h-err", "");
+    } else if (modalId === "modal-oficina"){
+      limparFormOficina();
+      oficinaAbertaPelaOS = false;
+      document.getElementById("modal-oficina").classList.remove("modal-stacked");
     } else if (modalId === "modal-contrato"){
       document.querySelector('[data-form="contrato"]').reset();
       document.getElementById("co-id").value = "";
@@ -2112,17 +2237,44 @@
   document.querySelector('[data-form="oficina"]').addEventListener("submit", function(ev){
     ev.preventDefault();
     setErr("of-err", "");
+    var cnpj = document.getElementById("of-cnpj").value.replace(/\D/g, "");
+    if (cnpj && cnpj.length !== 14){ setErr("of-err", "CNPJ deve ter 14 dígitos (ou deixe em branco)."); return; }
     var body = {
       nome: document.getElementById("of-nome").value.trim(),
+      telefone: document.getElementById("of-telefone").value.trim() || null,
+      cnpj: cnpj || null,
+      endereco: document.getElementById("of-endereco").value.trim() || null,
       hub_id: document.getElementById("of-hub").value || null
     };
-    rest("oficinas", {method:"POST", body: body}).then(function(){
-      toast("Oficina " + body.nome + " cadastrada.");
-      document.getElementById("modal-oficina").hidden = true;
-      ev.target.reset();
-      loadManutencao();
+    if (!body.nome){ setErr("of-err", "Informe o nome da oficina."); return; }
+    if (!body.telefone){ setErr("of-err", "Informe o telefone da oficina."); return; }
+    var editId = document.getElementById("of-id").value;
+    var pelaOS = oficinaAbertaPelaOS && !editId;
+    var req = editId
+      ? rest("oficinas?id=eq." + encodeURIComponent(editId), {method:"PATCH", body: body})
+      : rest("oficinas", {method:"POST", body: body});
+    req.then(function(rows){
+      toast("Oficina " + body.nome + (editId ? " atualizada." : " cadastrada."));
+      fecharModalOficina();
+      return carregarOficinas().then(function(){
+        // Veio do botão "+ Nova" da OS: já seleciona a oficina criada e
+        // preenche o contato, e o usuário continua de onde parou.
+        if (pelaOS && rows && rows[0]){
+          var sel = document.getElementById("os-oficina");
+          sel.value = rows[0].id;
+          sel.dispatchEvent(new Event("change"));
+        }
+      });
     }).catch(function(e){ setErr("of-err", e.message); });
   });
+
+  function fecharModalOficina(){
+    var m = document.getElementById("modal-oficina");
+    m.hidden = true;
+    m.classList.remove("modal-stacked");
+    oficinaAbertaPelaOS = false;
+    limparFormOficina();
+  }
 
   document.getElementById("os-quando").addEventListener("change", function(){
     var agendada = this.value === "agendada";
@@ -2155,6 +2307,8 @@
       if (rows && rows[0]) clonarChecklistPadrao(rows[0].id, body.tipo);
       document.getElementById("modal-os").hidden = true;
       ev.target.reset();
+      document.getElementById("os-contato").dataset.auto = "";
+      renderVeiculosOS();
       document.getElementById("os-data-parou-wrap").style.display = "";
       loadManutencao();
     }).catch(function(e){ setErr("os-err", e.message); });
@@ -2192,6 +2346,7 @@
     document.getElementById("osd-liberacao").value = o.data_liberacao ? o.data_liberacao.slice(0,10) : "";
     document.getElementById("osd-oficina").value = (o.oficinas && o.oficinas.id) || "";
     document.getElementById("osd-contato").value = o.contato_oficina || "";
+    document.getElementById("osd-contato").dataset.auto = "";
     document.getElementById("osd-obs").value = o.observacoes || "";
     setErr("osd-err", "");
 
