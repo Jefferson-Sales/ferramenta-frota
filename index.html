@@ -3746,6 +3746,7 @@
     var mat = document.getElementById("cd-matricula").value.trim();
     if (!/^\d{1,10}$/.test(mat)){ setErr("cd-err", "Informe a matrícula conferida (só números)."); return; }
     if (!document.getElementById("cd-conferi").checked){ setErr("cd-err", "Marque que conferiu os dados e a matrícula no RH."); return; }
+    if (!confirm("Aprovar o cadastro de " + c.nome + " com a matrícula " + mat + "? O motorista passa a poder fazer checklist.")) return;
     var btn = this; btn.disabled = true;
     rest("rpc/aprovar_cadastro_motorista", { method: "POST", body: { p_cadastro: c.id, p_matricula: mat } }).then(function(){
       document.getElementById("modal-cadastro").hidden = true;
