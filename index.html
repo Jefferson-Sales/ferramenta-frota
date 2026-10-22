@@ -3120,6 +3120,12 @@
     abrirDetalheOS(tr.dataset.osId);
   });
 
+  // "2026-10-15T12:00:00+00:00" → "2026-10-15T09:00" (hora local do navegador, para campos datetime-local)
+  function isoParaCampoLocal(iso){
+    var d = new Date(iso);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+
   function abrirDetalheOS(osId){
     var o = osCache.filter(function(x){ return x.id === osId; })[0];
     if (!o) return;
@@ -3137,7 +3143,8 @@
       '<div><div class="k">Valor total</div>' + money(o.valor_total) + '</div>';
 
     document.getElementById("osd-status").value = o.status;
-    document.getElementById("osd-data-parou").value = o.data_parou ? o.data_parou.slice(0,16) : "";
+    // o banco devolve em UTC; o campo datetime-local precisa da hora local (antes mostrava UTC e, ao salvar, a hora andava +3h)
+    document.getElementById("osd-data-parou").value = o.data_parou ? isoParaCampoLocal(o.data_parou) : "";
     document.getElementById("osd-valor").value = o.valor_total != null ? o.valor_total : "";
     document.getElementById("osd-previsao").value = o.previsao_retorno || "";
     document.getElementById("osd-liberacao").value = o.data_liberacao ? o.data_liberacao.slice(0,10) : "";
@@ -3188,7 +3195,7 @@
   document.getElementById("osd-fechar-os").addEventListener("click", function(){
     if (!osdAtual) return;
     document.getElementById("osd-status").value = "concluida";
-    if (!document.getElementById("osd-liberacao").value) document.getElementById("osd-liberacao").value = new Date().toISOString().slice(0,10);
+    if (!document.getElementById("osd-liberacao").value) document.getElementById("osd-liberacao").value = isoParaCampoLocal(new Date().toISOString()).slice(0,10); // hoje no horário local (UTC virava o dia seguinte depois das 21h)
     document.getElementById("osd-form").requestSubmit();
   });
 
