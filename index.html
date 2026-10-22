@@ -226,6 +226,8 @@
   .qd-grupo td{ background:var(--surface-2); font-weight:700; font-size:var(--fs-sm); color:var(--muted); padding-top:var(--espaco-2); padding-bottom:var(--espaco-2); }
   .qd-hora{ font-family:var(--font-mono); }
   .qd-nota{ max-width:80ch; line-height:1.5; }
+  .mt-senha{ font-family:var(--font-mono); font-size:var(--fs-md-2); letter-spacing:.08em; background:var(--surface-2); border-radius:var(--raio-sm); padding:2px var(--espaco-3); }
+  .cd-foto img{ max-width:100%; max-height:320px; border-radius:var(--raio-md); border:1px solid var(--line); display:block; }
   .os-anom-lista{ border:1px solid var(--line); border-radius:var(--raio-md); padding:var(--espaco-2) var(--espaco-5); }
   .os-anom-lista label{ display:flex; align-items:flex-start; gap:var(--espaco-3); font-size:var(--fs-md); font-weight:500; color:var(--ink); padding:var(--espaco-2) 0; cursor:pointer; }
   .os-anom-lista input{ width:16px; height:16px; margin-top:2px; flex:none; }
@@ -314,6 +316,7 @@
       <div class="user-menu-wrap">
         <div class="user-menu" id="user-menu" role="menu" hidden>
           <button type="button" role="menuitem" id="menu-acessos" hidden>Gerenciar acessos</button>
+          <button type="button" role="menuitem" id="menu-motoristas" hidden>Cadastros de motoristas</button>
           <button type="button" role="menuitem" id="btn-logout">Sair</button>
         </div>
         <button type="button" class="user-chip" id="user-chip" aria-haspopup="menu" aria-expanded="false">
@@ -660,6 +663,44 @@
       </div><!-- /qf-aba-diaria -->
     </section>
 
+    <!-- CADASTROS DE MOTORISTAS (só admin; aberto pelo menu do nome) -->
+    <section class="panel" data-panel="motoristas">
+      <div class="topline"><h1>Cadastros de motoristas</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
+      <p class="section-desc">Auto-cadastros feitos pelos motoristas no formulário do checklist. Confira os dados e a matrícula no RH antes de aprovar — depois de aprovado, o motorista já consegue fazer o checklist. Dados pessoais e senhas aparecem só aqui (só admin); cada senha revelada fica registrada.</p>
+      <div class="qf-abas" role="tablist">
+        <button type="button" role="tab" class="qf-aba on" data-mt-tela="cadastros" aria-selected="true">Cadastros</button>
+        <button type="button" role="tab" class="qf-aba" data-mt-tela="motoristas" aria-selected="false">Motoristas</button>
+      </div>
+      <div id="mt-aba-cadastros">
+        <div class="card">
+          <div class="card-head"><h2>Cadastros</h2>
+            <div class="card-head-actions">
+              <select id="mt-cad-status" class="filter-select"><option value="pendente">Pendentes</option><option value="">Todos</option><option value="aprovado">Aprovados</option><option value="reprovado">Reprovados</option></select>
+              <span class="count" id="mt-cad-count"></span>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nome</th><th>Matrícula</th><th>Hub</th><th>Enviado em</th><th>Status</th></tr></thead>
+            <tbody id="mt-cad-body"><tr><td colspan="5" class="empty-row">Carregando…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="mt-aba-motoristas" hidden>
+        <div class="card">
+          <div class="card-head"><h2>Motoristas</h2>
+            <div class="card-head-actions">
+              <input type="search" id="mt-busca" class="filter-select ac-busca" placeholder="Nome ou matrícula" autocomplete="off">
+              <span class="count" id="mt-mot-count"></span>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nome</th><th>Matrícula</th><th>Hub</th><th>Validade da CNH</th><th>Senha de abastecimento</th></tr></thead>
+            <tbody id="mt-mot-body"><tr><td colspan="5" class="empty-row">Carregando…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>
+
     <!-- GERENCIAR ACESSOS (só admin; aberto pelo menu do nome) -->
     <section class="panel" data-panel="acessos">
       <div class="topline"><h1>Gerenciar acessos</h1></div>
@@ -811,6 +852,27 @@
     <div class="ac-cred" id="ac-cred"></div>
     <div class="ac-aviso">Esta senha não será mostrada de novo.</div>
     <div class="modal-actions"><button type="button" class="btn" id="ac-copiar">Copiar e-mail e senha</button><button type="button" class="btn btn-primary" data-close-modal style="width:auto">Concluir</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-cadastro" hidden>
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3 id="cd-titulo">Cadastro de motorista</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="detail-grid" id="cd-dados"></div>
+    <div class="detail-section"><h4>Foto da CNH</h4><div id="cd-foto"></div></div>
+    <div class="detail-section"><h4>Senha de abastecimento</h4><div id="cd-senha"></div></div>
+    <div class="detail-section" id="cd-avaliar">
+      <h4>Avaliação</h4>
+      <div class="form-grid">
+        <div class="field"><label for="cd-matricula">Matrícula conferida no RH</label><input id="cd-matricula" inputmode="numeric" maxlength="10"></div>
+        <div class="field"><label for="cd-motivo">Motivo (se reprovar)</label>
+          <select id="cd-motivo"><option value="">Selecione…</option></select></div>
+      </div>
+      <label class="checklist-item"><input type="checkbox" id="cd-conferi"><span>Conferi os dados, a foto da CNH e a matrícula no RH.</span></label>
+      <div class="field-err" id="cd-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn btn-danger" id="cd-reprovar">Reprovar</button><button type="button" class="btn btn-primary" id="cd-aprovar" style="width:auto">Aprovar cadastro</button></div>
+    </div>
+    <div class="detail-section" id="cd-resultado" hidden></div>
   </div>
 </div>
 
@@ -1383,7 +1445,7 @@
   function souAdmin(){ return !!(perfil && perfil.ativo !== false && perfil.papel === "admin"); }
 
   function showPanel(key){
-    if (key === "acessos" && !souAdmin()) return;
+    if ((key === "acessos" || key === "motoristas") && !souAdmin()) return;
     currentPanel = key;
     document.querySelectorAll(".panel").forEach(function(p){
       p.classList.toggle("active", p.dataset.panel === key);
@@ -1402,6 +1464,7 @@
     if (key === "financeiro") loadFinanceiro();
     if (key === "eletrificacao") loadEletrificacao();
     if (key === "acessos") loadAcessos();
+    if (key === "motoristas") loadMotoristas();
   }
 
   // ---------------- status pill helpers ----------------
@@ -2133,7 +2196,13 @@
   };
 
   function money(v){ return v != null ? "R$ " + Number(v).toLocaleString("pt-BR", {minimumFractionDigits:2}) : "—"; }
-  function dateBR(v){ return v ? new Date(v).toLocaleDateString("pt-BR") : "—"; }
+  // Data sem hora ("2026-10-20", ex.: previsão de retorno, validade da CNH) é mostrada como está: new Date() a lê
+  // como meia-noite UTC e em Brasília virava o dia anterior. Data com hora segue convertida para o horário local.
+  function dateBR(v){
+    if (!v) return "—";
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v));
+    return m ? m[3] + "/" + m[2] + "/" + m[1] : new Date(v).toLocaleDateString("pt-BR");
+  }
   function dateTimeBR(v){ return v ? new Date(v).toLocaleString("pt-BR", {dateStyle:"short", timeStyle:"short"}) : "—"; }
 
   function fillSelect(id, rows, labelFn, placeholder){
@@ -3553,6 +3622,150 @@
   document.getElementById("qd-xls-fez").addEventListener("click", function(){ qdBaixar("fizeram", this); });
   document.getElementById("qd-xls-nao").addEventListener("click", function(){ qdBaixar("nao_fizeram", this); });
 
+  // ---------------- Cadastros de motoristas (só admin) ----------------
+  // Dados pessoais e senha: só admin (RLS + funções revelar_* que registram cada acesso em senha_acessos).
+  var MT = { tela: "cadastros", cads: [], mots: [], hubs: {}, aberto: null, senhaTimer: null };
+  var MOTIVOS_REPROVACAO = { cnh_ilegivel: "CNH ilegível", cnh_vencimento: "Data de vencimento da CNH", foto_cnh_ilegivel: "Foto da CNH ilegível",
+    data_nascimento: "Data de nascimento", rg: "RG", cpf: "CPF", senha_ja_cadastrada: "Senha já cadastrada", senha_fora_padrao: "Senha fora do padrão",
+    cadastro_duplicado: "Cadastro duplicado" };
+  document.getElementById("cd-motivo").innerHTML = '<option value="">Selecione…</option>' + Object.keys(MOTIVOS_REPROVACAO).map(function(k){
+    return '<option value="' + k + '">' + esc(MOTIVOS_REPROVACAO[k]) + "</option>"; }).join("");
+  document.getElementById("menu-motoristas").addEventListener("click", function(){ fecharMenuUsuario(); showPanel("motoristas"); });
+  document.querySelectorAll("[data-mt-tela]").forEach(function(b){
+    b.addEventListener("click", function(){
+      MT.tela = b.dataset.mtTela;
+      document.querySelectorAll("[data-mt-tela]").forEach(function(x){ var on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); });
+      document.getElementById("mt-aba-cadastros").hidden = MT.tela !== "cadastros";
+      document.getElementById("mt-aba-motoristas").hidden = MT.tela !== "motoristas";
+      loadMotoristas();
+    });
+  });
+  function mtHub(id){ return MT.hubs[id] || "—"; }
+  function loadMotoristas(){
+    var hubs = rest("hubs?select=id,nome").then(function(r){ (r || []).forEach(function(h){ MT.hubs[h.id] = h.nome; }); });
+    if (MT.tela === "cadastros"){
+      var st = document.getElementById("mt-cad-status").value;
+      return Promise.all([hubs, rest("motoristas_cadastros?select=id,status,nome,matricula,hub_id,criado_em,avaliado_em,avaliado_por_nome,motivo_reprovacao&order=criado_em.desc&limit=300" + (st ? "&status=eq." + st : ""))])
+        .then(function(r){ MT.cads = r[1] || []; renderCadastros(); })
+        .catch(function(e){ document.getElementById("mt-cad-body").innerHTML = '<tr><td colspan="5" class="empty-row">Erro: ' + esc(e.message) + "</td></tr>"; });
+    }
+    return Promise.all([hubs, rest("motoristas?select=id,nome,matricula,hub_id,cnh_validade,ativo&order=nome")])
+      .then(function(r){ MT.mots = r[1] || []; renderMotoristasLista(); })
+      .catch(function(e){ document.getElementById("mt-mot-body").innerHTML = '<tr><td colspan="5" class="empty-row">Erro: ' + esc(e.message) + "</td></tr>"; });
+  }
+  document.getElementById("mt-cad-status").addEventListener("change", loadMotoristas);
+  function renderCadastros(){
+    var ST = { pendente: ["Pendente", "warn"], aprovado: ["Aprovado", "good"], reprovado: ["Reprovado", "crit"] };
+    document.getElementById("mt-cad-count").textContent = MT.cads.length + (MT.cads.length === 1 ? " cadastro" : " cadastros");
+    document.getElementById("mt-cad-body").innerHTML = MT.cads.length ? MT.cads.map(function(c){
+      var s = ST[c.status] || [c.status, "neutral"];
+      return '<tr class="ac-row" data-cad="' + c.id + '" tabindex="0"><td><strong>' + esc(c.nome) + '</strong></td><td class="ac-mat">' + esc(c.matricula) + "</td><td>" + esc(mtHub(c.hub_id)) +
+        '</td><td class="qf-sub">' + esc(fmtDataHora(c.criado_em)) + "</td><td>" + pill(s[0], s[1]) +
+        (c.status === "reprovado" ? ' <span class="qf-sub">' + esc(MOTIVOS_REPROVACAO[c.motivo_reprovacao] || "") + "</span>" : "") + "</td></tr>";
+    }).join("") : '<tr><td colspan="5" class="empty-row">Nenhum cadastro' + (document.getElementById("mt-cad-status").value === "pendente" ? " pendente." : ".") + "</td></tr>";
+  }
+  function renderMotoristasLista(){
+    var q = document.getElementById("mt-busca").value.trim().toLowerCase();
+    var ls = MT.mots.filter(function(m){ return !q || (m.nome || "").toLowerCase().indexOf(q) > -1 || String(m.matricula || "").indexOf(q) > -1; });
+    var hoje = new Date().toISOString().slice(0, 10), em30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    document.getElementById("mt-mot-count").textContent = ls.length + " de " + MT.mots.length;
+    document.getElementById("mt-mot-body").innerHTML = ls.slice(0, 300).map(function(m){
+      var cnh = !m.cnh_validade ? "—" : m.cnh_validade < hoje ? pill("vencida " + dateBR(m.cnh_validade), "crit") : m.cnh_validade <= em30 ? pill("vence " + dateBR(m.cnh_validade), "warn") : esc(dateBR(m.cnh_validade));
+      return "<tr><td>" + esc(m.nome) + (m.ativo ? "" : ' <span class="qf-sub">(inativo)</span>') + '</td><td class="ac-mat">' + esc(m.matricula || "—") + "</td><td>" + esc(mtHub(m.hub_id)) +
+        "</td><td>" + cnh + '</td><td id="mt-senha-' + m.id + '"><button type="button" class="btn qf-mini" data-mt-revelar="' + m.id + '">Revelar senha</button></td></tr>';
+    }).join("") + (ls.length > 300 ? '<tr><td colspan="5" class="empty-row">Mostrando 300 de ' + ls.length + " — use a busca.</td></tr>" : "");
+  }
+  document.getElementById("mt-busca").addEventListener("input", renderMotoristasLista);
+  // revela por 30 s; cada revelação fica registrada (quem/quando) em senha_acessos
+  function mostrarSenha(host, senha, restaurar){
+    clearTimeout(MT.senhaTimer);
+    host.innerHTML = senha == null ? '<span class="qf-sub">sem senha cadastrada</span>' : '<span class="mt-senha">' + esc(senha) + '</span> <span class="qf-sub">some em 30 s · acesso registrado</span>';
+    MT.senhaTimer = setTimeout(restaurar, 30000);
+  }
+  document.getElementById("mt-mot-body").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-mt-revelar]"); if (!b) return;
+    var id = b.dataset.mtRevelar, host = document.getElementById("mt-senha-" + id);
+    b.disabled = true;
+    rest("rpc/revelar_senha_abastecimento", { method: "POST", body: { p_motorista: id } }).then(function(s){
+      mostrarSenha(host, s, renderMotoristasLista);
+    }).catch(function(e){ b.disabled = false; toast("Não foi possível revelar: " + e.message, true); });
+  });
+  document.getElementById("mt-cad-body").addEventListener("click", function(ev){
+    var tr = ev.target.closest("[data-cad]"); if (tr) abrirCadastroMotorista(tr.dataset.cad);
+  });
+  function abrirCadastroMotorista(id){
+    rest("motoristas_cadastros?id=eq." + id + "&select=id,status,nome,matricula,cpf,email,rg,data_nascimento,estado_civil,cnh,cnh_validade,cnh_foto_path,hub_id,possui_senha,criado_em,avaliado_em,avaliado_por_nome,motivo_reprovacao,motorista_id").then(function(r){
+      var c = r && r[0]; if (!c) return;
+      MT.aberto = c;
+      var kv = function(k, v){ return '<div><div class="k">' + k + "</div>" + v + "</div>"; };
+      document.getElementById("cd-titulo").textContent = c.nome;
+      document.getElementById("cd-dados").innerHTML = kv("Matrícula informada", esc(c.matricula)) + kv("Hub", esc(mtHub(c.hub_id))) + kv("CPF", esc(c.cpf)) + kv("E-mail", esc(c.email)) +
+        kv("RG", esc(c.rg)) + kv("Nascimento", esc(dateBR(c.data_nascimento))) + kv("Estado civil", esc(c.estado_civil)) + kv("CNH", esc(c.cnh)) +
+        kv("Validade da CNH", esc(dateBR(c.cnh_validade))) + kv("Enviado em", esc(fmtDataHora(c.criado_em)));
+      document.getElementById("cd-foto").innerHTML = '<span class="qf-sub">Carregando foto…</span>';
+      assinarCnh(c.cnh_foto_path).then(function(u){
+        document.getElementById("cd-foto").innerHTML = u ? '<a class="cd-foto" href="' + esc(u) + '" target="_blank" rel="noopener"><img src="' + esc(u) + '" alt="Foto da CNH"></a><div class="qf-sub">Link válido por 5 minutos.</div>' : '<span class="qf-sub">Foto não encontrada.</span>';
+      });
+      var senhaHost = document.getElementById("cd-senha");
+      var senhaBtn = function(){ senhaHost.innerHTML = (c.possui_senha ? "Motorista já possui senha (informou a atual). " : "Motorista não possui — informou a senha que deseja cadastrar. ") +
+        '<button type="button" class="btn qf-mini" id="cd-revelar">Revelar senha</button>'; };
+      senhaBtn();
+      senhaHost.onclick = function(ev){
+        if (!ev.target.closest("#cd-revelar")) return;
+        rest("rpc/revelar_senha_cadastro", { method: "POST", body: { p_cadastro: c.id } }).then(function(s){ mostrarSenha(senhaHost, s, senhaBtn); })
+          .catch(function(e){ toast("Não foi possível revelar: " + e.message, true); });
+      };
+      var pend = c.status === "pendente";
+      document.getElementById("cd-avaliar").hidden = !pend;
+      document.getElementById("cd-resultado").hidden = pend;
+      if (pend){
+        document.getElementById("cd-matricula").value = c.matricula;
+        document.getElementById("cd-motivo").value = "";
+        document.getElementById("cd-conferi").checked = false;
+        setErr("cd-err", "");
+      } else {
+        document.getElementById("cd-resultado").innerHTML = "<h4>Avaliação</h4>" + (c.status === "aprovado"
+          ? pill("Aprovado", "good") + " por " + esc(c.avaliado_por_nome || "—") + " em " + esc(fmtDataHora(c.avaliado_em)) + ". O motorista já está ativo com a matrícula " + esc(c.matricula) + "."
+          : pill("Reprovado", "crit") + " por " + esc(c.avaliado_por_nome || "—") + " em " + esc(fmtDataHora(c.avaliado_em)) + " — motivo: " + esc(MOTIVOS_REPROVACAO[c.motivo_reprovacao] || "") + ". O motorista vê o motivo ao digitar a matrícula e pode reenviar.");
+      }
+      openModal("modal-cadastro");
+    }).catch(function(e){ toast("Erro ao abrir o cadastro: " + e.message, true); });
+  }
+  // URL assinada de 5 min da foto da CNH (bucket privado; só admin consegue assinar)
+  function assinarCnh(p){
+    if (!p) return Promise.resolve(null);
+    return ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/sign/motoristas-cnh/" + p.split("/").map(encodeURIComponent).join("/"), {
+        method: "POST", headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 300 }) });
+    }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ return j && j.signedURL ? SUPA_URL + "/storage/v1" + j.signedURL : null; })
+      .catch(function(){ return null; });
+  }
+  document.getElementById("cd-aprovar").addEventListener("click", function(){
+    var c = MT.aberto; if (!c) return;
+    var mat = document.getElementById("cd-matricula").value.trim();
+    if (!/^\d{1,10}$/.test(mat)){ setErr("cd-err", "Informe a matrícula conferida (só números)."); return; }
+    if (!document.getElementById("cd-conferi").checked){ setErr("cd-err", "Marque que conferiu os dados e a matrícula no RH."); return; }
+    var btn = this; btn.disabled = true;
+    rest("rpc/aprovar_cadastro_motorista", { method: "POST", body: { p_cadastro: c.id, p_matricula: mat } }).then(function(){
+      document.getElementById("modal-cadastro").hidden = true;
+      toast("Cadastro de " + c.nome + " aprovado. Matrícula " + mat + " já pode fazer o checklist.");
+      loadMotoristas();
+    }).catch(function(e){ setErr("cd-err", e.message); }).finally(function(){ btn.disabled = false; });
+  });
+  document.getElementById("cd-reprovar").addEventListener("click", function(){
+    var c = MT.aberto; if (!c) return;
+    var motivo = document.getElementById("cd-motivo").value;
+    if (!motivo){ setErr("cd-err", "Escolha o motivo da reprovação."); return; }
+    if (!confirm("Reprovar o cadastro de " + c.nome + " por \"" + MOTIVOS_REPROVACAO[motivo] + "\"? O motorista verá esse motivo e poderá reenviar.")) return;
+    var btn = this; btn.disabled = true;
+    rest("rpc/reprovar_cadastro_motorista", { method: "POST", body: { p_cadastro: c.id, p_motivo: motivo } }).then(function(){
+      document.getElementById("modal-cadastro").hidden = true;
+      toast("Cadastro reprovado.");
+      loadMotoristas();
+    }).catch(function(e){ setErr("cd-err", e.message); }).finally(function(){ btn.disabled = false; });
+  });
+
   // ---------------- Gerenciar acessos (só admin) ----------------
   // Tudo passa pela Edge Function `usuarios`, que confere no servidor se quem chama é admin ativo.
   var AC_MODULOS = [
@@ -3912,6 +4125,10 @@
     ev.stopPropagation();
     var abrir = userMenu.hidden;
     document.getElementById("menu-acessos").hidden = !souAdmin();
+    document.getElementById("menu-motoristas").hidden = !souAdmin();
+    if (souAdmin()) rest("motoristas_cadastros?select=id&status=eq.pendente").then(function(r){
+      document.getElementById("menu-motoristas").textContent = "Cadastros de motoristas" + (r && r.length ? " (" + r.length + " pendente" + (r.length > 1 ? "s" : "") + ")" : "");
+    }).catch(function(){});
     userMenu.hidden = !abrir;
     userChip.setAttribute("aria-expanded", abrir ? "true" : "false");
     if (abrir) userMenu.querySelector("button:not([hidden])").focus();

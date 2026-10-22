@@ -8,6 +8,8 @@
 //   { modo: "teste", checklist_id }      — manda o e-mail desse checklist para a PRÓPRIA conta
 //                                           remetente (SMTP_USER), sem marcar nada no banco
 //   { modo: "diagnostico" }              — só informa se os segredos estão configurados
+//   { modo: "cadastro", cadastro_id }    — aviso de auto-cadastro de motorista aguardando aprovação
+//                                           (sem CPF/RG/CNH/senha no e-mail; o admin vê tudo no painel)
 //
 // SMTP: Google Workspace, smtp.gmail.com:465 (TLS direto; Edge Functions bloqueiam 25/587).
 // Anomalia crítica só gera e-mail: não muda status do veículo nem abre OS.
@@ -133,6 +135,41 @@ async function enviar(para: string, m: { assunto: string; texto: string; html: s
   }
 }
 
+async function avisarCadastro(cadastroId: string) {
+  const { data: c, error } = await db().from("motoristas_cadastros")
+    .select("id, nome, matricula, criado_em, possui_senha, status, alerta_status, hubs(nome)").eq("id", cadastroId).maybeSingle();
+  if (error) throw error;
+  if (!c) return { cadastro_id: cadastroId, resultado: "nao_encontrado" };
+  if (c.alerta_status === "enviado") return { cadastro_id: cadastroId, resultado: "ja_tratado" };
+  const hub: any = c.hubs || {};
+  const assunto = `Cadastro de motorista aguardando aprovação: ${c.nome}`;
+  const texto = [assunto, "", `Nome: ${c.nome}`, `Matrícula informada: ${c.matricula} (confira no RH antes de aprovar)`,
+    `Hub: ${hub.nome || "—"}`, `Enviado em: ${dataBR(c.criado_em)}`,
+    `Senha de abastecimento: ${c.possui_senha ? "já possui (informou a atual)" : "não possui (informou a que deseja cadastrar)"}`, "",
+    `Aprovar ou reprovar no painel: ${PAINEL_URL} (menu do seu nome → Cadastros de motoristas; só admin).`,
+    "Documentos e dados pessoais ficam só no painel, não neste e-mail."].join("\n");
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a231f;max-width:600px">
+<h2 style="margin:0 0 10px;font-size:19px">Cadastro de motorista aguardando aprovação</h2>
+<table style="border-collapse:collapse;font-size:14px;margin-bottom:14px">
+<tr><td style="padding:2px 12px 2px 0;color:#5c645d">Nome</td><td><b>${esc(c.nome)}</b></td></tr>
+<tr><td style="padding:2px 12px 2px 0;color:#5c645d">Matrícula informada</td><td>${esc(c.matricula)} <span style="color:#5c645d">(confira no RH antes de aprovar)</span></td></tr>
+<tr><td style="padding:2px 12px 2px 0;color:#5c645d">Hub</td><td>${esc(hub.nome || "—")}</td></tr>
+<tr><td style="padding:2px 12px 2px 0;color:#5c645d">Enviado em</td><td>${esc(dataBR(c.criado_em))}</td></tr>
+<tr><td style="padding:2px 12px 2px 0;color:#5c645d">Senha de abastecimento</td><td>${c.possui_senha ? "já possui" : "não possui — pediu uma nova"}</td></tr>
+</table>
+<p style="font-size:14px">Aprove ou reprove no <a href="${PAINEL_URL}">painel da frota</a> (menu do seu nome → <b>Cadastros de motoristas</b>; só admin).</p>
+<p style="font-size:13px;color:#5c645d">Documentos e dados pessoais ficam só no painel, não neste e-mail. Aviso automático — não responda.</p></div>`;
+  try {
+    await enviar(ALERTA_PARA, { assunto, texto, html });
+    await db().from("motoristas_cadastros").update({ alerta_status: "enviado", alerta_erro: null }).eq("id", cadastroId);
+    return { cadastro_id: cadastroId, resultado: "enviado", para: ALERTA_PARA };
+  } catch (e) {
+    const msg = (e as Error).message || String(e);
+    await db().from("motoristas_cadastros").update({ alerta_status: "erro", alerta_erro: msg.slice(0, 500) }).eq("id", cadastroId);
+    return { cadastro_id: cadastroId, resultado: "erro", erro: msg };
+  }
+}
+
 async function processar(checklistId: string) {
   const { data: reservado, error } = await db().rpc("reservar_alerta_checklist", { p_id: checklistId });
   if (error) throw error;
@@ -173,6 +210,7 @@ Deno.serve(async (req) => {
       return json({ resultado: "teste_enviado", para: SMTP_USER, assunto: "[TESTE] " + m.assunto });
     }
     if (body.modo === "checklist") return json(await processar(String(body.checklist_id || "")));
+    if (body.modo === "cadastro") return json(await avisarCadastro(String(body.cadastro_id || "")));
     if (body.modo === "pendentes") {
       const { data: ids, error } = await db().rpc("listar_alertas_pendentes");
       if (error) throw error;

@@ -42,6 +42,7 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 - [x] Checklist: trava de devolução pendente (motorista não retira outro carro sem devolver o anterior; fechamento pelo painel com motivo; data/hora de cada checklist e travas registradas). _(22/10/2026)_
 - [x] Checklist: "Abrir OS" direto de uma anomalia (preenche a OS com placa/motivo e liga a anomalia à OS). _(22/10/2026: várias anomalias do mesmo carro por OS; ao concluir a OS o painel pergunta se cada uma foi resolvida; OS cancelada reabre as anomalias.)_
 - [ ] Checklist (cosmético, baixa prioridade): na mensagem "Faltam fotos obrigatórias" da Inspeção técnica, listar as fotos sempre na mesma ordem (painel, frontal, traseira) — hoje a ordem varia (`finalizar_checklist` usa `string_agg` sem `order by`).
+- [x] Checklist: auto-cadastro de motorista sem cadastro (campos do pipe de Cadastro de Motoristas do Pipefy), com aprovação só por admin no painel e senha de abastecimento cifrada. _(22/10/2026)_
 - [x] Checklist: limitar tentativas de matrícula por aparelho/IP na Edge Function `checklist`. _(22/10/2026: 5 erros em 15 min bloqueiam 15 min por aparelho e por IP; IP/aparelho guardados só cifrados.)_  Hoje a matrícula (4 dígitos) não tem limite de tentativas, então dá para chutar matrículas e enviar checklists falsos. A resposta só mostra primeiro e último nome, sem dado sensível. Não trava o lançamento, mas tratar em breve.
 
 ---

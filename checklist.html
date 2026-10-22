@@ -57,7 +57,7 @@
   .card h2{ font-family:var(--font-display); font-size:var(--fs-xl); margin:0 0 var(--espaco-4); }
   .card h3{ font-size:var(--fs-lg); margin:var(--espaco-5) 0 var(--espaco-2); color:var(--muted); font-weight:600; }
   label.lbl{ display:block; font-size:var(--fs-md); font-weight:600; color:var(--muted); margin:var(--espaco-5) 0 var(--espaco-2); }
-  input[type=text], input[type=number], input[type=email], input[type=password], select, textarea{
+  input[type=text], input[type=number], input[type=email], input[type=password], input[type=date], select, textarea{
     width:100%; font:inherit; font-size:var(--fs-xl); color:var(--ink); background:var(--surface); border:1px solid var(--line-strong);
     border-radius:var(--raio-md); padding:var(--espaco-5); min-height:48px; }
   textarea{ min-height:80px; resize:vertical; }
@@ -88,6 +88,12 @@
   .badge.alta{ background:var(--critical-soft); color:var(--critical); }
   .badge.critica{ background:var(--critical); color:var(--texto-sobre-cor); }
   .hint{ font-size:var(--fs-md); color:var(--muted); margin:var(--espaco-2) 0 0; }
+  .cad-info{ font-size:var(--fs-md); background:var(--surface-2); border-radius:var(--raio-md); padding:var(--espaco-4); margin-top:var(--espaco-3); line-height:1.45; }
+  .cad-info .btn{ width:100%; margin-top:var(--espaco-3); }
+  .cad-check{ display:flex; gap:var(--espaco-3); align-items:flex-start; font-size:var(--fs-md); margin-top:var(--espaco-6); line-height:1.4; }
+  .cad-check input{ width:20px; height:20px; flex:none; margin-top:1px; }
+  .cad-foto{ display:flex; gap:var(--espaco-5); align-items:center; margin-top:var(--espaco-2); }
+  .cad-foto img{ width:96px; height:64px; object-fit:cover; border-radius:var(--raio-sm); border:1px solid var(--line); }
   .warn{ font-size:var(--fs-md); color:var(--warning); background:var(--warning-soft); border-radius:var(--raio-md); padding:var(--espaco-3) var(--espaco-4); margin-top:var(--espaco-3); }
   .err{ font-size:var(--fs-md-2); color:var(--critical); background:var(--critical-soft); border-radius:var(--raio-md); padding:var(--espaco-3) var(--espaco-4); margin-top:var(--espaco-3); }
   .okbox{ font-size:var(--fs-md-2); color:var(--good); background:var(--good-soft); border-radius:var(--raio-md); padding:var(--espaco-3) var(--espaco-4); margin-top:var(--espaco-3); }
@@ -195,6 +201,9 @@
   var arquivosPendentes = {}; // fotoKey -> Blob comprimido (para "tentar de novo")
 
   var S = novoEstado();
+  // Auto-cadastro de motorista: fica só na memória (dados pessoais nunca vão para o localStorage).
+  var CAD = null, CAD_HUBS = [];
+  var ESTADOS_CIVIS = ["Solteiro(a)", "Casado(a)", "União estável", "Divorciado(a)", "Viúvo(a)"];
   function novoEstado(){
     return { id: uuid(), step:0, papel:null, matricula:"", nome:"", placa:"", veiculo:null, ultimo:null, abertas:[],
       tipo:null, hub_id:"", km:"", grupos:{}, prefill:{}, confirmacoes:{}, novas:[],
@@ -404,6 +413,11 @@
     for (var i = 0; i < steps.length; i++) steps[i].className = i <= S.step ? "on" : "";
     $("step-label").textContent = S.enviado ? "Enviado" : ("Etapa " + (S.step + 1) + " de 4 · " + STEP_NAMES[S.step]);
     // antes das etapas: escolha Motorista/Auxiliar e, para auxiliar sem sessão, o login
+    if (CAD){
+      $("main").innerHTML = renderCadastro();
+      ["steps", "step-label", "bottom"].forEach(function(id){ $(id).classList.add("hidden"); });
+      return;
+    }
     var escolha = !carregando && !S.enviado && (!S.papel || (S.papel === "auxiliar" && !session));
     var html = carregando ? '<div class="card"><p class="hint" style="margin:0">Carregando…</p></div>'
       : escolha ? (S.papel ? renderLogin() : renderEscolha())
@@ -443,6 +457,12 @@
       '<input type="text" inputmode="numeric" pattern="[0-9]*" id="f-mat" class="mono" maxlength="10" value="' + esc(S.matricula) + '" autocomplete="off">' +
       '<button class="btn flex-none" data-act="identificar">Confirmar</button></div>';
     if (S.nome) h += '<div class="okbox">Olá, <b>' + esc(S.nome) + '</b>.</div>';
+    else if (S.papel === "motorista" && S.semCadastro){
+      var ci = S.semCadastro;
+      if (ci.status === "pendente") h += '<div class="cad-info"><b>Cadastro em análise.</b> O time de frota está conferindo seus dados. Assim que for aprovado, você já consegue fazer o checklist.</div>';
+      else if (ci.status === "reprovado") h += '<div class="cad-info"><b>Seu cadastro foi reprovado</b> — ' + esc(ci.texto) + '<button class="btn primary" data-act="cad-abrir">Corrigir e enviar de novo</button></div>';
+      else h += '<div class="cad-info">Não encontramos essa matrícula. <b>Ainda não tem cadastro de motorista?</b><button class="btn primary" data-act="cad-abrir">Quero me cadastrar</button></div>';
+    }
     h += '</div>';
 
     h += '<div class="card"><h2>Veículo</h2><label class="lbl" for="f-placa">Placa</label><div class="row">' +
@@ -607,7 +627,111 @@
       HUBS = r.hubs || []; CAT = r.catalogo || []; auxiliar = !!r.auxiliar;
       S.nome = r.nome; busy = false; salvarRascunho(); render();
       var pl = $("f-placa"); if (pl && !S.veiculo) pl.focus();
-    }).catch(function(e){ busy = false; S.nome = ""; render(); toast(e.message, true); });
+    }).catch(function(e){
+      busy = false; S.nome = "";
+      var d = e.dados || {};
+      S.semCadastro = d.cadastro ? { status: d.cadastro.status, texto: e.message.replace(/^Seu cadastro foi reprovado: /, "") } : d.sem_cadastro ? { status: "nenhum" } : null;
+      render(); toast(e.message, true);
+    });
+  }
+
+  // ---------------------------------------------------------------- auto-cadastro de motorista
+  function abrirCadastro(){
+    CAD = { id: uuid(), d: { matricula: S.matricula || "", possui_senha: null, lgpd: false }, foto: null, enviando: false, ok: false };
+    busy = true; render();
+    api("cadastro_inicio").then(function(r){ CAD_HUBS = r.hubs || []; busy = false; render(); window.scrollTo(0, 0); })
+      .catch(function(e){ busy = false; CAD = null; render(); toast(e.message, true); });
+  }
+  function cpfValido(c){
+    c = String(c || "").replace(/\D/g, "");
+    if (!/^\d{11}$/.test(c) || /^(\d)\1{10}$/.test(c)) return false;
+    for (var t = 9; t < 11; t++){
+      var s = 0; for (var i = 0; i < t; i++) s += Number(c[i]) * (t + 1 - i);
+      var r = (s * 10) % 11; if (r === 10) r = 0; if (r !== Number(c[t])) return false;
+    }
+    return true;
+  }
+  function campo(id, rotulo, attrs){
+    return '<label class="lbl" for="cad-' + id + '">' + rotulo + '</label><input ' + (/type=/.test(attrs || "") ? "" : 'type="text" ') + 'id="cad-' + id + '" data-cad="' + id + '" ' + (attrs || "") + ' value="' + esc(CAD.d[id] || "") + '">';
+  }
+  function renderCadastro(){
+    if (CAD.ok) return '<div class="card"><h2>Cadastro enviado!</h2><p class="hint" style="margin:0">O time de frota vai conferir seus dados. Quando for aprovado, é só escolher <b>Sou Motorista</b> e digitar sua matrícula para fazer o checklist.</p>' +
+      '<button class="btn primary" data-act="cad-fim" style="width:100%;margin-top:14px">Voltar ao início</button></div>';
+    var d = CAD.d, f = CAD.foto, hoje = new Date().toISOString().slice(0, 10);
+    var h = '<div class="card"><h2>Cadastro de motorista</h2><p class="hint" style="margin:0 0 6px">Preencha com seus dados. O time de frota confere e aprova; depois disso você já consegue fazer o checklist.</p>';
+    h += campo("nome", "Nome completo", 'autocomplete="name"');
+    h += campo("matricula", "Matrícula (a do RH)", 'inputmode="numeric" class="mono" maxlength="10" autocomplete="off"');
+    h += campo("cpf", "CPF", 'inputmode="numeric" class="mono" maxlength="14" placeholder="000.000.000-00" autocomplete="off"');
+    h += campo("email", "E-mail", 'type="email" inputmode="email" autocomplete="email"');
+    h += campo("rg", "RG", 'autocomplete="off"');
+    h += campo("data_nascimento", "Data de nascimento", 'type="date"');
+    h += '<label class="lbl" for="cad-estado_civil">Estado civil</label><select id="cad-estado_civil" data-cad="estado_civil"><option value="">Selecione…</option>' +
+      ESTADOS_CIVIS.map(function(x){ return '<option' + (d.estado_civil === x ? " selected" : "") + '>' + esc(x) + '</option>'; }).join("") + '</select>';
+    h += '<label class="lbl" for="cad-hub_id">Hub onde você trabalha</label><select id="cad-hub_id" data-cad="hub_id"><option value="">Selecione…</option>' +
+      CAD_HUBS.map(function(x){ return '<option value="' + x.id + '"' + (d.hub_id === x.id ? " selected" : "") + '>' + esc(x.nome) + '</option>'; }).join("") + '</select></div>';
+
+    h += '<div class="card"><h2>CNH</h2>';
+    h += campo("cnh", "Número da CNH (11 dígitos)", 'inputmode="numeric" class="mono" maxlength="11" autocomplete="off"');
+    h += campo("cnh_validade", "Data de vencimento da CNH", 'type="date" min="' + hoje + '"');
+    h += '<label class="lbl">Foto da CNH</label><div class="cad-foto">' +
+      (f && f.thumb ? '<img src="' + f.thumb + '" alt="Foto da CNH">' : "") +
+      '<button class="btn" data-act="cad-foto">' + (f ? "Tirar outra foto" : "Fotografar a CNH") + '</button></div>' +
+      (f ? '<p class="hint" style="margin:6px 0 0">' + (f.status === "ok" ? "✓ Foto enviada." : f.status === "erro" ? '<span style="color:var(--critical)">' + esc(f.msg || "Falha ao enviar.") + '</span>' : "Enviando a foto…") + '</p>' : "") + '</div>';
+
+    h += '<div class="card"><h2>Senha de abastecimento</h2><label class="lbl">Você já possui senha de abastecimento?</label><div class="chips">' +
+      '<button class="chip' + (d.possui_senha === true ? " on" : "") + '" data-act="cad-possui" data-v="sim">Sim, já tenho</button>' +
+      '<button class="chip' + (d.possui_senha === false ? " on" : "") + '" data-act="cad-possui" data-v="nao">Não tenho</button></div>';
+    if (d.possui_senha !== null && d.possui_senha !== undefined){
+      h += campo("senha", d.possui_senha ? "Sua senha atual (só números)" : "Senha que deseja cadastrar (só números, 4 a 8 dígitos)", 'type="password" inputmode="numeric" class="mono" maxlength="8" autocomplete="new-password"');
+      h += campo("senha2", "Repita a senha", 'type="password" inputmode="numeric" class="mono" maxlength="8" autocomplete="new-password"');
+      h += '<p class="hint" style="margin:6px 0 0">A senha fica guardada de forma cifrada e só o time de frota (administradores) consegue ver, para ajudar se você esquecer.</p>';
+    }
+    h += '<label class="cad-check"><input type="checkbox" data-cad="lgpd"' + (d.lgpd ? " checked" : "") + '><span>Autorizo a Beep Saúde a usar estes dados (CPF, RG, CNH, foto da CNH e senha de abastecimento) para o meu cadastro de motorista e para o cartão de abastecimento.</span></label>';
+    h += '<button class="btn primary" data-act="cad-enviar" style="width:100%;margin-top:16px"' + (CAD.enviando ? " disabled" : "") + '>' + (CAD.enviando ? "Enviando…" : "Enviar cadastro") + '</button>' +
+      '<button class="btn ghost" data-act="cad-cancelar" style="width:100%;margin-top:6px">Cancelar</button></div>';
+    return h;
+  }
+  function cadFoto(file){
+    var f = CAD.foto = { status: "enviando" }; render();
+    carregarImagem(file).then(function(img){
+      return Promise.all([redimensionar(img, 1600, 0.85, false), redimensionar(img, 240, 0.7, true)]);
+    }).then(function(r){
+      f.thumb = r[1]; render();
+      return api("cadastro_upload", { cadastro_id: CAD.id }).then(function(u){ return putComProgresso(u.signedUrl, r[0], function(){}); });
+    }).then(function(){ f.status = "ok"; render(); })
+      .catch(function(e){ f.status = "erro"; f.msg = e.message; render(); toast(e.message, true); });
+  }
+  function cadValidar(){
+    var d = CAD.d, hoje = new Date().toISOString().slice(0, 10);
+    if (!/\S+\s+\S+/.test(d.nome || "")) return "Informe o nome completo.";
+    if (!/^\d{1,10}$/.test(d.matricula || "")) return "Informe a matrícula (só números).";
+    if (!cpfValido(d.cpf)) return "CPF inválido. Confira os números.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email || "")) return "E-mail inválido.";
+    if ((d.rg || "").trim().length < 5) return "Informe o RG.";
+    if (!d.data_nascimento) return "Informe a data de nascimento.";
+    if (!d.estado_civil) return "Escolha o estado civil.";
+    if (!d.hub_id) return "Escolha o hub.";
+    if (!/^\d{11}$/.test(String(d.cnh || "").replace(/\D/g, ""))) return "O número da CNH tem 11 dígitos.";
+    if (!d.cnh_validade) return "Informe o vencimento da CNH.";
+    if (d.cnh_validade < hoje) return "CNH vencida — não é possível cadastrar.";
+    if (!CAD.foto || CAD.foto.status !== "ok") return CAD.foto && CAD.foto.status === "enviando" ? "Aguarde a foto da CNH terminar de enviar." : "Fotografe a CNH.";
+    if (d.possui_senha !== true && d.possui_senha !== false) return "Responda se já possui senha de abastecimento.";
+    if (!/^\d{4,8}$/.test(d.senha || "")) return "A senha de abastecimento deve ter de 4 a 8 números.";
+    if (d.senha !== d.senha2) return "As duas senhas não são iguais.";
+    if (!d.lgpd) return "Marque a autorização de uso dos dados.";
+    return "";
+  }
+  function cadEnviar(){
+    var erro = cadValidar(); if (erro){ toast(erro, true); return; }
+    var d = CAD.d;
+    CAD.enviando = true; render();
+    api("cadastro_enviar", { cadastro: { id: CAD.id, nome: d.nome.trim(), matricula: d.matricula, cpf: d.cpf, email: d.email.trim(), rg: d.rg.trim(),
+      data_nascimento: d.data_nascimento, estado_civil: d.estado_civil, cnh: String(d.cnh).replace(/\D/g, ""), cnh_validade: d.cnh_validade,
+      hub_id: d.hub_id, possui_senha: d.possui_senha, senha: d.senha, lgpd: true } }).then(function(){
+      CAD = { ok: true }; // limpa os dados pessoais da memória
+      S.semCadastro = { status: "pendente" }; S.nome = "";
+      render(); window.scrollTo(0, 0);
+    }).catch(function(e){ CAD.enviando = false; render(); toast(e.message, true); });
   }
   function buscarPlaca(tipoForcado){
     var p = normPlaca($("f-placa").value);
@@ -706,6 +830,20 @@
   $("btn-proximo").addEventListener("click", proximo);
   $("btn-voltar").addEventListener("click", voltar);
 
+  document.addEventListener("input", function(ev){
+    var k = ev.target.getAttribute && ev.target.getAttribute("data-cad");
+    if (!k || !CAD) return;
+    if (k === "cpf"){ // máscara 000.000.000-00
+      var dg = ev.target.value.replace(/\D/g, "").slice(0, 11);
+      ev.target.value = dg.replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
+    }
+    CAD.d[k] = ev.target.type === "checkbox" ? ev.target.checked : ev.target.value;
+  });
+  document.addEventListener("change", function(ev){
+    var k = ev.target.getAttribute && ev.target.getAttribute("data-cad");
+    if (k && CAD) CAD.d[k] = ev.target.type === "checkbox" ? ev.target.checked : ev.target.value;
+  });
+
   document.addEventListener("click", function(ev){
     var retry = ev.target.closest("[data-retry]");
     if (retry){
@@ -717,6 +855,12 @@
     var act = b.getAttribute("data-act"), v = b.getAttribute("data-v"), i = Number(b.getAttribute("data-i"));
     switch (act){
       case "identificar": identificar(); break;
+      case "cad-abrir": abrirCadastro(); return;
+      case "cad-cancelar": CAD = null; render(); window.scrollTo(0, 0); return;
+      case "cad-fim": CAD = null; S = novoEstado(); render(); window.scrollTo(0, 0); return;
+      case "cad-foto": pedirFoto(cadFoto); return;
+      case "cad-possui": CAD.d.possui_senha = v === "sim"; render(); return;
+      case "cad-enviar": cadEnviar(); return;
       case "buscar-placa": buscarPlaca(); break;
       case "fazer-devolucao": if (S.pendente){ $("f-placa").value = S.pendente.placa; buscarPlaca("devolucao"); } break;
       case "papel":

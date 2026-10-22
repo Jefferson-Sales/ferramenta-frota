@@ -52,19 +52,63 @@ async function colaborador(matricula: unknown, cli: Cliente) {
   if (e0) throw e0;
   if (ate && new Date(ate) > new Date())
     throw new Falha("Muitas tentativas de matrícula erradas. Tente de novo às " + horaBR(ate) + ".", 429);
-  const errou = async (msg: string, status = 400): Promise<never> => {
+  const errou = async (msg: string, status = 400, extra: Record<string, unknown> = {}): Promise<never> => {
     await db().rpc("checklist_registrar_erro", { p_ip: cli.ip, p_aparelho: cli.aparelho });
-    throw new Falha(msg, status);
+    throw new Falha(msg, status, extra);
   };
   const m = String(matricula || "").trim();
   if (!/^\d{1,10}$/.test(m)) await errou("Matrícula inválida.");
   const { data, error } = await db().rpc("buscar_colaborador", { p_matricula: m });
   if (error) throw error;
-  if (!data || !data.length) await errou("Matrícula não encontrada ou inativa.", 404);
+  if (!data || !data.length) {
+    // sem cadastro ativo: avisa se há auto-cadastro em análise ou reprovado (continua contando como erro no limite)
+    const { data: cad } = await db().rpc("cadastro_motorista_status", { p_matricula: m });
+    const st = (cad || [])[0];
+    if (st && st.status === "pendente")
+      await errou("Seu cadastro está em análise pelo time de frota. Assim que for aprovado, você poderá fazer o checklist.", 404, { cadastro: { status: "pendente" } });
+    if (st && st.status === "reprovado")
+      await errou("Seu cadastro foi reprovado: " + (MOTIVOS_REPROVACAO[st.motivo_reprovacao] || "motivo não informado") + ". Corrija e envie de novo.", 404,
+        { cadastro: { status: "reprovado", motivo: st.motivo_reprovacao } });
+    await errou("Matrícula não encontrada ou inativa.", 404, { sem_cadastro: true });
+  }
   // se a matrícula existir nas duas tabelas, prefere o motorista (tem motorista_id)
   const c = data.find((r: any) => r.origem === "motorista") || data[0];
   return { matricula: m, nome: c.nome as string, hub_id: c.hub_id, motorista_id: c.motorista_id,
            user_id: c.origem === "usuario" ? (c.user_id as string) : null };
+}
+
+// ---------------------------------------------------------------- auto-cadastro de motorista (Onda 3)
+const MOTIVOS_REPROVACAO: Record<string, string> = {
+  cnh_ilegivel: "CNH ilegível", cnh_vencimento: "data de vencimento da CNH", foto_cnh_ilegivel: "foto da CNH ilegível",
+  data_nascimento: "data de nascimento", rg: "RG", cpf: "CPF", senha_ja_cadastrada: "senha de abastecimento já cadastrada",
+  senha_fora_padrao: "senha de abastecimento fora do padrão", cadastro_duplicado: "cadastro duplicado",
+};
+const BUCKET_CNH = "motoristas-cnh";
+
+async function acaoCadastroInicio() {
+  const { data, error } = await db().from("hubs").select("id, nome").eq("ativo", true).order("nome");
+  if (error) throw error;
+  return { hubs: data || [] };
+}
+async function acaoCadastroUpload(body: any, cli: Cliente) {
+  const { data: ate } = await db().rpc("checklist_bloqueado_ate", { p_ip: cli.ip, p_aparelho: cli.aparelho });
+  if (ate && new Date(ate) > new Date()) throw new Falha("Muitas tentativas erradas. Tente de novo às " + horaBR(ate) + ".", 429);
+  const id = String(body.cadastro_id || "");
+  if (!UUID_RE.test(id)) throw new Falha("Cadastro inválido.");
+  const { data: ja } = await db().from("motoristas_cadastros").select("id").eq("id", id).maybeSingle();
+  if (ja) throw new Falha("Este cadastro já foi enviado.");
+  const path = `cadastros/${id}/cnh.jpg`;
+  const { data, error } = await admin.storage.from(BUCKET_CNH).createSignedUploadUrl(path, { upsert: true });
+  if (error) throw error;
+  return { path, signedUrl: data.signedUrl };
+}
+async function acaoCadastroEnviar(body: any, cli: Cliente) {
+  const { data: ate } = await db().rpc("checklist_bloqueado_ate", { p_ip: cli.ip, p_aparelho: cli.aparelho });
+  if (ate && new Date(ate) > new Date()) throw new Falha("Muitas tentativas erradas. Tente de novo às " + horaBR(ate) + ".", 429);
+  const c = body.cadastro || {};
+  const { data, error } = await db().rpc("registrar_cadastro_motorista", { p: c, p_ip: cli.ip, p_aparelho: cli.aparelho });
+  if (error) throw new Falha(error.message);
+  return { ok: true, id: data };
 }
 
 // Auxiliar de frota logado: admin, ou operador com módulo checklist/manutenção.
@@ -225,6 +269,9 @@ Deno.serve(async (req) => {
       case "veiculo": return json(await acaoVeiculo(body, aux, cli));
       case "upload": return json(await acaoUpload(body, aux, cli));
       case "enviar": return json(await acaoEnviar(body, aux, cli));
+      case "cadastro_inicio": return json(await acaoCadastroInicio());
+      case "cadastro_upload": return json(await acaoCadastroUpload(body, cli));
+      case "cadastro_enviar": return json(await acaoCadastroEnviar(body, cli));
       default: return json({ error: "Ação desconhecida." }, 400);
     }
   } catch (e) {
