@@ -198,7 +198,7 @@
   function novoEstado(){
     return { id: uuid(), step:0, papel:null, matricula:"", nome:"", placa:"", veiculo:null, ultimo:null, abertas:[],
       tipo:null, hub_id:"", km:"", grupos:{}, prefill:{}, confirmacoes:{}, novas:[],
-      nivel:"", bateria:"", fixas:{}, observacoes:"", enviado:null, salvo_em:Date.now() };
+      nivel:"", bateria:"", fixas:{}, observacoes:"", enviado:null, pendente:null, salvo_em:Date.now() };
   }
 
   // ---------------- utilidades ----------------
@@ -257,7 +257,7 @@
       return fetch(FN_URL, { method:"POST", headers:headers, body: JSON.stringify(body) });
     }).then(function(r){
       return r.json().catch(function(){ return {}; }).then(function(j){
-        if (!r.ok) throw new Error(j.error || ("Erro " + r.status));
+        if (!r.ok){ var err = new Error(j.error || ("Erro " + r.status)); err.dados = j; throw err; }
         return j;
       });
     }, function(e){ throw new Error(navigator.onLine === false ? "Sem conexão com a internet." : (e.message || "Falha de conexão.")); });
@@ -360,6 +360,7 @@
       if (!S.nome) e.push("Confirme sua matrícula.");
       if (!S.veiculo) e.push("Busque a placa do veículo.");
       if (!S.tipo) e.push("Escolha o tipo de checklist.");
+      if (S.pendente && S.tipo === "retirada") e.push("Faça primeiro a devolução do " + S.pendente.placa + ".");
       if (S.tipo === "inspecao_tecnica" && !auxiliar) e.push("Inspeção técnica exige login de auxiliar de frota.");
       if (!S.hub_id) e.push("Escolha o Hub.");
       if (!(Number(S.km) > 0)) e.push("Informe o KM do painel.");
@@ -460,6 +461,11 @@
         h += '<button class="chip' + (S.tipo === t ? " on" : "") + '" data-act="tipo" data-v="' + t + '">' + TIPOS[t] + '</button>';
       });
       h += '</div>';
+      if (S.pendente && S.tipo === "retirada"){
+        h += '<div class="warn"><b>Devolução pendente.</b> Você ainda não fez a devolução do <b>' + esc(S.pendente.placa) + '</b> (retirado em ' +
+          esc(fmtData(S.pendente.enviado_em)) + '). Faça a devolução antes de retirar outro carro.' +
+          '<button class="btn" data-act="fazer-devolucao" style="margin-top:8px;width:100%">Fazer a devolução do ' + esc(S.pendente.placa) + ' agora</button></div>';
+      }
       h += '<label class="lbl" for="f-hub">Hub</label><select id="f-hub"><option value="">Selecione…</option>' +
         HUBS.map(function(x){ return '<option value="' + x.id + '"' + (S.hub_id === x.id ? " selected" : "") + '>' + esc(x.nome) + '</option>'; }).join("") + '</select>';
       h += '<label class="lbl" for="f-km">KM do painel</label><input type="number" inputmode="numeric" id="f-km" class="mono" min="0" value="' + esc(S.km) + '">';
@@ -603,7 +609,7 @@
       var pl = $("f-placa"); if (pl && !S.veiculo) pl.focus();
     }).catch(function(e){ busy = false; S.nome = ""; render(); toast(e.message, true); });
   }
-  function buscarPlaca(){
+  function buscarPlaca(tipoForcado){
     var p = normPlaca($("f-placa").value);
     if (p.length !== 7){ toast("Placa deve ter 7 caracteres (ex.: ABC1D23).", true); return; }
     if (S.veiculo && S.veiculo.placa !== p && (S.novas.length || Object.keys(S.fixas).length)){
@@ -618,8 +624,9 @@
         S = novoEstado(); S.matricula = keep.matricula; S.nome = keep.nome; S.papel = keep.papel;
       }
       S.placa = r.veiculo.placa; S.veiculo = r.veiculo; S.ultimo = r.ultimo; S.abertas = r.anomalias_abertas || [];
+      S.pendente = r.devolucao_pendente || null;
       if (trocou){
-        S.tipo = r.tipo_sugerido;
+        S.tipo = tipoForcado || r.tipo_sugerido;
         if (S.ultimo && S.ultimo.nivel_combustivel) S.nivel = S.ultimo.nivel_combustivel;
         aplicarPrefill();
       }
@@ -678,7 +685,13 @@
     busy = enviando = true; renderStep3.erro = ""; render();
     api("enviar", { matricula:S.matricula, checklist:ck }).then(function(r){
       busy = enviando = false; S.enviado = r; apagarRascunho(); render(); window.scrollTo(0, 0);
-    }).catch(function(e){ busy = enviando = false; renderStep3.erro = "Não foi possível enviar: " + e.message + " Seus dados continuam salvos neste aparelho; tente de novo."; render(); });
+    }).catch(function(e){
+      busy = enviando = false;
+      if (e.dados && e.dados.devolucao_pendente){ // trava de devolução: volta para a 1ª etapa com o botão de devolver
+        S.pendente = e.dados.devolucao_pendente; S.step = 0; salvarRascunho(); render(); window.scrollTo(0, 0); toast(e.message, true); return;
+      }
+      renderStep3.erro = "Não foi possível enviar: " + e.message + " Seus dados continuam salvos neste aparelho; tente de novo."; render();
+    });
   }
 
   function proximo(){
@@ -705,6 +718,7 @@
     switch (act){
       case "identificar": identificar(); break;
       case "buscar-placa": buscarPlaca(); break;
+      case "fazer-devolucao": if (S.pendente){ $("f-placa").value = S.pendente.placa; buscarPlaca("devolucao"); } break;
       case "papel":
         $("toast").innerHTML = "";
         S.papel = v; salvarRascunho(); render(); window.scrollTo(0, 0);
@@ -794,7 +808,7 @@
           HUBS = x.hubs || []; CAT = x.catalogo || []; auxiliar = !!x.auxiliar;
           if (!S.placa) return;
           return api("veiculo", { matricula:S.matricula, placa:S.placa }).then(function(v){
-            S.veiculo = v.veiculo; S.ultimo = v.ultimo; S.abertas = v.anomalias_abertas || [];
+            S.veiculo = v.veiculo; S.ultimo = v.ultimo; S.abertas = v.anomalias_abertas || []; S.pendente = v.devolucao_pendente || null;
             var ids = S.abertas.map(function(a){ return a.id; });
             Object.keys(S.confirmacoes).forEach(function(k){ if (ids.indexOf(k) < 0) delete S.confirmacoes[k]; });
           });

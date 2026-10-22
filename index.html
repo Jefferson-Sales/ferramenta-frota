@@ -639,6 +639,16 @@
             </table>
           </div>
         </div>
+        <div class="card">
+          <div class="card-head"><h2>Devoluções pendentes (agora)</h2><span class="count" id="qd-pend-count"></span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Placa</th><th>Hub</th><th>Motorista</th><th>Retirada em</th><th>Aberta há</th><th>Travas</th><th data-edit="qualidade"></th></tr></thead>
+              <tbody id="qd-pend-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="qf-sub qd-nota"><b>Devolução pendente</b> = Retirada sem Devolução do mesmo motorista no mesmo carro. Enquanto ela estiver aberta, o motorista não consegue retirar outro carro (ele mesmo se libera fazendo a devolução). "Fechar devolução" é só para exceções — motorista desligado, sem acesso ao app, carro repassado — e fica registrado com quem, quando e o motivo. "Travas" = quantas vezes o motorista tentou retirar outro carro antes de devolver este.</p>
         <p class="qf-sub qd-nota">"Deveriam fazer" = veículos com status Disponível no início do dia (lista gravada às 00:05; quem estava com OS aberta, indisponível, em mobilização, para desmobilizar ou devolvido não entra). Só o checklist de <strong>Retirada</strong> conta como feito. Carro que fez retirada sem estar na lista aparece como "fora da lista" e não entra no percentual.</p>
       </div><!-- /qf-aba-diaria -->
     </section>
@@ -794,6 +804,17 @@
     <div class="ac-cred" id="ac-cred"></div>
     <div class="ac-aviso">Esta senha não será mostrada de novo.</div>
     <div class="modal-actions"><button type="button" class="btn" id="ac-copiar">Copiar e-mail e senha</button><button type="button" class="btn btn-primary" data-close-modal style="width:auto">Concluir</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-fechar-dev" hidden>
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head"><h3>Fechar devolução pendente</h3><button class="modal-close" data-close-modal>×</button></div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5" id="fd-resumo"></p>
+    <div class="field"><label for="fd-motivo">Motivo (obrigatório)</label><textarea id="fd-motivo" rows="3" maxlength="500" placeholder="Ex.: motorista desligado; carro recolhido no hub"></textarea></div>
+    <p class="qf-sub" style="margin:0">Fica registrado no histórico do carro com o seu nome, a data e o motivo. Use só quando o motorista não puder fazer a devolução pelo formulário.</p>
+    <div class="field-err" id="fd-err" hidden></div>
+    <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="button" class="btn btn-primary" id="fd-confirmar" style="width:auto">Fechar devolução</button></div>
   </div>
 </div>
 
@@ -2585,7 +2606,7 @@
     Promise.all([
       qfGarantirBase(),
       rest("veiculos?id=eq." + veiculoId + "&select=id,placa,modelo,hub_id,tipo_combustivel,km_atual"),
-      rest("checklists?veiculo_id=eq." + veiculoId + "&status=eq.enviado&select=id,tipo,enviado_em,km,nivel_combustivel,bateria_pct,colaborador_nome,resultado,observacoes,checklist_grupos(grupo,tem_anomalia),checklist_fotos(tipo,anomalia_id,storage_path)&order=enviado_em.desc&limit=50"),
+      rest("checklists?veiculo_id=eq." + veiculoId + "&status=eq.enviado&select=id,tipo,enviado_em,km,nivel_combustivel,bateria_pct,colaborador_nome,resultado,observacoes,fechada_em,fechada_como,fechada_painel_nome,fechada_painel_motivo,primeira_trava_em,qtd_travas,checklist_grupos(grupo,tem_anomalia),checklist_fotos(tipo,anomalia_id,storage_path)&order=enviado_em.desc&limit=50"),
       rest("checklist_anomalias?veiculo_id=eq." + veiculoId + "&select=id,checklist_id,grupo,item_codigo,subtipo,descricao,severidade,nova,origem_anomalia_id,confirmacao,status,resolvida_em,resolvida_por,created_at&order=created_at.desc")
     ]).then(function(r){
       dados = { v:(r[1] || [])[0], cks:r[2] || [], anoms:r[3] || [] };
@@ -2599,6 +2620,16 @@
       QF.hist = dados;
       renderHistoricoVeiculo();
     }).catch(function(e){ corpo.innerHTML = '<p style="color:var(--critical)">Erro ao carregar histórico: ' + esc(e.message) + '</p>'; });
+  }
+
+  // Situação da devolução de uma Retirada (trava de devolução).
+  function qfDevolucaoTxt(c){
+    var dur = function(a, b){ var h = (new Date(b) - new Date(a)) / 3600000; return h < 1 ? Math.round(h * 60) + " min" : h < 48 ? Math.round(h) + " h" : Math.round(h / 24) + " dias"; };
+    var trava = c.primeira_trava_em ? " " + pill("devolução atrasada", "warn") + ' <span class="qf-sub">tentou retirar outro carro antes de devolver este (' + c.qtd_travas + (c.qtd_travas === 1 ? " vez" : " vezes") + ", a 1ª em " + esc(qfDataHora(c.primeira_trava_em)) + ")</span>" : "";
+    if (c.fechada_como === "devolucao") return "Devolvido em " + esc(qfDataHora(c.fechada_em)) + ' <span class="qf-sub">(' + dur(c.enviado_em, c.fechada_em) + " depois da retirada)</span>" + trava;
+    if (c.fechada_como === "nova_retirada_mesmo_carro") return 'Substituída por nova retirada do mesmo carro em ' + esc(qfDataHora(c.fechada_em)) + "." + trava;
+    if (c.fechada_como === "painel") return pill("fechada pelo painel", "neutral") + " por " + esc(c.fechada_painel_nome || "—") + " em " + esc(qfDataHora(c.fechada_em)) + ' <span class="qf-sub">— motivo: ' + esc(c.fechada_painel_motivo || "") + "</span>" + trava;
+    return pill("sem devolução registrada", "warn") + trava;
   }
 
   function renderHistoricoVeiculo(){
@@ -2668,6 +2699,7 @@
           return '<div style="margin-bottom:4px">' + esc(qfItem(o)) + ': <b>' + (a.confirmacao === "continua" ? "continua" : "não existe mais") + '</b></div>';
         }).join("");
       }
+      if (c.tipo === "retirada") h += '<h5>Devolução</h5><div>' + qfDevolucaoTxt(c) + '</div>';
       if (c.observacoes) h += '<h5>Observações</h5><div>' + esc(c.observacoes) + '</div>';
       var fotos = (c.checklist_fotos || []).slice().sort(function(a, b){ return ["painel","frontal","traseira","anomalia"].indexOf(a.tipo) - ["painel","frontal","traseira","anomalia"].indexOf(b.tipo); });
       if (fotos.length){
@@ -3121,7 +3153,7 @@
   // "Deveriam fazer" = foto dos veículos Disponíveis às 00:05 (frota.checklist_frota_esperada).
   // "Fez" = checklist de RETIRADA enviado no dia (horário de Brasília). Tudo vem de
   // frota.checklist_visao_diaria(dia), que respeita o RLS (hubs liberados) de quem vê.
-  var QD = { dia: null, linhas: [], gerado: null, pedido: 0 };
+  var QD = { dia: null, linhas: [], gerado: null, pedido: 0, pend: [], fechando: null };
   var TZ_BR = "America/Sao_Paulo";
   function qdHoje(){ return new Date().toLocaleDateString("en-CA", { timeZone: TZ_BR }); } // AAAA-MM-DD
   function qdSomaDias(iso, n){ var d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
@@ -3157,11 +3189,13 @@
     return Promise.all([
       qfGarantirBase(),
       rest("rpc/checklist_visao_diaria", { method: "POST", body: { p_dia: dia } }),
-      rest("checklist_frota_esperada_dias?dia=eq." + dia + "&select=dia,gerado_em,qtd")
+      rest("checklist_frota_esperada_dias?dia=eq." + dia + "&select=dia,gerado_em,qtd"),
+      rest("v_devolucoes_pendentes?select=*&order=retirada_em")
     ]).then(function(r){
       if (pedido !== QD.pedido) return; // o usuário já trocou de dia
       QD.linhas = r[1] || [];
       QD.gerado = (r[2] && r[2][0]) || null;
+      QD.pend = r[3] || [];
       renderQualidadeDiaria();
     }).catch(function(e){
       if (pedido !== QD.pedido) return;
@@ -3243,9 +3277,51 @@
         "</td><td>" + esc(l.preenchido_por || "—") + "</td><td>" + pill(res[0], res[1]) + "</td><td class=\"num\">" + (l.anomalias_novas || 0) + "</td></tr>";
     }).join("") : '<tr><td colspan="7" class="empty-row">Nenhuma retirada registrada neste dia.</td></tr>';
 
+    renderDevolucoesPendentes();
     document.getElementById("qd-xls-fez").disabled = !L.fez.length;
     document.getElementById("qd-xls-nao").disabled = !gerado || !L.nao.length;
   }
+
+  function qdDuracao(desde){
+    var min = Math.max(0, Math.round((Date.now() - new Date(desde)) / 60000));
+    if (min < 60) return min + " min";
+    var h = Math.floor(min / 60);
+    return h < 48 ? h + " h" : Math.floor(h / 24) + " dias";
+  }
+  function renderDevolucoesPendentes(){
+    var hub = document.getElementById("qd-hub").value;
+    var ls = QD.pend.filter(function(p){ return !hub || p.hub_id === hub; });
+    var podeFechar = canEdit("qualidade");
+    document.getElementById("qd-pend-count").textContent = ls.length + (ls.length === 1 ? " retirada" : " retiradas");
+    document.getElementById("qd-pend-body").innerHTML = ls.length ? ls.map(function(p){
+      var horas = (Date.now() - new Date(p.retirada_em)) / 3600000;
+      return "<tr><td><button type=\"button\" class=\"qf-link\" data-qd-veic=\"" + esc(p.veiculo_id) + "\">" + esc(p.placa) + "</button></td><td>" + esc(qdHubNome(p.hub_id)) +
+        "</td><td>" + esc(p.colaborador_nome || "—") + "</td><td>" + esc(qfDataHora(p.retirada_em)) + "</td><td>" +
+        (horas >= 24 ? pill(qdDuracao(p.retirada_em), "warn") : esc(qdDuracao(p.retirada_em))) + "</td><td class=\"num\">" +
+        (p.qtd_travas ? pill(p.qtd_travas + (p.qtd_travas === 1 ? " trava" : " travas"), "crit") : "—") + "</td>" +
+        (podeFechar ? "<td><button type=\"button\" class=\"btn qf-mini\" data-qd-fechar=\"" + esc(p.checklist_id) + "\">Fechar devolução</button></td>" : "<td data-edit=\"qualidade\" hidden></td>") + "</tr>";
+    }).join("") : '<tr><td colspan="7" class="empty-row">Nenhuma devolução pendente.</td></tr>';
+  }
+  document.getElementById("qd-pend-body").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-qd-fechar]"); if (!b) return;
+    var p = QD.pend.filter(function(x){ return x.checklist_id === b.dataset.qdFechar; })[0]; if (!p) return;
+    QD.fechando = p;
+    document.getElementById("fd-resumo").textContent = "Retirada do " + p.placa + " por " + (p.colaborador_nome || "motorista") + " em " + qfDataHora(p.retirada_em) + " (aberta há " + qdDuracao(p.retirada_em) + ").";
+    document.getElementById("fd-motivo").value = "";
+    setErr("fd-err", "");
+    openModal("modal-fechar-dev");
+    setTimeout(function(){ document.getElementById("fd-motivo").focus(); }, 30);
+  });
+  document.getElementById("fd-confirmar").addEventListener("click", function(){
+    var motivo = document.getElementById("fd-motivo").value.trim();
+    if (motivo.length < 5){ setErr("fd-err", "Informe o motivo (mínimo 5 caracteres)."); return; }
+    var btn = this; btn.disabled = true;
+    rest("rpc/fechar_devolucao_painel", { method: "POST", body: { p_checklist: QD.fechando.checklist_id, p_motivo: motivo } }).then(function(){
+      document.getElementById("modal-fechar-dev").hidden = true;
+      toast("Devolução do " + QD.fechando.placa + " fechada.");
+      loadQualidadeDiaria();
+    }).catch(function(e){ setErr("fd-err", e.message); }).finally(function(){ btn.disabled = false; });
+  });
 
   document.getElementById("qd-dia").addEventListener("change", function(){
     if (!this.value) return;

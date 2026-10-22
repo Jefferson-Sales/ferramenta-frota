@@ -19,7 +19,7 @@ function withCors(resp: Response) {
 function json(body: unknown, status = 200) {
   return withCors(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
 }
-class Falha extends Error { constructor(msg: string, public status = 400) { super(msg); } }
+class Falha extends Error { constructor(msg: string, public status = 400, public extra: Record<string, unknown> = {}) { super(msg); } }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const normPlaca = (p: unknown) => String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -36,6 +36,14 @@ function clienteDe(req: Request, body: any): Cliente {
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "";
   return { ip, aparelho: String(body?.aparelho || "").slice(0, 100) };
 }
+// Retirada aberta do motorista em OUTRO carro (trava de devolução), ou null.
+async function devolucaoPendente(matricula: string, veiculoId: string) {
+  const { data, error } = await db().rpc("retirada_pendente", { p_matricula: matricula, p_veiculo: veiculoId });
+  if (error) throw error;
+  const p = (data || [])[0];
+  return p ? { checklist_id: p.checklist_id as string, placa: p.placa as string, enviado_em: p.enviado_em as string } : null;
+}
+const dataHoraBR = (iso: string) => new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).replace(",", " às");
 const horaBR = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 
 // Limite: 5 matrículas erradas em 15 min (por aparelho ou por IP) bloqueiam por 15 min. Acerto não conta.
@@ -150,6 +158,8 @@ async function acaoVeiculo(body: any, aux: any, cli: Cliente) {
                     enviado_em: ult.enviado_em, resultado: ult.resultado, grupos: ult.checklist_grupos || [] } : null,
     tipo_sugerido: ult && ult.tipo === "retirada" ? "devolucao" : "retirada",
     anomalias_abertas: anomalias,
+    // aviso antecipado da trava (só pesa se o motorista escolher Retirada)
+    devolucao_pendente: await devolucaoPendente(c.matricula, v.id).then((p) => p && { placa: p.placa, enviado_em: p.enviado_em }),
   };
 }
 
@@ -178,6 +188,15 @@ async function acaoEnviar(body: any, aux: any, cli: Cliente) {
   exigirHub(await hubsLiberados(aux, c), v);
   const km = Number(ck.km);
   if (!isFinite(km) || km <= 0) throw new Falha("KM inválido.");
+  // trava de devolução: Retirada de outro carro com Retirada anterior ainda aberta
+  if (ck.tipo === "retirada") {
+    const pend = await devolucaoPendente(c.matricula, v.id);
+    if (pend) {
+      await db().rpc("registrar_trava_devolucao", { p_checklist: pend.checklist_id });
+      throw new Falha("Você ainda não fez a devolução do " + pend.placa + " (retirado em " + dataHoraBR(pend.enviado_em) +
+        "). Faça a devolução antes de retirar outro carro.", 409, { devolucao_pendente: { placa: pend.placa, enviado_em: pend.enviado_em } });
+    }
+  }
 
   const payload = {
     ...ck,
@@ -210,6 +229,6 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     const status = e instanceof Falha ? e.status : 500;
-    return json({ error: (e as Error).message || String(e) }, status);
+    return json({ error: (e as Error).message || String(e), ...(e instanceof Falha ? e.extra : {}) }, status);
   }
 });
