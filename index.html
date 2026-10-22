@@ -226,6 +226,13 @@
   .qd-grupo td{ background:var(--surface-2); font-weight:700; font-size:var(--fs-sm); color:var(--muted); padding-top:var(--espaco-2); padding-bottom:var(--espaco-2); }
   .qd-hora{ font-family:var(--font-mono); }
   .qd-nota{ max-width:80ch; line-height:1.5; }
+  .os-anom-lista{ border:1px solid var(--line); border-radius:var(--raio-md); padding:var(--espaco-2) var(--espaco-5); }
+  .os-anom-lista label{ display:flex; align-items:flex-start; gap:var(--espaco-3); font-size:var(--fs-md); font-weight:500; color:var(--ink); padding:var(--espaco-2) 0; cursor:pointer; }
+  .os-anom-lista input{ width:16px; height:16px; margin-top:2px; flex:none; }
+  .osa-item{ border:1px solid var(--line); border-radius:var(--raio-md); padding:var(--espaco-4) var(--espaco-5); margin-bottom:var(--espaco-3); }
+  .osa-item .osa-opcoes{ display:flex; gap:var(--espaco-2); flex-wrap:wrap; margin-top:var(--espaco-3); }
+  .osa-item .osa-opcoes label{ display:flex; align-items:center; gap:var(--espaco-2); border:1px solid var(--line-strong); border-radius:var(--raio-md-2); padding:var(--espaco-2) var(--espaco-4); font-size:var(--fs-md); cursor:pointer; }
+  .osa-item .osa-opcoes label:has(input:checked){ border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:600; }
   .qf-seg{ display:inline-flex; border:1px solid var(--line-strong); border-radius:var(--raio-md-2); overflow:hidden; }
   .qf-seg button{ background:none; border:none; padding:5px 11px; font-size:var(--fs-sm); color:var(--muted); }
   .qf-seg button.on{ background:var(--accent-soft); color:var(--accent); font-weight:700; }
@@ -807,6 +814,16 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-os-anomalias" data-sem-fechar-fora hidden>
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-head"><h3>A OS resolveu as anomalias?</h3><button class="modal-close" data-close-modal>×</button></div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5" id="osa-resumo"></p>
+    <div id="osa-lista"></div>
+    <div class="field-err" id="osa-err" hidden></div>
+    <div class="modal-actions"><button type="button" class="btn" data-close-modal>Decidir depois</button><button type="button" class="btn btn-primary" id="osa-confirmar" style="width:auto">Confirmar</button></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-fechar-dev" hidden>
   <div class="modal" style="max-width:480px;">
     <div class="modal-head"><h3>Fechar devolução pendente</h3><button class="modal-close" data-close-modal>×</button></div>
@@ -937,6 +954,11 @@
           <select id="os-cobertura"><option value="a_definir">A definir</option><option value="garantia_fabrica">Garantia fábrica</option><option value="garantia_oficina">Garantia oficina</option><option value="seguradora">Seguradora</option><option value="beep_saude">Beep Saúde</option></select>
         </div>
         <div class="field span2"><label for="os-obs">Observações</label><textarea id="os-obs" rows="2"></textarea></div>
+        <div class="field span2" id="os-anom-field" hidden>
+          <label>Anomalias do checklist que esta OS vai tratar</label>
+          <div class="os-anom-lista" id="os-anom-lista"></div>
+          <div class="ac-hint">As marcadas ficam ligadas a esta OS e passam para "Em reparo". Ao concluir a OS, o sistema pergunta se cada uma foi resolvida.</div>
+        </div>
       </div>
       <div class="field-err" id="os-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Abrir OS</button></div>
@@ -949,6 +971,11 @@
     <div class="modal-head"><h3 id="osd-titulo">OS</h3><button class="modal-close" data-close-modal>×</button></div>
 
     <div class="detail-grid" id="osd-resumo"></div>
+
+    <div class="detail-section">
+      <h4>Anomalias do checklist ligadas</h4>
+      <div id="osd-anomalias"></div>
+    </div>
 
     <div class="detail-section">
       <h4>Checklist</h4>
@@ -2545,14 +2572,15 @@
     if (!lista.length){ body.innerHTML = '<tr><td colspan="8" class="empty-row">' + (QF.anom.length ? "Nenhuma anomalia com esse filtro." : "Nenhuma anomalia aberta.") + '</td></tr>'; return; }
     body.innerHTML = lista.map(function(a){
       return '<tr>' +
-        '<td>' + qfSevPill(a.severidade) + (a.status === "em_reparo" ? ' <span class="qf-sub">em reparo</span>' : "") + '</td>' +
+        '<td>' + qfSevPill(a.severidade) + qfOsTag(a) + '</td>' +
         '<td><button class="qf-link" data-qf-veic="' + a.veiculo_id + '">' + esc(a.placa) + '</button></td>' +
         '<td>' + esc(qfItem(a)) + '<div class="qf-sub">' + esc(a.grupo_nome || qfGrupo(a.grupo)) + '</div></td>' +
         '<td style="max-width:260px">' + (a.descricao ? esc(a.descricao) : '<span class="qf-sub">—</span>') + '</td>' +
         '<td>' + dateBR(a.reportada_em) + ' <span class="qf-sub">(' + a.dias_aberta + 'd)</span><div class="qf-sub">' + esc(a.colaborador_nome || "") + (a.checklist_tipo ? " · " + esc(QF_TIPO[a.checklist_tipo] || "") : "") + '</div></td>' +
         '<td>' + (a.ultima_confirmacao ? dateBR(a.ultima_confirmacao) + ' <span class="qf-sub">continua</span>' : '<span class="qf-sub">—</span>') + '</td>' +
         '<td>' + (a.foto_path ? '<button class="btn qf-mini" data-qf-foto="' + esc(a.foto_path) + '">Ver foto</button>' : '<span class="qf-sub">—</span>') + '</td>' +
-        (podeEditar ? '<td style="white-space:nowrap"><button class="btn qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="resolvida">Resolvida</button> ' +
+        (podeEditar ? '<td style="white-space:nowrap">' + (!a.os_id && canEdit("manutencao") ? '<button class="btn qf-mini" data-qf-abrir-os="' + a.id + '">Abrir OS</button> ' : "") +
+          '<button class="btn qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="resolvida">Resolvida</button> ' +
           '<button class="btn btn-ghost qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="descartada">Descartar</button></td>' : "") +
         '</tr>';
     }).join("");
@@ -2583,6 +2611,119 @@
       if (w) w.location = m[path]; else window.location.href = m[path];
     }).catch(function(e){ if (w) w.close(); toast("Erro ao abrir foto: " + e.message, true); });
   }
+
+  // ---- "Abrir OS" a partir de anomalias (Onda 2) ----
+  var OSA = { veiculo: null, candidatas: [], fechamento: null };
+  function qfOsTag(a){
+    if (!a.os_id) return a.status === "em_reparo" ? ' <span class="qf-sub">em reparo</span>' : "";
+    if (a.os_status === "concluida") return " " + pill("OS concluída — confirme se resolveu", "warn");
+    return " " + pill("Em reparo · OS " + (a.os_status ? a.os_status.replace(/_/g, " ") : "aberta"), "neutral");
+  }
+  function qfPodeAbrirOS(id){
+    if (!canEdit("manutencao")) return false;
+    var a = QF.anom.filter(function(x){ return x.id === id; })[0];
+    return !!(a && !a.os_id);
+  }
+  function osaLimpar(){
+    OSA.veiculo = null; OSA.candidatas = [];
+    document.getElementById("os-anom-field").hidden = true;
+    document.getElementById("os-anom-lista").innerHTML = "";
+  }
+  function osaSelecionadas(){
+    if (!OSA.veiculo || document.getElementById("os-veiculo").value !== OSA.veiculo) return [];
+    return Array.prototype.filter.call(document.querySelectorAll("#os-anom-lista input"), function(cb){ return cb.checked; })
+      .map(function(cb){ return cb.value; });
+  }
+  function abrirOSDeAnomalia(id){
+    var a = QF.anom.filter(function(x){ return x.id === id; })[0];
+    if (!a) return;
+    var garantir = [];
+    if (!veiculosOsCache.length) garantir.push(rest("veiculos?select=id,placa&order=placa" + hubsQS("hub_id")).then(function(rows){ veiculosOsCache = rows || []; }));
+    if (!oficinasCache.length) garantir.push(carregarOficinas().catch(function(){}));
+    Promise.all(garantir).then(function(){
+      document.getElementById("modal-qf-veiculo").hidden = true;
+      var form = document.querySelector('[data-form="os"]');
+      form.reset(); setErr("os-err", "");
+      document.getElementById("os-contato").dataset.auto = "";
+      document.getElementById("os-data-parou-wrap").style.display = "";
+      document.getElementById("os-busca-placa").value = a.placa;
+      renderVeiculosOS();
+      document.getElementById("os-veiculo").value = a.veiculo_id;
+      document.getElementById("os-tipo").value = "corretiva";
+      document.getElementById("os-motivo").value = qfItem(a) + (a.descricao ? ": " + a.descricao : "");
+      document.getElementById("os-obs").value = "Aberta a partir de anomalia do checklist (" + (QF_TIPO[a.checklist_tipo] || "checklist") + " de " + dateBR(a.reportada_em) + (a.colaborador_nome ? ", " + a.colaborador_nome : "") + ").";
+      OSA.veiculo = a.veiculo_id;
+      OSA.candidatas = QF.anom.filter(function(x){ return x.veiculo_id === a.veiculo_id && !x.os_id; });
+      document.getElementById("os-anom-lista").innerHTML = OSA.candidatas.map(function(x){
+        return '<label><input type="checkbox" value="' + esc(x.id) + '"' + (x.id === a.id ? " checked" : "") + '><span>' + qfSevPill(x.severidade) + " " + esc(qfItem(x)) +
+          (x.descricao ? ' <span class="qf-sub">— ' + esc(x.descricao) + "</span>" : "") + ' <span class="qf-sub">(' + dateBR(x.reportada_em) + ")</span></span></label>";
+      }).join("");
+      document.getElementById("os-anom-field").hidden = false;
+      openModal("modal-os");
+    }).catch(function(e){ toast("Não foi possível abrir o formulário de OS: " + e.message, true); });
+  }
+  document.querySelector('[data-open-modal="modal-os"]').addEventListener("click", osaLimpar);
+  document.getElementById("os-veiculo").addEventListener("change", function(){
+    if (OSA.veiculo && this.value !== OSA.veiculo) osaLimpar(); // trocou de carro: as anomalias eram do outro
+  });
+  function osaLigar(osId, ids){
+    if (!osId || !ids.length) return Promise.resolve();
+    return rest("checklist_anomalias?id=in.(" + ids.join(",") + ")", { method: "PATCH", body: { os_id: osId, status: "em_reparo" } }).then(function(rows){
+      toast((rows ? rows.length : 0) + (rows && rows.length === 1 ? " anomalia ligada" : " anomalias ligadas") + " à OS (em reparo).");
+      if (currentPanel === "qualidade") loadQualidade();
+    }).catch(function(e){ toast("OS criada, mas não foi possível ligar as anomalias: " + e.message, true); });
+  }
+
+  // Anomalias ligadas a uma OS (detalhe da OS)
+  function carregarAnomaliasOS(osId){
+    var host = document.getElementById("osd-anomalias");
+    host.innerHTML = '<span class="qf-sub">Carregando…</span>';
+    Promise.all([qfGarantirBase().catch(function(){}),
+      rest("checklist_anomalias?os_id=eq." + osId + "&select=id,grupo,item_codigo,subtipo,descricao,severidade,status&order=created_at")]).then(function(r){
+      var ls = r[1] || [];
+      var ST = { aberta: ["aberta", "warn"], em_reparo: ["em reparo", "neutral"], resolvida: ["resolvida", "good"], descartada: ["descartada", "neutral"] };
+      host.innerHTML = ls.length ? ls.map(function(a){
+        var s = ST[a.status] || [a.status, "neutral"];
+        return '<div style="margin-bottom:4px">' + qfSevPill(a.severidade) + " " + esc(qfItem(a)) + (a.descricao ? ' <span class="qf-sub">— ' + esc(a.descricao) + "</span>" : "") + " " + pill(s[0], s[1]) + "</div>";
+      }).join("") : '<span class="qf-sub">Nenhuma anomalia de checklist ligada a esta OS.</span>';
+    }).catch(function(e){ host.innerHTML = '<span style="color:var(--critical);font-size:12.5px;">' + esc(e.message) + "</span>"; });
+  }
+
+  // Ao concluir uma OS: pergunta, anomalia por anomalia, se foi resolvida (nada é resolvido sozinho)
+  function perguntarAnomaliasOS(osId, placa){
+    return Promise.all([qfGarantirBase().catch(function(){}),
+      rest("checklist_anomalias?os_id=eq." + osId + "&status=eq.em_reparo&select=id,grupo,item_codigo,subtipo,descricao,severidade&order=created_at")]).then(function(r){
+      var ls = r[1] || [];
+      if (!ls.length) return;
+      OSA.fechamento = { osId: osId, lista: ls };
+      document.getElementById("osa-resumo").textContent = "A OS do " + placa + " foi concluída. Para cada anomalia do checklist ligada a ela, diga se o problema foi resolvido. Se continuar, ela volta para Aberta e segue visível na Qualidade da Frota.";
+      document.getElementById("osa-lista").innerHTML = ls.map(function(a){
+        return '<div class="osa-item" data-osa-id="' + esc(a.id) + '"><div>' + qfSevPill(a.severidade) + " <b>" + esc(qfItem(a)) + "</b>" + (a.descricao ? ' <span class="qf-sub">— ' + esc(a.descricao) + "</span>" : "") + "</div>" +
+          '<div class="osa-opcoes"><label><input type="radio" name="osa-' + esc(a.id) + '" value="resolvida"> Sim, marcar como resolvida</label>' +
+          '<label><input type="radio" name="osa-' + esc(a.id) + '" value="aberta"> Não, o problema continua</label></div></div>';
+      }).join("");
+      setErr("osa-err", "");
+      openModal("modal-os-anomalias");
+    }).catch(function(e){ toast("Não foi possível conferir as anomalias da OS: " + e.message, true); });
+  }
+  document.getElementById("osa-confirmar").addEventListener("click", function(){
+    var f = OSA.fechamento; if (!f) return;
+    var respostas = f.lista.map(function(a){
+      var r = document.querySelector('input[name="osa-' + a.id + '"]:checked');
+      return { id: a.id, status: r ? r.value : null };
+    });
+    if (respostas.some(function(x){ return !x.status; })){ setErr("osa-err", "Responda todas as anomalias (ou clique em Decidir depois)."); return; }
+    var btn = this; btn.disabled = true;
+    Promise.all(respostas.map(function(x){
+      return rest("checklist_anomalias?id=eq." + x.id, { method: "PATCH", body: { status: x.status } });
+    })).then(function(){
+      var res = respostas.filter(function(x){ return x.status === "resolvida"; }).length;
+      document.getElementById("modal-os-anomalias").hidden = true;
+      toast(res + " resolvida" + (res === 1 ? "" : "s") + ", " + (respostas.length - res) + " voltou" + (respostas.length - res === 1 ? "" : "aram") + " para Aberta.");
+      OSA.fechamento = null;
+      if (currentPanel === "qualidade") loadQualidade();
+    }).catch(function(e){ setErr("osa-err", e.message); }).finally(function(){ btn.disabled = false; });
+  });
 
   function qfMudarStatusAnomalia(id, novo){
     var txt = novo === "resolvida" ? "Marcar esta anomalia como resolvida?" : "Descartar esta anomalia? Use para engano ou teste.";
@@ -2668,7 +2809,8 @@
         '<div class="qf-sub">Reportada em ' + dateBR(a.created_at) + (c ? " por " + esc(c.colaborador_nome || "—") + " (" + esc(QF_TIPO[c.tipo] || "") + ")" : "") +
         (cf ? ' · último checklist: <b>' + (cf.confirmacao === "continua" ? "continua" : "não existe mais") + '</b> em ' + dateBR(cf.created_at) : "") +
         (linhaStatus ? ' · ' + esc(linhaStatus) : "") + '</div></div>' +
-        (podeEditar && QF.histAba === "abertas" ? '<div class="acoes"><button class="btn qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="resolvida">Resolvida</button>' +
+        (podeEditar && QF.histAba === "abertas" ? '<div class="acoes">' + (qfPodeAbrirOS(a.id) ? '<button class="btn qf-mini" data-qf-abrir-os="' + a.id + '">Abrir OS</button>' : "") +
+          '<button class="btn qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="resolvida">Resolvida</button>' +
           '<button class="btn btn-ghost qf-mini" data-qf-anom="' + a.id + '" data-qf-novo="descartada">Descartar</button></div>' : "") +
         '</div>';
     });
@@ -2736,6 +2878,7 @@
       renderQfKpis(); renderQfVeiculos(); return;
     }
     if ((t = ev.target.closest("[data-qf-anom]"))){ qfMudarStatusAnomalia(t.dataset.qfAnom, t.dataset.qfNovo); return; }
+    if ((t = ev.target.closest("[data-qf-abrir-os]"))){ abrirOSDeAnomalia(t.dataset.qfAbrirOs); return; }
     if ((t = ev.target.closest("[data-qf-foto]"))){ qfAbrirFoto(t.dataset.qfFoto); return; }
     if ((t = ev.target.closest("[data-qf-aba]"))){ QF.histAba = t.dataset.qfAba; renderHistoricoVeiculo(); return; }
     if ((t = ev.target.closest("[data-qf-veic]"))){ abrirHistoricoVeiculo(t.dataset.qfVeic); return; }
@@ -2957,6 +3100,8 @@
     rest("ordens_servico", {method:"POST", body: body}).then(function(rows){
       toast(agendada ? "OS agendada com sucesso (carro segue disponível)." : "OS aberta com sucesso — carro marcado indisponível.");
       if (rows && rows[0]) clonarChecklistPadrao(rows[0].id, body.tipo);
+      osaLigar(rows && rows[0] && rows[0].id, osaSelecionadas());
+      osaLimpar();
       document.getElementById("modal-os").hidden = true;
       ev.target.reset();
       document.getElementById("os-contato").dataset.auto = "";
@@ -3004,6 +3149,7 @@
 
     carregarAnexosOS(osId);
     carregarChecklistOS(osId);
+    carregarAnomaliasOS(osId);
     openModal("modal-os-detalhe");
   }
 
@@ -3029,10 +3175,13 @@
     };
     if (body.status === "concluida" && !body.data_liberacao) body.data_liberacao = new Date().toISOString();
     if (body.status === "concluida" && !osdAtual.data_conclusao) body.data_conclusao = new Date().toISOString();
+    var osAntes = osdAtual;
     rest("ordens_servico?id=eq." + osdAtual.id, {method:"PATCH", body: body}).then(function(){
       toast("OS atualizada.");
       document.getElementById("modal-os-detalhe").hidden = true;
       carregarOS();
+      if (body.status === "concluida" && osAntes.status !== "concluida") perguntarAnomaliasOS(osAntes.id, (osAntes.veiculos && osAntes.veiculos.placa) || "veículo");
+      if (body.status === "cancelada" && osAntes.status !== "cancelada" && currentPanel === "qualidade") loadQualidade();
     }).catch(function(e){ setErr("osd-err", e.message); });
   });
 
