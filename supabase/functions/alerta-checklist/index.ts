@@ -8,13 +8,15 @@
 //   { modo: "teste", checklist_id }      — manda o e-mail desse checklist para a PRÓPRIA conta
 //                                           remetente (SMTP_USER), sem marcar nada no banco
 //   { modo: "diagnostico" }              — só informa se os segredos estão configurados
+//   { modo: "teste_cadastro", cadastro_id } — o mesmo aviso, só para a conta remetente, com [TESTE]
 //   { modo: "cadastro", cadastro_id }    — aviso de auto-cadastro de motorista aguardando aprovação
 //                                           (sem CPF/RG/CNH/senha no e-mail; o admin vê tudo no painel)
 //
-// SMTP: Google Workspace, smtp.gmail.com:465 (TLS direto; Edge Functions bloqueiam 25/587).
+// SMTP: Google Workspace, smtp.gmail.com:465 (TLS direto; Edge Functions bloqueiam 25/587), via nodemailer.
+// (Até 22/10/2026 era a denomailer, que quebrava assuntos longos com acento: o cabeçalho ia parar no corpo.)
 // Anomalia crítica só gera e-mail: não muda status do veículo nem abre OS.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import nodemailer from "npm:nodemailer@6.9.16";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -123,24 +125,22 @@ Alerta automático do Checklist do Veículo — não responda este e-mail.</p></
 }
 
 async function enviar(para: string, m: { assunto: string; texto: string; html: string }) {
-  const client = new SMTPClient({
-    connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: SMTP_USER, password: SMTP_PASS } },
+  const transporte = nodemailer.createTransport({
+    host: "smtp.gmail.com", port: 465, secure: true, auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
   try {
-    await client.send({ from: `Checklist da Frota <${SMTP_USER}>`, to: para, subject: m.assunto, content: m.texto, html: m.html });
+    await transporte.sendMail({ from: `"Checklist da Frota" <${SMTP_USER}>`, to: para, subject: m.assunto, text: m.texto, html: m.html });
   } finally {
-    // close() do denomailer não devolve Promise; erro ao fechar não pode virar "falha de envio"
-    // (senão o e-mail já entregue seria marcado como erro e o cron reenviaria).
-    try { await client.close(); } catch (_) { /* ignora */ }
+    try { transporte.close(); } catch (_) { /* ignora */ }
   }
 }
 
-async function avisarCadastro(cadastroId: string) {
+async function avisarCadastro(cadastroId: string, teste = false) {
   const { data: c, error } = await db().from("motoristas_cadastros")
     .select("id, nome, matricula, criado_em, possui_senha, status, alerta_status, hubs(nome)").eq("id", cadastroId).maybeSingle();
   if (error) throw error;
   if (!c) return { cadastro_id: cadastroId, resultado: "nao_encontrado" };
-  if (c.alerta_status === "enviado") return { cadastro_id: cadastroId, resultado: "ja_tratado" };
+  if (c.alerta_status === "enviado" && !teste) return { cadastro_id: cadastroId, resultado: "ja_tratado" };
   const hub: any = c.hubs || {};
   const assunto = `Cadastro de motorista aguardando aprovação: ${c.nome}`;
   const texto = [assunto, "", `Nome: ${c.nome}`, `Matrícula informada: ${c.matricula} (confira no RH antes de aprovar)`,
@@ -159,6 +159,10 @@ async function avisarCadastro(cadastroId: string) {
 </table>
 <p style="font-size:14px">Aprove ou reprove no <a href="${PAINEL_URL}">painel da frota</a> (menu do seu nome → <b>Cadastros de motoristas</b>; só admin).</p>
 <p style="font-size:13px;color:#5c645d">Documentos e dados pessoais ficam só no painel, não neste e-mail. Aviso automático — não responda.</p></div>`;
+  if (teste) { // só para a conta remetente, sem marcar nada
+    await enviar(SMTP_USER, { assunto: "[TESTE] " + assunto, texto, html });
+    return { cadastro_id: cadastroId, resultado: "teste_enviado", para: SMTP_USER };
+  }
   try {
     await enviar(ALERTA_PARA, { assunto, texto, html });
     await db().from("motoristas_cadastros").update({ alerta_status: "enviado", alerta_erro: null }).eq("id", cadastroId);
@@ -211,11 +215,16 @@ Deno.serve(async (req) => {
     }
     if (body.modo === "checklist") return json(await processar(String(body.checklist_id || "")));
     if (body.modo === "cadastro") return json(await avisarCadastro(String(body.cadastro_id || "")));
+    if (body.modo === "teste_cadastro") return json(await avisarCadastro(String(body.cadastro_id || ""), true));
     if (body.modo === "pendentes") {
       const { data: ids, error } = await db().rpc("listar_alertas_pendentes");
       if (error) throw error;
       const resultados = [];
       for (const id of (ids || []) as string[]) resultados.push(await processar(id));
+      // avisos de auto-cadastro de motorista que não saíram (ex.: gatilho interrompido)
+      const { data: cads, error: e2 } = await db().rpc("listar_avisos_cadastro_pendentes");
+      if (e2) throw e2;
+      for (const id of (cads || []) as string[]) resultados.push(await avisarCadastro(id));
       return json({ processados: resultados.length, resultados });
     }
     return json({ error: "Modo desconhecido." }, 400);
