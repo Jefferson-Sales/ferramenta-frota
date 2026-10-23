@@ -1,6 +1,6 @@
 -- =============================================================================
 -- C1: "foto inicial" das OS em aberto no histórico de status (INSERT de dado real).
--- SÓ RODAR COM APROVAÇÃO DO JEFFERSON.
+-- APROVADO E EXECUTADO em 23/10/2026 (16 linhas gravadas).
 -- Por quê: o gatilho registra trocas a partir de agora; as OS já abertas ficariam sem
 -- ponto de partida. Grava 1 linha por OS aberta (sem concluída/cancelada) com o status
 -- atual, marcada origem = 'implantacao' — ou seja, "estava neste status quando o
