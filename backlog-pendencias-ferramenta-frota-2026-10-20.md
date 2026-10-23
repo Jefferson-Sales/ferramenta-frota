@@ -9,7 +9,7 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 ## 1. Pendências técnicas já identificadas
 
 - [ ] Testar login após sessão longa (1h+) com aba aberta, pra confirmar na prática que a correção de "sessão expirada" funciona.
-- [ ] Importar dados de `revisoes_preventivas` da planilha-fonte (hoje a tabela está vazia).
+- [x] Importar dados de `revisoes_preventivas` da planilha-fonte. _(23/10/2026: 906 revisões da aba "Controle de Revisões" + 80 marcos "a conferir"; km atual de 325 carros atualizado pela planilha.)_
 - [ ] Multas — fase 2 (dashboard analítico: ranking de infratores, pontuação CNH, custo mensal). Pré-requisito: popular `motorista_identificado_id` nas multas antigas.
 - [ ] Remover a tabela de diagnóstico `_ping_test` (o DROP trava via MCP — fazer manual no SQL Editor do Supabase).
 - [ ] Rotacionar o token `QUESTAR_API_TOKEN` (foi exposto em texto puro no chat em algum momento).
@@ -42,6 +42,11 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 - [x] Checklist: grupo "Equipamentos" (Celular, Cabo de carregador, Carregador, Suporte do celular) nos três tipos. _(22/10/2026)_
 - [x] Checklist: trava de devolução pendente (motorista não retira outro carro sem devolver o anterior; fechamento pelo painel com motivo; data/hora de cada checklist e travas registradas). _(22/10/2026)_
 - [x] Checklist: "Abrir OS" direto de uma anomalia (preenche a OS com placa/motivo e liga a anomalia à OS). _(22/10/2026: várias anomalias do mesmo carro por OS; ao concluir a OS o painel pergunta se cada uma foi resolvida; OS cancelada reabre as anomalias.)_
+- [x] Dash de Gestão de Manutenção (disponibilidade, SLA, quebras, custo, checklist por dia, anomalias, revisões vencidas/vencendo e lista "a conferir" com Feita/Não feita; tudo filtrado por hub; Excel). _(23/10/2026)_
+- [x] Revisões preventivas por km: plano de itens KWID (provisório, a confirmar com a caderneta Renault) dentro da OS de preventiva; OS concluída grava a revisão. _(23/10/2026)_
+- [ ] Plano de revisão para os outros modelos (BYD, Yaris, motos, Strada) — hoje aparecem como "sem plano" e não alertam.
+- [ ] Confirmar a lista de itens do KWID com a caderneta oficial Renault e tirar o aviso "a confirmar" (tabela `revisao_itens_plano`, coluna `provisorio`).
+- [ ] Painel no celular: o menu lateral não se recolhe e o conteúdo fica espremido (vale para todos os módulos, não só o Dash).
 - [ ] Checklist (cosmético, baixa prioridade): na mensagem "Faltam fotos obrigatórias" da Inspeção técnica, listar as fotos sempre na mesma ordem (painel, frontal, traseira) — hoje a ordem varia (`finalizar_checklist` usa `string_agg` sem `order by`).
 - [x] Checklist: auto-cadastro de motorista sem cadastro (campos do pipe de Cadastro de Motoristas do Pipefy), com aprovação só por admin no painel e senha de abastecimento cifrada. _(22/10/2026)_
 - [x] Checklist: limitar tentativas de matrícula por aparelho/IP na Edge Function `checklist`. _(22/10/2026: 5 erros em 15 min bloqueiam 15 min por aparelho e por IP; IP/aparelho guardados só cifrados.)_  Hoje a matrícula (4 dígitos) não tem limite de tentativas, então dá para chutar matrículas e enviar checklists falsos. A resposta só mostra primeiro e último nome, sem dado sensível. Não trava o lançamento, mas tratar em breve.

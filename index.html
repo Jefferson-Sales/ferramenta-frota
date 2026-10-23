@@ -208,6 +208,28 @@
   .kpi-card.clickable:hover{ border-color:var(--line-strong); }
   .kpi-card.sel{ outline:2px solid var(--accent); outline-offset:-1px; }
   .kpi-card.neutral .kpi-num{ color:var(--muted); }
+  /* Gestão de Manutenção */
+  .gm-filtros{ display:flex; flex-wrap:wrap; gap:var(--espaco-5); margin:0 0 var(--espaco-7); font-size:var(--fs-sm); color:var(--muted); }
+  .gm-filtros label{ display:flex; align-items:center; gap:var(--espaco-2); }
+  .gm-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:var(--espaco-7); margin-bottom:var(--espaco-7); }
+  .gm-grid > .card{ margin-bottom:0; }
+  .gm-barras{ padding:var(--espaco-4) var(--espaco-7); }
+  .gm-barra-linha{ display:grid; grid-template-columns:minmax(80px,140px) 1fr auto; align-items:center; gap:var(--espaco-4); padding:3px 0; font-size:var(--fs-sm-2); }
+  .gm-barra-rot{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gm-barra-trilho{ height:10px; background:var(--surface-2); border-radius:var(--raio-pilula); overflow:hidden; }
+  .gm-barra-ench{ display:block; height:100%; background:var(--accent); border-radius:var(--raio-pilula); }
+  .gm-barra-ench.good{ background:var(--good); } .gm-barra-ench.warn{ background:var(--warning); } .gm-barra-ench.crit{ background:var(--critical); }
+  .gm-barra-txt{ font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--muted); white-space:nowrap; }
+  .gm-nota{ font-size:var(--fs-xs); color:var(--muted); margin:0; padding:var(--espaco-3) var(--espaco-7) var(--espaco-5); }
+  .gm-vazio{ font-size:var(--fs-sm-2); color:var(--muted); margin:var(--espaco-3) 0; }
+  .gm-crit{ color:var(--critical); font-weight:600; } .gm-good{ color:var(--good); }
+  .gm-mini-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:var(--espaco-4); padding:var(--espaco-5) var(--espaco-7) 0; }
+  .gm-mini-kpis b{ display:block; font-family:var(--font-display); font-size:var(--fs-2xl); }
+  .gm-mini-kpis span{ font-size:var(--fs-xs); color:var(--muted); }
+  .gm-sub{ font-size:var(--fs-sm); color:var(--muted); margin:var(--espaco-5) var(--espaco-7) var(--espaco-2); }
+  #gm-anomalias .gm-barra-linha{ padding-left:var(--espaco-7); padding-right:var(--espaco-7); }
+  #gm-anomalias{ padding-bottom:var(--espaco-5); }
+  @media (max-width:640px){ .gm-barra-linha{ grid-template-columns:70px 1fr; } .gm-barra-txt{ grid-column:1 / -1; } }
   .qf-busca{ width:120px; text-transform:uppercase; font-family:var(--font-mono); }
   .qf-placa{ font-family:var(--font-mono); font-weight:600; }
   .qf-link{ background:none; border:none; padding:0; color:var(--accent); font:inherit; font-family:var(--font-mono); font-weight:600; cursor:pointer; }
@@ -551,6 +573,89 @@
     </section>
 
     <!-- QUALIDADE DA FROTA (checklists) -->
+    <section class="panel" data-panel="gestao_manutencao">
+      <div class="topline"><h1>Gestão de Manutenção</h1><span class="meta" id="gm-atualizado"></span></div>
+      <p class="section-desc">Visão de gestão da manutenção: disponibilidade, oficinas, quebras, custo, cumprimento do checklist, anomalias e revisões preventivas. Tudo considera só os hubs liberados para você, inclusive totais e planilhas.</p>
+      <div class="gm-filtros">
+        <label>Período <select id="gm-periodo" class="filter-select">
+          <option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option>
+          <option value="365">Últimos 12 meses</option><option value="0">Todo o histórico</option></select></label>
+        <label>Hub <select id="gm-hub" class="filter-select"><option value="">Todos os meus hubs</option></select></label>
+      </div>
+      <div class="kpi-row" id="gm-kpis"></div>
+
+      <div class="gm-grid">
+        <div class="card">
+          <div class="card-head"><h2>Disponibilidade agora, por hub</h2><span class="count" id="gm-disp-count"></span></div>
+          <div class="gm-barras" id="gm-disp-hubs"></div>
+          <p class="gm-nota">Disponível ÷ carros ativos (sem os devolvidos). "Outros": em mobilização, a desmobilizar, fora de operação.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Tendência da disponibilidade</h2></div>
+          <div class="gm-barras" id="gm-tendencia"></div>
+          <p class="gm-nota">Foto diária do status dos carros, tirada às 00:10. Começou em 23/10/2026, então o histórico cresce dia a dia.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Checklist de retirada por dia</h2>
+            <div class="card-head-actions"><button type="button" class="btn qf-mini" id="gm-xls-checklist">⬇ Excel</button></div></div>
+          <div class="gm-barras" id="gm-checklist"></div>
+          <p class="gm-nota">Mesma regra da Visão diária: carros disponíveis no começo do dia que fizeram a Retirada.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Anomalias do checklist</h2></div>
+          <div id="gm-anomalias"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Oficinas: SLA e custo no período</h2><span class="count" id="gm-of-count"></span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Oficina</th><th>OS</th><th>Concluídas</th><th>No prazo</th><th>Atraso médio</th><th>Custo</th></tr></thead>
+          <tbody id="gm-of-body"></tbody></table></div>
+        <p class="gm-nota">No prazo: concluída até 1 dia depois da previsão de retorno. Só conta OS concluída com previsão preenchida. OS canceladas ficam de fora.</p>
+      </div>
+
+      <div class="gm-grid">
+        <div class="card">
+          <div class="card-head"><h2>Quebras por placa (corretiva + sinistro)</h2></div>
+          <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Hub</th><th>Quebras</th><th>Dias parado</th></tr></thead>
+            <tbody id="gm-qb-placa"></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Quebras por hub</h2></div>
+          <div class="table-wrap"><table><thead><tr><th>Hub</th><th>Quebras</th><th>Carros diferentes</th></tr></thead>
+            <tbody id="gm-qb-hub"></tbody></table></div>
+          <div class="card-head" style="border-top:1px solid var(--line)"><h2>Custo por veículo (15 maiores)</h2></div>
+          <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Hub</th><th>OS</th><th>Custo</th></tr></thead>
+            <tbody id="gm-custo-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Revisões preventivas vencidas e vencendo</h2>
+          <div class="card-head-actions">
+            <select id="gm-rev-filtro" class="filter-select"><option value="">Vencidas e vencendo</option><option value="vencida">Só vencidas</option><option value="vencendo">Só vencendo</option></select>
+            <span class="count" id="gm-rev-count"></span>
+            <button type="button" class="btn qf-mini" id="gm-xls-rev">⬇ Excel</button></div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Placa</th><th>Hub</th><th>Situação</th><th>Última revisão</th><th>Próxima</th><th>Km atual</th><th>Faltam</th><th>OS preventiva</th></tr></thead>
+          <tbody id="gm-rev-body"></tbody></table></div>
+        <p class="gm-nota">Próxima = último marco feito + 10.000 km. "Vencendo" a partir de 1.000 km antes. Km atual = o maior entre cadastro, último checklist e última OS. Só modelos com plano de itens (hoje: KWID; itens provisórios, a confirmar com a caderneta Renault).</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Revisões a conferir (planilha sem registro)</h2>
+          <div class="card-head-actions">
+            <select id="gm-conf-filtro" class="filter-select"><option value="a_conferir">A conferir</option><option value="conferidos">Já conferidos</option><option value="">Todos</option></select>
+            <span class="count" id="gm-conf-count"></span>
+            <button type="button" class="btn qf-mini" id="gm-xls-conf">⬇ Excel</button></div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Placa</th><th>Hub</th><th>Marco</th><th>Motivo</th><th>Anotação na planilha</th><th>Situação</th><th data-edit="gestao_manutencao">Conferir</th></tr></thead>
+          <tbody id="gm-conf-body"></tbody></table></div>
+        <p class="gm-nota">Roteiro para confirmar com o hub ou a oficina se a revisão foi feita e só faltou registrar. "Feita" grava a revisão no histórico (data opcional). "Não feita" mantém o marco pendente na conta de vencidas.</p>
+      </div>
+    </section>
+
     <section class="panel" data-panel="qualidade">
       <div class="topline"><h1>Qualidade da Frota</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
       <p class="section-desc">Estado de cada veículo segundo os checklists de Retirada, Devolução e Inspeção técnica. O status considera as anomalias abertas agora. Clique num veículo para ver o histórico e as fotos. Na <strong>Visão diária</strong>, veja quais carros fizeram (ou não) o checklist de retirada em cada dia.</p>
@@ -852,6 +957,19 @@
     <div class="ac-cred" id="ac-cred"></div>
     <div class="ac-aviso">Esta senha não será mostrada de novo.</div>
     <div class="modal-actions"><button type="button" class="btn" id="ac-copiar">Copiar e-mail e senha</button><button type="button" class="btn btn-primary" data-close-modal style="width:auto">Concluir</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-gm-conferir" hidden>
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head"><h3 id="gmc-titulo">Conferir revisão</h3><button class="modal-close" data-close-modal>×</button></div>
+    <p class="section-desc" id="gmc-resumo" style="margin:0 0 var(--espaco-5)"></p>
+    <div class="form-grid">
+      <div class="field" id="gmc-data-wrap"><label for="gmc-data">Data da revisão (opcional)</label><input id="gmc-data" type="date"></div>
+      <div class="field span2"><label for="gmc-obs">Observação (opcional)</label><input id="gmc-obs" maxlength="300" placeholder="Ex.: confirmado com a oficina X por telefone"></div>
+    </div>
+    <div class="field-err" id="gmc-err" hidden></div>
+    <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="button" class="btn btn-primary" id="gmc-confirmar" style="width:auto">Confirmar</button></div>
   </div>
 </div>
 
@@ -1272,6 +1390,7 @@
   var MODULES = [
     {key:"frota", label:"Cadastro da Frota"},
     {key:"manutencao", label:"Manutenções"},
+    {key:"gestao_manutencao", label:"Gestão de Manutenção"},
     {key:"qualidade", label:"Qualidade da Frota"},
     {key:"multas", label:"Multas"},
     {key:"financeiro", label:"Financeiro"},
@@ -1412,6 +1531,7 @@
   function canView(mod){
     if (!perfil || perfil.ativo === false) return false;
     if (mod === "qualidade") return canView("checklist") || canView("manutencao");
+    if (mod === "gestao_manutencao") return canView("manutencao"); // Dash: mesmo acesso (e hubs) de Manutenções
     if (perfil.papel === "admin") return true;
     var vis = perfil.modulos_visualizacao || [];
     var ope = perfil.modulos_operador || [];
@@ -1420,6 +1540,7 @@
   function canEdit(mod){
     if (!perfil || perfil.ativo === false) return false;
     if (mod === "qualidade") return canEdit("checklist") || canEdit("manutencao");
+    if (mod === "gestao_manutencao") return canEdit("manutencao");
     if (perfil.papel === "admin") return true;
     return (perfil.modulos_operador || []).indexOf(mod) > -1;
   }
@@ -1470,6 +1591,7 @@
     if (key === "frota") { loadFrota(); ajustarStickyFrota(); }
     if (key === "manutencao") loadManutencao(true);
     if (key === "qualidade"){ loadQualidade(); if (QF.tela === "diaria") loadQualidadeDiaria(); }
+    if (key === "gestao_manutencao") loadGestaoManutencao();
     if (key === "multas") loadMultas();
     if (key === "financeiro") loadFinanceiro();
     if (key === "eletrificacao") loadEletrificacao();
@@ -3688,6 +3810,227 @@
   }
   document.getElementById("qd-xls-fez").addEventListener("click", function(){ qdBaixar("fizeram", this); });
   document.getElementById("qd-xls-nao").addEventListener("click", function(){ qdBaixar("nao_fizeram", this); });
+
+  // ---------------- Gestão de Manutenção (Dash) ----------------
+  // Números: RPC dash_manutencao (security invoker → RLS + hub_liberado do usuário). Listas: v_revisoes_status e
+  // revisoes_a_conferir (mesma regra). "Feita"/"Não feita": RPC conferir_revisao (checa módulo e hub no servidor).
+  var GM = { hubs: {}, dados: null, rev: [], conf: [], base: null, carregando: 0, conferindo: null };
+  var GM_MOTIVO = { proxima_indicada: "Planilha indicava só a próxima", sem_registro: "Sem registro", nao_fez: "Planilha diz \"não fez\"",
+                    km_anotado: "Só km anotado", duplicada_divergente: "Placa duplicada, datas diferentes" };
+  var GM_SIT = { vencida: ["Vencida", "crit"], vencendo: ["Vencendo", "warn"], em_dia: ["Em dia", "good"], sem_plano: ["Sem plano", "neutral"] };
+  function gmNum(n){ return Number(n || 0).toLocaleString("pt-BR"); }
+  function gmPct(a, b){ return b ? Math.round(100 * a / b) : null; }
+  function gmMarco(m){ return m ? (m / 1000) + " mil" : "—"; }
+  function gmDec(n){ return n == null ? "—" : String(n).replace(".", ","); }
+  function gmHub(id){ return GM.hubs[id] || "—"; }
+  function gmBase(){
+    if (GM.base) return GM.base;
+    GM.base = rest("hubs?select=id,nome&order=nome" + hubsQS("id")).then(function(rows){
+      GM.hubs = {};
+      var s = document.getElementById("gm-hub"), v = s.value;
+      s.innerHTML = '<option value="">Todos os meus hubs</option>' + (rows || []).map(function(h){ GM.hubs[h.id] = h.nome; return '<option value="' + h.id + '">' + esc(h.nome) + "</option>"; }).join("");
+      s.value = v;
+    }).catch(function(e){ GM.base = null; throw e; });
+    return GM.base;
+  }
+  // barra horizontal: rótulo | barra | texto (cor pela faixa [bom, atenção] em %)
+  function gmBarra(rotulo, valor, total, texto, faixas, classe){
+    var p = total ? Math.max(0, Math.min(100, 100 * valor / total)) : 0;
+    var cls = classe || (!faixas ? "" : p >= faixas[0] ? "good" : p >= faixas[1] ? "warn" : "crit");
+    return '<div class="gm-barra-linha"><span class="gm-barra-rot" title="' + esc(rotulo) + '">' + esc(rotulo) + '</span><span class="gm-barra-trilho"><span class="gm-barra-ench ' + cls + '" style="width:' + p.toFixed(1) + '%"></span></span><span class="gm-barra-txt">' + texto + "</span></div>";
+  }
+  function loadGestaoManutencao(){
+    var tok = ++GM.carregando, hub = document.getElementById("gm-hub").value || null, dias = parseInt(document.getElementById("gm-periodo").value, 10);
+    document.getElementById("gm-kpis").innerHTML = '<div class="kpi-card neutral"><div class="kpi-num">…</div><div class="kpi-label">Carregando</div></div>';
+    gmBase().then(function(){
+      return Promise.all([
+        rest("rpc/dash_manutencao", { method: "POST", body: { p_dias: dias, p_hub: hub } }),
+        rest("v_revisoes_status?select=*" + (hub ? "&hub_id=eq." + hub : "")),
+        rest("revisoes_a_conferir?select=id,marco_km,motivo,anotacao,status,conferido_em,conferido_obs,veiculo_id,veiculos!inner(placa,hub_id)" + (hub ? "&veiculos.hub_id=eq." + hub : ""))
+      ]);
+    }).then(function(r){
+      if (tok !== GM.carregando) return;
+      GM.dados = r[0] || {};
+      GM.rev = (r[1] || []).map(function(v){ v.situacao = Regras.situacaoRevisao(v.km_ref, v.proximo_marco, v.tem_plano); return v; });
+      GM.conf = (r[2] || []).sort(function(a, b){ return a.veiculos.placa.localeCompare(b.veiculos.placa, "pt-BR") || a.marco_km - b.marco_km; });
+      document.getElementById("gm-atualizado").textContent = "Atualizado às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      renderGestaoManutencao();
+    }).catch(function(e){
+      if (tok !== GM.carregando) return;
+      document.getElementById("gm-kpis").innerHTML = '<div class="kpi-card crit"><div class="kpi-num">!</div><div class="kpi-label">Erro ao carregar: ' + esc(e.message) + "</div></div>";
+    });
+  }
+  function renderGestaoManutencao(){
+    var d = GM.dados || {}, disp = d.disponibilidade || {}, an = d.anomalias || {}, rv = d.revisoes || {};
+    var ck = d.checklist_dias || [], ckEsp = 0, ckFez = 0;
+    ck.forEach(function(c){ ckEsp += c.esperados; ckFez += c.fizeram; });
+    var pDisp = gmPct(disp.disponivel, disp.total), pCk = gmPct(ckFez, ckEsp);
+    var aConferir = GM.conf.filter(function(c){ return c.status === "a_conferir"; }).length;
+    document.getElementById("gm-kpis").innerHTML = [
+      { num: pDisp == null ? "—" : pDisp + "%", label: "Disponíveis agora (" + gmNum(disp.disponivel) + " de " + gmNum(disp.total) + ")", cls: pDisp == null ? "neutral" : pDisp >= 90 ? "good" : pDisp >= 80 ? "warn" : "crit" },
+      { num: gmNum(disp.indisponivel), label: "Indisponíveis agora", cls: disp.indisponivel ? "warn" : "good" },
+      { num: pCk == null ? "—" : pCk + "%", label: "Checklist de retirada no período (" + gmNum(ckFez) + " de " + gmNum(ckEsp) + ")", cls: pCk == null ? "neutral" : pCk >= 90 ? "good" : pCk >= 70 ? "warn" : "crit" },
+      { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good" },
+      { num: gmNum(rv.vencidas), label: "Revisões vencidas", cls: rv.vencidas ? "crit" : "good" },
+      { num: gmNum(rv.vencendo), label: "Revisões vencendo (até 1.000 km)", cls: rv.vencendo ? "warn" : "good" },
+      { num: gmNum(aConferir), label: "Revisões a conferir", cls: aConferir ? "warn" : "good" }
+    ].map(function(k){ return '<div class="kpi-card ' + k.cls + '"><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></div>"; }).join("");
+
+    var hubs = disp.por_hub || [];
+    document.getElementById("gm-disp-count").textContent = hubs.length + (hubs.length === 1 ? " hub" : " hubs");
+    document.getElementById("gm-disp-hubs").innerHTML = hubs.length ? hubs.map(function(h){
+      var outros = h.total - h.disponivel - h.indisponivel;
+      return gmBarra(h.hub || "Sem hub", h.disponivel, h.total, gmNum(h.disponivel) + "/" + gmNum(h.total) + " (" + gmPct(h.disponivel, h.total) + "%)" +
+        (h.indisponivel ? ' · <span class="gm-crit">' + gmNum(h.indisponivel) + " indisp.</span>" : "") + (outros ? " · " + gmNum(outros) + " outros" : ""), [90, 80]);
+    }).join("") : '<p class="gm-vazio">Nenhum carro nos seus hubs.</p>';
+
+    var tend = d.tendencia || [];
+    document.getElementById("gm-tendencia").innerHTML = tend.length ? tend.map(function(t){
+      return gmBarra(dateBR(t.dia), t.disponivel, t.total, gmNum(t.disponivel) + "/" + gmNum(t.total) + " (" + gmPct(t.disponivel, t.total) + "%)", [90, 80]);
+    }).join("") : '<p class="gm-vazio">Ainda sem fotos diárias no período.</p>';
+
+    document.getElementById("gm-checklist").innerHTML = ck.length ? ck.map(function(c){
+      return gmBarra(dateBR(c.dia), c.fizeram, c.esperados, gmNum(c.fizeram) + "/" + gmNum(c.esperados) + (c.esperados ? " (" + gmPct(c.fizeram, c.esperados) + "%)" : ""), [90, 70]);
+    }).join("") : '<p class="gm-vazio">Sem dias com frota esperada no período (a Visão diária começou em 21/10/2026).</p>';
+    document.getElementById("gm-xls-checklist").disabled = !ck.length;
+
+    var sev = an.abertas_por_sev || {};
+    document.getElementById("gm-anomalias").innerHTML =
+      '<div class="gm-mini-kpis">' +
+        "<div><b>" + gmNum(an.reportadas_periodo) + "</b><span>reportadas no período</span></div>" +
+        '<div><b class="gm-good">' + gmNum(an.resolvidas_periodo) + "</b><span>resolvidas no período</span></div>" +
+        "<div><b>" + gmNum(an.descartadas_periodo) + "</b><span>descartadas no período</span></div>" +
+        "<div><b>" + (an.dias_medio_resolver == null ? "—" : gmDec(an.dias_medio_resolver) + " d") + "</b><span>tempo médio até resolver</span></div>" +
+      "</div>" +
+      '<p class="gm-sub">Abertas agora, por severidade (inclui em reparo): ' + gmNum(an.abertas_agora) + "</p>" +
+      ["critica", "alta", "media", "baixa"].map(function(s){
+        return gmBarra({ critica: "Crítica", alta: "Alta", media: "Média", baixa: "Baixa" }[s], sev[s] || 0, Math.max(1, an.abertas_agora || 0), gmNum(sev[s]), null, { critica: "crit", alta: "crit", media: "warn", baixa: "" }[s]);
+      }).join("");
+
+    var of = d.oficinas || [];
+    document.getElementById("gm-of-count").textContent = of.length + (of.length === 1 ? " oficina" : " oficinas");
+    document.getElementById("gm-of-body").innerHTML = of.length ? of.map(function(o){
+      var pz = gmPct(o.no_prazo, o.com_previsao);
+      return "<tr><td>" + esc(o.oficina) + "</td><td>" + gmNum(o.qtd_os) + "</td><td>" + gmNum(o.concluidas) + "</td><td>" +
+        (pz == null ? "—" : pill(pz + "% (" + o.no_prazo + "/" + o.com_previsao + ")", pz >= 80 ? "good" : pz >= 60 ? "warn" : "crit")) + "</td><td>" +
+        (o.dias_medio_atraso == null ? "—" : gmDec(o.dias_medio_atraso) + " d") + "</td><td>" + money(o.custo_total) + "</td></tr>";
+    }).join("") : '<tr><td colspan="6" class="empty-row">Nenhuma OS com oficina no período.</td></tr>';
+
+    var qp = d.quebras_placa || [], qh = d.quebras_hub || [], cv = d.custo_veiculo || [];
+    document.getElementById("gm-qb-placa").innerHTML = qp.length ? qp.map(function(q){
+      return "<tr><td><strong>" + esc(q.placa) + "</strong></td><td>" + esc(q.hub || "—") + "</td><td>" + gmNum(q.qtd) + "</td><td>" + gmDec(q.dias_parado) + "</td></tr>";
+    }).join("") : '<tr><td colspan="4" class="empty-row">Nenhuma quebra no período.</td></tr>';
+    document.getElementById("gm-qb-hub").innerHTML = qh.length ? qh.map(function(q){
+      return "<tr><td>" + esc(q.hub || "Sem hub") + "</td><td>" + gmNum(q.qtd) + "</td><td>" + gmNum(q.placas) + "</td></tr>";
+    }).join("") : '<tr><td colspan="3" class="empty-row">Nenhuma quebra no período.</td></tr>';
+    document.getElementById("gm-custo-body").innerHTML = cv.length ? cv.map(function(c){
+      return "<tr><td><strong>" + esc(c.placa) + "</strong></td><td>" + esc(c.hub || "—") + "</td><td>" + gmNum(c.qtd_os) + "</td><td>" + money(c.custo_total) + "</td></tr>";
+    }).join("") : '<tr><td colspan="4" class="empty-row">Nenhuma OS no período.</td></tr>';
+
+    renderGmRevisoes(); renderGmConferir();
+  }
+  function gmRevLista(){
+    var f = document.getElementById("gm-rev-filtro").value;
+    return GM.rev.filter(function(v){ return f ? v.situacao === f : (v.situacao === "vencida" || v.situacao === "vencendo"); })
+      .sort(function(a, b){ return a.km_faltam - b.km_faltam; });
+  }
+  function renderGmRevisoes(){
+    var ls = gmRevLista();
+    document.getElementById("gm-rev-count").textContent = ls.length + (ls.length === 1 ? " carro" : " carros");
+    document.getElementById("gm-xls-rev").disabled = !ls.length;
+    document.getElementById("gm-rev-body").innerHTML = ls.length ? ls.map(function(v){
+      var s = GM_SIT[v.situacao];
+      return "<tr><td><strong>" + esc(v.placa) + "</strong></td><td>" + esc(gmHub(v.hub_id)) + "</td><td>" + pill(s[0], s[1]) +
+        (v.marcos_a_conferir ? ' <span class="qf-sub" title="Marcos da planilha sem registro">' + v.marcos_a_conferir + " a conferir</span>" : "") + "</td><td>" +
+        (v.ultimo_marco ? gmMarco(v.ultimo_marco) + (v.ultima_revisao_em ? ' <span class="qf-sub">' + dateBR(v.ultima_revisao_em) + "</span>" : "") : "nenhuma") + "</td><td>" +
+        gmMarco(v.proximo_marco) + "</td><td>" + gmNum(Math.round(v.km_ref)) + "</td><td>" +
+        (v.km_faltam <= 0 ? '<span class="gm-crit">passou ' + gmNum(-Math.round(v.km_faltam)) + " km</span>" : gmNum(Math.round(v.km_faltam)) + " km") + "</td><td>" +
+        (v.os_preventiva_aberta ? pill("aberta", "good") : "—") + "</td></tr>";
+    }).join("") : '<tr><td colspan="8" class="empty-row">Nenhum carro nessa situação.</td></tr>';
+  }
+  function gmConfLista(){
+    var f = document.getElementById("gm-conf-filtro").value;
+    return GM.conf.filter(function(c){ return f === "a_conferir" ? c.status === "a_conferir" : f === "conferidos" ? c.status !== "a_conferir" : true; });
+  }
+  function renderGmConferir(){
+    var ls = gmConfLista(), podeEditar = canEdit("gestao_manutencao");
+    document.getElementById("gm-conf-count").textContent = ls.length + (ls.length === 1 ? " marco" : " marcos");
+    document.getElementById("gm-xls-conf").disabled = !ls.length;
+    document.getElementById("gm-conf-body").innerHTML = ls.length ? ls.map(function(c){
+      var st = c.status === "a_conferir" ? pill("A conferir", "warn") : c.status === "feita" ? pill("Feita", "good") : pill("Não feita", "crit");
+      if (c.status !== "a_conferir") st += ' <span class="qf-sub">' + dateBR(c.conferido_em) + (c.conferido_obs ? " — " + esc(c.conferido_obs) : "") + "</span>";
+      return "<tr><td><strong>" + esc(c.veiculos.placa) + "</strong></td><td>" + esc(gmHub(c.veiculos.hub_id)) + "</td><td>" + gmMarco(c.marco_km) + "</td><td>" +
+        esc(GM_MOTIVO[c.motivo] || c.motivo) + '</td><td class="qf-sub">' + esc(c.anotacao || "—") + "</td><td>" + st + "</td>" +
+        (podeEditar ? "<td>" + (c.status === "a_conferir" ? '<button type="button" class="btn qf-mini" data-gm-feita="' + c.id + '">Feita</button> <button type="button" class="btn qf-mini" data-gm-naofeita="' + c.id + '">Não feita</button>' : "") + "</td>"
+                    : '<td data-edit="gestao_manutencao" hidden></td>') + "</tr>";
+    }).join("") : '<tr><td colspan="7" class="empty-row">' + (document.getElementById("gm-conf-filtro").value === "a_conferir" ? "Nada a conferir." : "Nenhum marco nesse filtro.") + "</td></tr>";
+  }
+  document.getElementById("gm-periodo").addEventListener("change", loadGestaoManutencao);
+  document.getElementById("gm-hub").addEventListener("change", loadGestaoManutencao);
+  document.getElementById("gm-rev-filtro").addEventListener("change", renderGmRevisoes);
+  document.getElementById("gm-conf-filtro").addEventListener("change", renderGmConferir);
+  document.getElementById("gm-conf-body").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-gm-feita],[data-gm-naofeita]"); if (!b) return;
+    var feita = b.hasAttribute("data-gm-feita"), id = b.dataset.gmFeita || b.dataset.gmNaofeita;
+    var c = GM.conf.filter(function(x){ return x.id === id; })[0]; if (!c) return;
+    GM.conferindo = { id: id, feita: feita };
+    document.getElementById("gmc-titulo").textContent = feita ? "Marcar revisão como feita" : "Marcar revisão como não feita";
+    document.getElementById("gmc-resumo").innerHTML = "<b>" + esc(c.veiculos.placa) + "</b> · revisão de " + gmMarco(c.marco_km) + " km · planilha: " + esc(c.anotacao || GM_MOTIVO[c.motivo] || "") +
+      (feita ? "<br>A revisão entra no histórico do carro e o próximo marco é recalculado." : "<br>O marco continua pendente: o carro segue como vencido se o km já passou.");
+    document.getElementById("gmc-data-wrap").hidden = !feita;
+    document.getElementById("gmc-data").value = "";
+    document.getElementById("gmc-data").max = isoParaCampoLocal(new Date().toISOString()).slice(0, 10);
+    document.getElementById("gmc-obs").value = "";
+    document.getElementById("gmc-confirmar").textContent = feita ? "Marcar como feita" : "Marcar como não feita";
+    setErr("gmc-err", "");
+    openModal("modal-gm-conferir");
+  });
+  document.getElementById("gmc-confirmar").addEventListener("click", function(){
+    var c = GM.conferindo; if (!c) return;
+    var btn = this; btn.disabled = true;
+    rest("rpc/conferir_revisao", { method: "POST", body: { p_id: c.id, p_feita: c.feita,
+      p_data: c.feita ? (document.getElementById("gmc-data").value || null) : null, p_obs: document.getElementById("gmc-obs").value.trim() || null } }).then(function(){
+      document.getElementById("modal-gm-conferir").hidden = true;
+      toast(c.feita ? "Revisão marcada como feita e registrada no histórico." : "Marcada como não feita.");
+      loadGestaoManutencao();
+    }).catch(function(e){ setErr("gmc-err", e.message); }).finally(function(){ btn.disabled = false; });
+  });
+  // Excel das listas do Dash (mesmo gerador da Visão diária)
+  function gmNomeArquivo(tipo){
+    var hub = document.getElementById("gm-hub").value;
+    var nome = hub ? gmHub(hub).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") : "todos-hubs";
+    return tipo + "_" + isoParaCampoLocal(new Date().toISOString()).slice(0, 10) + "_" + nome + ".xlsx";
+  }
+  function gmBaixar(btn, aba, arquivo, linhas){
+    var txt = btn.textContent; btn.disabled = true; btn.textContent = "Gerando…";
+    carregarXlsx().then(function(X){
+      var ws = X.utils.aoa_to_sheet(linhas);
+      ws["!cols"] = linhas[0].map(function(h){ return { wch: Math.max(12, h.length + 2) }; });
+      ws["!autofilter"] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: linhas.length - 1, c: linhas[0].length - 1 } }) };
+      var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, aba); X.writeFile(wb, arquivo);
+    }).catch(function(e){ toast("Não foi possível gerar o Excel: " + e.message, true); })
+      .finally(function(){ btn.textContent = txt; btn.disabled = false; });
+  }
+  document.getElementById("gm-xls-checklist").addEventListener("click", function(){
+    var ck = (GM.dados && GM.dados.checklist_dias) || [];
+    gmBaixar(this, "Checklist por dia", gmNomeArquivo("checklist_por_dia"), [["Data", "Deveriam fazer", "Fizeram", "Não fizeram", "% cumprimento"]].concat(ck.map(function(c){
+      return [xlsData(c.dia), c.esperados, c.fizeram, c.esperados - c.fizeram, c.esperados ? Math.round(1000 * c.fizeram / c.esperados) / 10 : ""];
+    })));
+  });
+  document.getElementById("gm-xls-rev").addEventListener("click", function(){
+    gmBaixar(this, "Revisões", gmNomeArquivo("revisoes_vencidas_vencendo"), [["Placa", "Modelo", "Hub", "Situação", "Último marco feito", "Data da última revisão", "Próximo marco", "Km atual", "Fonte do km", "Km faltando (negativo = passou)", "Marcos a conferir", "OS preventiva aberta"]]
+      .concat(gmRevLista().map(function(v){
+        return [v.placa, v.modelo || "", gmHub(v.hub_id), GM_SIT[v.situacao][0], v.ultimo_marco || "", v.ultima_revisao_em ? xlsData(v.ultima_revisao_em) : "", v.proximo_marco, Math.round(v.km_ref),
+                v.km_fonte, Math.round(v.km_faltam), v.marcos_a_conferir || 0, v.os_preventiva_aberta ? "Sim" : "Não"];
+      })));
+  });
+  document.getElementById("gm-xls-conf").addEventListener("click", function(){
+    gmBaixar(this, "A conferir", gmNomeArquivo("revisoes_a_conferir"), [["Placa", "Hub", "Marco (km)", "Motivo", "Anotação na planilha", "Situação", "Conferido em", "Observação"]]
+      .concat(gmConfLista().map(function(c){
+        return [c.veiculos.placa, gmHub(c.veiculos.hub_id), c.marco_km, GM_MOTIVO[c.motivo] || c.motivo, c.anotacao || "",
+                { a_conferir: "A conferir", feita: "Feita", nao_feita: "Não feita" }[c.status], c.conferido_em ? xlsData(qdDiaDe(c.conferido_em)) : "", c.conferido_obs || ""];
+      })));
+  });
 
   // ---------------- Cadastros de motoristas (só admin) ----------------
   // Dados pessoais e senha: só admin (RLS + funções revelar_* que registram cada acesso em senha_acessos).
