@@ -868,9 +868,10 @@
         <div class="field"><label for="cd-motivo">Motivo (se reprovar)</label>
           <select id="cd-motivo"><option value="">Selecione…</option></select></div>
       </div>
-      <label class="checklist-item"><input type="checkbox" id="cd-conferi"><span>Conferi os dados, a foto da CNH e a matrícula no RH.</span></label>
+      <label class="checklist-item"><input type="checkbox" id="cd-conferi"><span>Conferi os dados, a foto da CNH e a matrícula no RH (para aprovar).</span></label>
+      <p class="qf-sub" id="cd-dica">Para <b>reprovar</b>, escolha o motivo. Para <b>aprovar</b>, marque que conferiu. Só um dos dois botões fica ativo por vez.</p>
       <div class="field-err" id="cd-err" hidden></div>
-      <div class="modal-actions"><button type="button" class="btn btn-danger" id="cd-reprovar">Reprovar</button><button type="button" class="btn btn-primary" id="cd-aprovar" style="width:auto">Aprovar cadastro</button></div>
+      <div class="modal-actions"><button type="button" class="btn btn-danger" id="cd-reprovar" disabled>Reprovar cadastro</button><button type="button" class="btn btn-primary" id="cd-aprovar" style="width:auto" disabled>Aprovar cadastro</button></div>
     </div>
     <div class="detail-section" id="cd-resultado" hidden></div>
   </div>
@@ -3722,6 +3723,7 @@
         document.getElementById("cd-matricula").value = c.matricula;
         document.getElementById("cd-motivo").value = "";
         document.getElementById("cd-conferi").checked = false;
+        cdBotoes();
         setErr("cd-err", "");
       } else {
         document.getElementById("cd-resultado").innerHTML = "<h4>Avaliação</h4>" + (c.status === "aprovado"
@@ -3741,12 +3743,28 @@
     }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ return j && j.signedURL ? SUPA_URL + "/storage/v1" + j.signedURL : null; })
       .catch(function(){ return null; });
   }
+  // Aprovar e reprovar nunca ficam ativos juntos: escolher motivo desmarca "conferi" e vice-versa
+  // (evita aprovar sem querer — em 22/10/2026 dois testes de reprovação terminaram aprovados).
+  function cdBotoes(){
+    var motivo = document.getElementById("cd-motivo").value, conferi = document.getElementById("cd-conferi").checked;
+    document.getElementById("cd-reprovar").disabled = !motivo || conferi;
+    document.getElementById("cd-aprovar").disabled = !conferi || !!motivo;
+  }
+  document.getElementById("cd-motivo").addEventListener("change", function(){
+    if (this.value) document.getElementById("cd-conferi").checked = false;
+    setErr("cd-err", ""); cdBotoes();
+  });
+  document.getElementById("cd-conferi").addEventListener("change", function(){
+    if (this.checked) document.getElementById("cd-motivo").value = "";
+    setErr("cd-err", ""); cdBotoes();
+  });
   document.getElementById("cd-aprovar").addEventListener("click", function(){
     var c = MT.aberto; if (!c) return;
     var mat = document.getElementById("cd-matricula").value.trim();
     if (!/^\d{1,10}$/.test(mat)){ setErr("cd-err", "Informe a matrícula conferida (só números)."); return; }
     if (!document.getElementById("cd-conferi").checked){ setErr("cd-err", "Marque que conferiu os dados e a matrícula no RH."); return; }
-    if (!confirm("Aprovar o cadastro de " + c.nome + " com a matrícula " + mat + "? O motorista passa a poder fazer checklist.")) return;
+    if (document.getElementById("cd-motivo").value){ setErr("cd-err", "Há um motivo de reprovação escolhido. Limpe o motivo para aprovar."); return; }
+    if (!confirm("APROVAR o cadastro de " + c.nome + "?\n\nMatrícula: " + mat + "\nO motorista passa a poder fazer checklist.")) return;
     var btn = this; btn.disabled = true;
     rest("rpc/aprovar_cadastro_motorista", { method: "POST", body: { p_cadastro: c.id, p_matricula: mat } }).then(function(){
       document.getElementById("modal-cadastro").hidden = true;
@@ -3758,7 +3776,8 @@
     var c = MT.aberto; if (!c) return;
     var motivo = document.getElementById("cd-motivo").value;
     if (!motivo){ setErr("cd-err", "Escolha o motivo da reprovação."); return; }
-    if (!confirm("Reprovar o cadastro de " + c.nome + " por \"" + MOTIVOS_REPROVACAO[motivo] + "\"? O motorista verá esse motivo e poderá reenviar.")) return;
+    if (document.getElementById("cd-conferi").checked){ setErr("cd-err", "Desmarque \"Conferi\" para reprovar."); return; }
+    if (!confirm("REPROVAR o cadastro de " + c.nome + "?\n\nMotivo: " + MOTIVOS_REPROVACAO[motivo] + "\nO motorista verá esse motivo e poderá reenviar.")) return;
     var btn = this; btn.disabled = true;
     rest("rpc/reprovar_cadastro_motorista", { method: "POST", body: { p_cadastro: c.id, p_motivo: motivo } }).then(function(){
       document.getElementById("modal-cadastro").hidden = true;
