@@ -1,55 +1,14 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ferramenta da Frota</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
 <style>
   /* layout: topbar fixo + sidebar de módulos (gated por permissão) + painel de conteúdo por módulo */
-  :root{
-    --paper:#f6f5f0;
-    --surface:#ffffff;
-    --surface-2:#efeee7;
-    --ink:#1a231f;
-    --muted:#5c645d;
-    --faint:#8a8f87;
-    --line:#e2e0d5;
-    --line-strong:#cfccbd;
-    --accent:#0e7c66;
-    --accent-ink:#ffffff;
-    --accent-soft:#e2f2ee;
-    --accent-soft-line:#bfe1d7;
-    --good:#1e8e4f;
-    --good-soft:#e5f4ea;
-    --warning:#a8690a;
-    --warning-soft:#faf0dd;
-    --critical:#c23b3b;
-    --critical-soft:#fbe9e8;
-    --shadow: 0 1px 2px rgba(20,25,20,.04), 0 8px 24px rgba(20,25,20,.05);
-    --radius: 10px;
-    --font-display: "Archivo", ui-sans-serif, system-ui, sans-serif;
-    --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-    /* tokens de forma: mesmos valores de antes, agora com nome (não mudam com o tema) */
-    --fs-3xs:10.5px; --fs-2xs:11px; --fs-xs:11.5px; --fs-sm:12px; --fs-sm-2:12.5px; --fs-md:13px; --fs-md-2:13.5px; --fs-lg:14px; --fs-lg-2:14.5px; --fs-xl:16px; --fs-xl-2:17px; --fs-2xl:18px; --fs-2xl-2:19px; --fs-3xl:20px; --fs-3xl-2:21px; --fs-4xl:24px; --fs-6xl:34px;
-    --raio-xs:2px; --raio-sm:6px; --raio-md-2:7px; --raio-md:8px; --raio-md-3:9px; --raio-lg:10px; --raio-xl:12px; --raio-2xl:22px; --raio-pilula:999px;
-    --espaco-1:4px; --espaco-2:6px; --espaco-3:8px; --espaco-4:10px; --espaco-5:12px; --espaco-6:14px; --espaco-7:16px; --espaco-8:18px;
-    --texto-sobre-cor:#ffffff; --fundo-modal:rgba(10,15,12,.4); --fundo-legenda-foto:rgba(0,0,0,.6);
-  }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
-      --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
-      --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"]{
-    --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
-    --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
-    --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
-    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
-  }
   *{box-sizing:border-box;}
-  body{ background:var(--paper); color:var(--ink); font-family:var(--font-body); }
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-body); }
   h1,h2,h3{ font-family:var(--font-display); margin:0; text-wrap:balance; }
   button{ font-family:var(--font-body); cursor:pointer; }
   input,select,textarea{ font-family:var(--font-body); font-size:var(--fs-md-2); }
@@ -60,7 +19,7 @@
   #view-login{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
   .login-card{ width:100%; max-width:360px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:28px; }
   .login-brand{ display:flex; align-items:center; gap:var(--espaco-4); margin-bottom:22px; }
-  .login-brand .mark{ width:36px; height:36px; border-radius:var(--raio-md-3); background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-xl); flex:none; }
+  .login-brand .mark{ width:36px; height:36px; border-radius:var(--raio-md-3); background:var(--accent-marca); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-xl); flex:none; }
   .login-brand .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-xl-2); letter-spacing:-0.01em; }
   .login-brand .sub{ font-size:var(--fs-sm); color:var(--muted); margin-top:1px; }
   .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:var(--espaco-6); }
@@ -69,7 +28,7 @@
     padding:9px 11px; border:1px solid var(--line-strong); border-radius:var(--raio-md-2); background:var(--surface); color:var(--ink); width:100%;
   }
   .field input:focus, .field select:focus, .field textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
-  .btn{ border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); border-radius:var(--raio-md-2); padding:9px var(--espaco-6); font-size:var(--fs-md-2); font-weight:600; }
+  .btn{ border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); border-radius:var(--raio-botao); padding:9px var(--espaco-6); font-size:var(--fs-md-2); font-weight:600; }
   .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
   .btn-primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); width:100%; }
   .btn-primary:disabled{ opacity:.55; cursor:default; }
@@ -82,13 +41,13 @@
   #view-app.active{ display:flex; }
   .sidebar{ width:208px; flex:none; background:var(--surface); border-right:1px solid var(--line); padding:var(--espaco-8) var(--espaco-5); display:flex; flex-direction:column; gap:var(--espaco-1); position:sticky; top:0; height:100vh; overflow-y:auto; }
   .sidebar .brand{ display:flex; align-items:center; gap:9px; padding:var(--espaco-1) var(--espaco-3) var(--espaco-7); }
-  .sidebar .brand .mark{ width:28px; height:28px; border-radius:var(--raio-md-2); background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-md); flex:none; }
+  .sidebar .brand .mark{ width:28px; height:28px; border-radius:var(--raio-md-2); background:var(--accent-marca); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-md); flex:none; }
   .sidebar .brand .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-lg-2); letter-spacing:-0.01em; }
-  .navbtn{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:none; border-radius:var(--raio-md-2); padding:9px var(--espaco-4); font-size:var(--fs-md-2); font-weight:600; color:var(--muted); }
+  .navbtn{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:none; border-radius:var(--raio-botao); padding:9px var(--espaco-4); font-size:var(--fs-md-2); font-weight:600; color:var(--muted); }
   .navbtn:hover{ background:var(--surface-2); color:var(--ink); }
   .navbtn.active{ background:var(--accent-soft); color:var(--accent); }
   .navbtn .dot{ width:7px; height:7px; border-radius:var(--raio-pilula); background:var(--line-strong); flex:none; }
-  .navbtn.active .dot{ background:var(--accent); }
+  .navbtn.active .dot{ background:var(--accent-marca); }
   .nav-badge{ margin-left:auto; background:var(--critical); color:var(--texto-sobre-cor); font-size:var(--fs-3xs); font-weight:700; border-radius:var(--raio-pilula); padding:1px 7px; }
   .sidebar-foot{ margin-top:auto; border-top:1px solid var(--line); padding-top:var(--espaco-5); }
   .user-chip{ display:flex; align-items:center; gap:var(--espaco-3); padding:var(--espaco-2) var(--espaco-3); }
@@ -137,7 +96,25 @@
   .ac-cred{ font-family:var(--font-mono); font-size:var(--fs-md-2); background:var(--surface-2); border-radius:var(--raio-md); padding:var(--espaco-5) var(--espaco-6); line-height:1.8; word-break:break-all; }
   .ac-aviso{ background:var(--warning-soft); color:var(--warning); border-radius:var(--raio-md-2); padding:var(--espaco-3) 11px; font-size:var(--fs-sm-2); margin-top:var(--espaco-5); }
 
-  .main{ flex:1; min-width:0; padding:22px 28px 60px; max-width:1040px; }
+  .main{ flex:1; min-width:0; padding:22px 28px 60px; max-width:1280px; }
+
+  /* ---------- celular/tablet: menu lateral vira gaveta aberta pelo ☰ ---------- */
+  .mobile-bar, .sidebar-fundo{ display:none; }
+  @media (max-width:900px){
+    #view-app.active{ flex-direction:column; }
+    .mobile-bar{ display:flex; align-items:center; gap:var(--espaco-4); position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--line); padding:var(--espaco-3) var(--espaco-7); }
+    .mobile-bar .mark{ width:28px; height:28px; border-radius:var(--raio-md-2); background:var(--accent-marca); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-md); flex:none; }
+    .mobile-bar .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-lg-2); }
+    .menu-toggle{ width:40px; height:40px; flex:none; display:flex; align-items:center; justify-content:center; border:1px solid var(--line-strong); border-radius:var(--raio-botao); background:var(--surface); color:var(--ink); font-size:var(--fs-2xl); line-height:1; }
+    .menu-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+    .sidebar{ position:fixed; left:0; top:0; bottom:0; height:100vh; height:100dvh; width:min(264px, 84vw); z-index:35; box-shadow:var(--shadow-forte);
+      transform:translateX(-100%); visibility:hidden; transition:transform .2s ease, visibility 0s linear .2s; }
+    #view-app.menu-aberto .sidebar{ transform:none; visibility:visible; transition:transform .2s ease; }
+    #view-app.menu-aberto .sidebar-fundo{ display:block; position:fixed; inset:0; background:var(--fundo-modal); z-index:34; }
+    .main{ padding:var(--espaco-7) var(--espaco-7) 48px; max-width:none; width:100%; }
+    .frota-sticky-head{ position:static; }
+  }
+  @media (max-width:900px) and (prefers-reduced-motion:reduce){ .sidebar, #view-app.menu-aberto .sidebar{ transition:none; } }
   .topline{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--espaco-5); margin-bottom:var(--espaco-1); flex-wrap:wrap; }
   .topline h1{ font-size:var(--fs-3xl); font-weight:800; letter-spacing:-0.01em; }
   .topline .meta{ font-size:var(--fs-sm-2); color:var(--muted); }
@@ -155,19 +132,19 @@
   .frota-sticky-head{ position:sticky; top:0; z-index:6; background:var(--paper); padding-top:2px; padding-bottom:2px; margin-bottom:0; }
   .frota-sticky-card-head{ margin-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0; box-shadow:none; padding-bottom:var(--espaco-4); }
   .frota-sticky-card-body{ margin-top:-1px; border-top:none; border-top-left-radius:0; border-top-right-radius:0; }
-  /* Card e table-wrap com overflow viram o "scroll container" do sticky,
-     e aí o th fica deslocado --frota-head-h para dentro da tabela (no meio
-     das linhas). Com overflow visível, o sticky passa a valer pela página. */
-  .frota-sticky-card-body, .frota-sticky-card-body .table-wrap{ overflow:visible; }
-  .frota-sticky-card-body table thead th{ position:sticky; top:var(--frota-head-h, 0px); background:var(--surface); z-index:4; box-shadow:0 1px 0 var(--line); }
-  /* Mesmo formato para as demais tabelas: o título do card (card-head) fica
-     preso no topo enquanto o card está na tela, e os títulos das colunas
-     ficam logo abaixo dele. A classe é aplicada via JS (prepararTabelasFixas). */
-  .card.sticky-table-card, .sticky-table-card > .table-wrap{ overflow:visible; }
-  .sticky-table-card > .card-head{ position:sticky; top:0; z-index:5; background:var(--surface); border-radius:var(--radius) var(--radius) 0 0; }
-  .sticky-table-card table thead th{ position:sticky; top:var(--card-head-h, 0px); background:var(--surface); z-index:4; box-shadow:0 1px 0 var(--line); }
   .card-head h2{ font-size:var(--fs-md-2); font-weight:700; }
-  .table-wrap{ overflow-x:auto; overflow-y:visible; }
+  /* Tabelas: a tabela rola dentro do próprio card (para o lado e para baixo),
+     com os títulos das colunas fixos no topo dela. Antes a rolagem era
+     desligada para o título grudar no topo da página, e tabela larga vazava
+     para fora da tela. Altura máxima = quase a tela toda. */
+  .table-wrap{ overflow:auto; max-height:calc(100vh - 96px); max-height:calc(100dvh - 96px); }
+  .table-wrap thead th{ position:sticky; top:0; background:var(--surface); z-index:2; box-shadow:0 1px 0 var(--line); }
+  /* Cadastro da Frota: o bloco de título/filtros fica preso na página; a tabela ocupa o resto da tela. */
+  .frota-sticky-card-body .table-wrap{ max-height:calc(100vh - var(--frota-head-h, 0px) - 24px); max-height:calc(100dvh - var(--frota-head-h, 0px) - 24px); min-height:240px; }
+  /* Dentro de modal quem rola é o próprio modal. */
+  .modal .table-wrap{ max-height:none; }
+  /* Veículos: células curtas, uma linha só (a tabela rola para o lado). */
+  #frota-veic-body td{ white-space:nowrap; }
   table{ width:100%; border-collapse:separate; border-spacing:0; font-size:var(--fs-md); }
   th{ text-align:left; padding:9px var(--espaco-6); font-size:var(--fs-xs); font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--line); white-space:nowrap; }
   td{ padding:var(--espaco-4) var(--espaco-6); border-bottom:1px solid var(--line); vertical-align:middle; }
@@ -188,7 +165,7 @@
   @media (max-width:560px){ .form-grid{ grid-template-columns:1fr; } }
 
   .inline-add{ border-top:1px dashed var(--line-strong); padding:var(--espaco-6) var(--espaco-7); background:var(--surface-2); }
-  .inline-add-trigger{ font-size:var(--fs-sm-2); font-weight:700; color:var(--accent-ink); background:var(--accent); border:none; border-radius:var(--raio-md-2); padding:7px 13px; white-space:nowrap; flex:none; }
+  .inline-add-trigger{ font-size:var(--fs-sm-2); font-weight:700; color:var(--accent-ink); background:var(--accent); border:none; border-radius:var(--raio-botao); padding:7px 13px; white-space:nowrap; flex:none; }
   .inline-add-trigger:hover{ opacity:.88; }
   .card-head-actions{ display:flex; align-items:center; gap:var(--espaco-4); }
 
@@ -217,8 +194,8 @@
   .gm-barra-linha{ display:grid; grid-template-columns:minmax(80px,140px) 1fr auto; align-items:center; gap:var(--espaco-4); padding:3px 0; font-size:var(--fs-sm-2); }
   .gm-barra-rot{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gm-barra-trilho{ height:10px; background:var(--surface-2); border-radius:var(--raio-pilula); overflow:hidden; }
-  .gm-barra-ench{ display:block; height:100%; background:var(--accent); border-radius:var(--raio-pilula); }
-  .gm-barra-ench.good{ background:var(--good); } .gm-barra-ench.warn{ background:var(--warning); } .gm-barra-ench.crit{ background:var(--critical); }
+  .gm-barra-ench{ display:block; height:100%; background:var(--accent-marca); border-radius:var(--raio-pilula); }
+  .gm-barra-ench.good{ background:var(--good); } .gm-barra-ench.warn{ background:var(--warning-forte); } .gm-barra-ench.crit{ background:var(--critical); }
   .gm-barra-txt{ font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--muted); white-space:nowrap; }
   .gm-nota{ font-size:var(--fs-xs); color:var(--muted); margin:0; padding:var(--espaco-3) var(--espaco-7) var(--espaco-5); }
   .gm-vazio{ font-size:var(--fs-sm-2); color:var(--muted); margin:var(--espaco-3) 0; }
@@ -257,7 +234,7 @@
   .osa-item .osa-opcoes{ display:flex; gap:var(--espaco-2); flex-wrap:wrap; margin-top:var(--espaco-3); }
   .osa-item .osa-opcoes label{ display:flex; align-items:center; gap:var(--espaco-2); border:1px solid var(--line-strong); border-radius:var(--raio-md-2); padding:var(--espaco-2) var(--espaco-4); font-size:var(--fs-md); cursor:pointer; }
   .osa-item .osa-opcoes label:has(input:checked){ border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:600; }
-  .qf-seg{ display:inline-flex; border:1px solid var(--line-strong); border-radius:var(--raio-md-2); overflow:hidden; }
+  .qf-seg{ display:inline-flex; border:1px solid var(--line-strong); border-radius:var(--raio-botao); overflow:hidden; }
   .qf-seg button{ background:none; border:none; padding:5px 11px; font-size:var(--fs-sm); color:var(--muted); }
   .qf-seg button.on{ background:var(--accent-soft); color:var(--accent); font-weight:700; }
   .qf-anom{ display:flex; gap:var(--espaco-5); align-items:flex-start; padding:var(--espaco-4) 0; border-bottom:1px solid var(--line); font-size:var(--fs-md); }
@@ -331,7 +308,13 @@
 
 <!-- ===================== APP ===================== -->
 <div id="view-app">
-  <div class="sidebar">
+  <!-- Barra do topo só no celular/tablet: abre o menu de módulos -->
+  <div class="mobile-bar">
+    <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+    <div class="mark">CF</div><div class="name">Ferramenta da Frota</div>
+  </div>
+  <div class="sidebar-fundo" id="sidebar-fundo"></div>
+  <div class="sidebar" id="sidebar">
     <div class="brand"><div class="mark">CF</div><div class="name">Ferramenta da Frota</div></div>
     <nav id="nav" aria-label="Módulos"></nav>
     <div class="sidebar-foot">
@@ -1575,8 +1558,25 @@
 
   function souAdmin(){ return !!(perfil && perfil.ativo !== false && perfil.papel === "admin"); }
 
+  // Menu de módulos no celular (gaveta lateral aberta pelo ☰).
+  function abrirMenuMobile(abrir){
+    document.getElementById("view-app").classList.toggle("menu-aberto", abrir);
+    document.getElementById("menu-toggle").setAttribute("aria-expanded", abrir ? "true" : "false");
+    if (abrir){ var ativo = document.querySelector(".navbtn.active") || document.querySelector(".navbtn"); if (ativo) ativo.focus(); }
+  }
+  document.getElementById("menu-toggle").addEventListener("click", function(){
+    abrirMenuMobile(!document.getElementById("view-app").classList.contains("menu-aberto"));
+  });
+  document.getElementById("sidebar-fundo").addEventListener("click", function(){ abrirMenuMobile(false); });
+  document.addEventListener("keydown", function(ev){
+    if (ev.key === "Escape" && document.getElementById("view-app").classList.contains("menu-aberto")){
+      abrirMenuMobile(false); document.getElementById("menu-toggle").focus();
+    }
+  });
+
   function showPanel(key){
     if ((key === "acessos" || key === "motoristas") && !souAdmin()) return;
+    abrirMenuMobile(false);
     currentPanel = key;
     document.querySelectorAll(".panel").forEach(function(p){
       p.classList.toggle("active", p.dataset.panel === key);
@@ -1686,35 +1686,17 @@
     ajustarStickyFrota();
   }
 
-  // Mede a altura do bloco fixo (título + KPIs + busca/filtro) e usa isso como
-  // offset do cabeçalho da tabela (thead), que também fica fixo logo abaixo dele.
+  // Mede a altura do bloco fixo (título + KPIs + busca/filtro) para a tabela
+  // de Veículos ocupar o resto da tela abaixo dele.
   function ajustarStickyFrota(){
     var head = document.querySelector(".frota-sticky-head");
     if (!head) return;
     requestAnimationFrame(function(){
-      document.documentElement.style.setProperty("--frota-head-h", head.offsetHeight + "px");
+      var fixo = getComputedStyle(head).position === "sticky";
+      document.documentElement.style.setProperty("--frota-head-h", (fixo ? head.offsetHeight : 0) + "px");
     });
   }
   window.addEventListener("resize", ajustarStickyFrota);
-
-  // Aplica o formato "título do card + títulos das colunas fixos" em todas as
-  // tabelas dos painéis (a de Veículos já tem o seu próprio, acima). A altura
-  // do card-head é medida com ResizeObserver porque painéis ocultos medem 0 e
-  // só ganham altura quando abertos (ou quando os filtros quebram de linha).
-  function prepararTabelasFixas(){
-    var cards = document.querySelectorAll(".panel .card");
-    Array.prototype.forEach.call(cards, function(card){
-      if (card.classList.contains("frota-sticky-card-body")) return;
-      var head = card.querySelector(":scope > .card-head");
-      var wrap = card.querySelector(":scope > .table-wrap");
-      if (!head || !wrap) return;
-      card.classList.add("sticky-table-card");
-      var medir = function(){ card.style.setProperty("--card-head-h", head.offsetHeight + "px"); };
-      if (window.ResizeObserver) new ResizeObserver(medir).observe(head);
-      else { medir(); window.addEventListener("resize", medir); }
-    });
-  }
-  prepararTabelasFixas();
 
   function applyFrotaFiltros(){
     var f = frotaFiltros;

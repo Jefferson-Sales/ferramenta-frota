@@ -1,0 +1,78 @@
+/* Tokens da Ferramenta da Frota — único lugar com cores, fontes, raios e espaços.
+   Carregado pelo index.html e pelo checklist.html. CSS dos componentes usa só var(--...).
+   Cores: Brandbook Beep (23/10/2026). */
+:root{
+  /* ---------- Paleta oficial Beep (não usar direto nos componentes: usar os tokens de uso abaixo) ---------- */
+  --beep-verde:#00AFAA;          /* Verde Beep principal */
+  --beep-verde-escuro:#008E87;
+  --beep-verde-medio:#04D4CE;
+  --beep-ciano:#03E8DC;
+  --beep-azul:#1F5E89;
+  --beep-cinza-claro:#F4F4F4;
+  --beep-cinza:#E5E5E5;
+  --beep-laranja-claro:#FBA600;
+  --beep-laranja:#F68300;
+  --beep-laranja-escuro:#F36508;
+
+  /* ---------- Tokens de uso (tema claro) ---------- */
+  --paper:var(--beep-cinza-claro);       /* fundo da página */
+  --surface:#ffffff;                     /* cards, modais */
+  --surface-2:var(--beep-cinza-claro);   /* faixas, hover de linha */
+  --ink:#1c2a33;                         /* texto principal (neutro escuro, puxado para o azul Beep) */
+  --muted:#56646d;
+  --faint:#86929a;
+  --line:var(--beep-cinza);
+  --line-strong:#cdd3d7;
+  /* Texto branco sobre #00AFAA dá contraste 2,7:1 (ilegível). Por isso botões e
+     textos em verde usam #008E87; o #00AFAA fica para preenchimentos (barras, pontos, logo). */
+  --accent:var(--beep-verde-escuro);
+  --accent-marca:var(--beep-verde);
+  --accent-ink:#ffffff;
+  --accent-soft:#e3f6f5;
+  --accent-soft-line:#b3e6e4;
+  --destaque-2:var(--beep-azul);         /* cor de apoio (gráficos, títulos de seção) */
+  --good:#1e8e4f;
+  --good-soft:#e5f4ea;
+  --warning:#b35400;                     /* texto de alerta (laranja Beep escurecido para leitura) */
+  --warning-forte:var(--beep-laranja);   /* preenchimento de alerta (barras, ícones) */
+  --warning-soft:#fff1dc;
+  --critical:#c23b3b;
+  --critical-soft:#fbe9e8;
+  --shadow:0 1px 2px rgba(31,94,137,.05), 0 4px 16px rgba(31,94,137,.06);
+  --shadow-forte:0 2px 4px rgba(31,94,137,.06), 0 12px 32px rgba(31,94,137,.12);
+
+  /* ---------- Fontes ---------- */
+  --font-display:"Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-body:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---------- Forma (não mudam com o tema) ---------- */
+  --radius:16px;          /* cards, modais, caixas (Brandbook: 15–20px) */
+  --raio-botao:10px;      /* botões: sempre arredondados, sem degradê */
+  --fs-3xs:10.5px; --fs-2xs:11px; --fs-xs:11.5px; --fs-sm:12px; --fs-sm-2:12.5px; --fs-md:13px; --fs-md-2:13.5px; --fs-lg:14px; --fs-lg-2:14.5px; --fs-xl:16px; --fs-xl-2:17px; --fs-2xl:18px; --fs-2xl-2:19px; --fs-3xl:20px; --fs-3xl-2:21px; --fs-4xl:24px; --fs-6xl:34px;
+  --raio-xs:2px; --raio-sm:6px; --raio-md-2:7px; --raio-md:8px; --raio-md-3:9px; --raio-lg:10px; --raio-xl:12px; --raio-2xl:22px; --raio-pilula:999px;
+  --espaco-1:4px; --espaco-2:6px; --espaco-3:8px; --espaco-4:10px; --espaco-5:12px; --espaco-6:14px; --espaco-7:16px; --espaco-8:18px;
+  --texto-sobre-cor:#ffffff; --fundo-modal:rgba(15,30,40,.45); --fundo-legenda-foto:rgba(0,0,0,.6);
+}
+
+/* ---------- Tema escuro (automático pelo sistema, ou forçado com data-theme="dark") ---------- */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0f1a1f; --surface:#16232a; --surface-2:#1d2d35; --ink:#e8eef0; --muted:#a0b0b8; --faint:#728590;
+    --line:#253740; --line-strong:#354b56;
+    --accent:var(--beep-verde-medio); --accent-marca:var(--beep-verde-medio); --accent-ink:#062423; --accent-soft:#0d3433; --accent-soft-line:#175755;
+    --destaque-2:#7fb3d6;
+    --good:#4cbf7c; --good-soft:#173325; --warning:var(--beep-laranja-claro); --warning-forte:var(--beep-laranja-claro); --warning-soft:#3a2a06; --critical:#e5716d; --critical-soft:#3a1d1c;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.3); --shadow-forte:0 2px 4px rgba(0,0,0,.35), 0 12px 32px rgba(0,0,0,.45);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0f1a1f; --surface:#16232a; --surface-2:#1d2d35; --ink:#e8eef0; --muted:#a0b0b8; --faint:#728590;
+  --line:#253740; --line-strong:#354b56;
+  --accent:var(--beep-verde-medio); --accent-marca:var(--beep-verde-medio); --accent-ink:#062423; --accent-soft:#0d3433; --accent-soft-line:#175755;
+  --destaque-2:#7fb3d6;
+  --good:#4cbf7c; --good-soft:#173325; --warning:var(--beep-laranja-claro); --warning-forte:var(--beep-laranja-claro); --warning-soft:#3a2a06; --critical:#e5716d; --critical-soft:#3a1d1c;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.3); --shadow-forte:0 2px 4px rgba(0,0,0,.35), 0 12px 32px rgba(0,0,0,.45);
+  color-scheme:dark;
+}

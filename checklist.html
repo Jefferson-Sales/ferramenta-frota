@@ -3,43 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0e7c66">
+<meta name="theme-color" content="#00AFAA">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Checklist do Veículo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
 <style>
   /* Formulário mobile do checklist (Retirada / Devolução / Inspeção técnica). Mesmos tokens do index.html. */
-  :root{
-    --paper:#f6f5f0; --surface:#ffffff; --surface-2:#efeee7; --ink:#1a231f; --muted:#5c645d; --faint:#8a8f87;
-    --line:#e2e0d5; --line-strong:#cfccbd; --accent:#0e7c66; --accent-ink:#ffffff; --accent-soft:#e2f2ee; --accent-soft-line:#bfe1d7;
-    --good:#1e8e4f; --good-soft:#e5f4ea; --warning:#a8690a; --warning-soft:#faf0dd; --critical:#c23b3b; --critical-soft:#fbe9e8;
-    --shadow: 0 1px 2px rgba(20,25,20,.04), 0 8px 24px rgba(20,25,20,.05); --radius:10px;
-    --font-display:"Archivo", ui-sans-serif, system-ui, sans-serif;
-    --font-body:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-    --font-mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-    /* tokens de forma: mesmos valores de antes, agora com nome (não mudam com o tema) */
-    --fs-3xs:10.5px; --fs-2xs:11px; --fs-xs:11.5px; --fs-sm:12px; --fs-sm-2:12.5px; --fs-md:13px; --fs-md-2:13.5px; --fs-lg:14px; --fs-lg-2:14.5px; --fs-xl:16px; --fs-xl-2:17px; --fs-2xl:18px; --fs-2xl-2:19px; --fs-3xl:20px; --fs-3xl-2:21px; --fs-4xl:24px; --fs-6xl:34px;
-    --raio-xs:2px; --raio-sm:6px; --raio-md-2:7px; --raio-md:8px; --raio-md-3:9px; --raio-lg:10px; --raio-xl:12px; --raio-2xl:22px; --raio-pilula:999px;
-    --espaco-1:4px; --espaco-2:6px; --espaco-3:8px; --espaco-4:10px; --espaco-5:12px; --espaco-6:14px; --espaco-7:16px; --espaco-8:18px;
-    --texto-sobre-cor:#ffffff; --fundo-modal:rgba(10,15,12,.4); --fundo-legenda-foto:rgba(0,0,0,.6);
-  }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
-      --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
-      --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"]{
-    --paper:#141815; --surface:#1b201c; --surface-2:#232823; --ink:#eef0ea; --muted:#a4aa9f; --faint:#767c73;
-    --line:#2b3129; --line-strong:#3a4139; --accent:#42b599; --accent-ink:#0a1512; --accent-soft:#173129; --accent-soft-line:#264a3f;
-    --good:#4cbf7c; --good-soft:#173325; --warning:#e0a94a; --warning-soft:#332609; --critical:#e5716d; --critical-soft:#3a1d1c;
-    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
-  }
   *{ box-sizing:border-box; }
   html,body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-body); font-size:var(--fs-xl); line-height:1.4; }
   body{ padding-bottom:calc(84px + env(safe-area-inset-bottom)); -webkit-tap-highlight-color:transparent; }
@@ -50,7 +23,7 @@
   .who button{ font-size:var(--fs-sm-2); }
   .steps{ display:flex; gap:var(--espaco-1); max-width:960px; margin:var(--espaco-3) auto 0; }
   .steps div{ flex:1; height:4px; border-radius:var(--raio-xs); background:var(--line); }
-  .steps div.on{ background:var(--accent); }
+  .steps div.on{ background:var(--accent-marca); }
   .step-label{ max-width:960px; margin:var(--espaco-1) auto 0; font-size:var(--fs-sm); color:var(--muted); }
   main{ max-width:960px; margin:0 auto; padding:var(--espaco-7); }
   .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--espaco-6); margin-bottom:var(--espaco-5); }
@@ -66,7 +39,7 @@
   .row{ display:flex; gap:var(--espaco-3); }
   .row > *{ flex:1; }
   button{ font:inherit; cursor:pointer; }
-  .btn{ min-height:48px; border-radius:var(--raio-md); border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); padding:var(--espaco-4) var(--espaco-6); font-weight:600; }
+  .btn{ min-height:48px; border-radius:var(--raio-botao); border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); padding:var(--espaco-4) var(--espaco-6); font-weight:600; }
   .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .btn.ghost{ background:transparent; border-color:transparent; color:var(--accent); min-height:36px; padding:var(--espaco-2) var(--espaco-3); }
   .btn:disabled{ opacity:.5; cursor:default; }
@@ -79,7 +52,7 @@
   .chip.sev-alta.on{ background:var(--critical); border-color:var(--critical); color:var(--texto-sobre-cor); opacity:.85; }
   .chip.sev-critica.on{ background:var(--critical); border-color:var(--critical); color:var(--texto-sobre-cor); }
   .choice{ display:grid; grid-template-columns:1fr 1fr; gap:var(--espaco-3); }
-  .choice .chip{ border-radius:var(--raio-md); min-height:52px; font-weight:600; }
+  .choice .chip{ border-radius:var(--raio-botao); min-height:52px; font-weight:600; }
   .chip.ok.on{ background:var(--good); border-color:var(--good); color:var(--texto-sobre-cor); }
   .chip.bad.on{ background:var(--critical); border-color:var(--critical); color:var(--texto-sobre-cor); }
   .badge{ display:inline-block; font-size:var(--fs-xs); font-weight:600; padding:2px var(--espaco-3); border-radius:var(--raio-lg); background:var(--surface-2); color:var(--muted); }

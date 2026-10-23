@@ -1,0 +1,135 @@
+# Plano — Padronização visual + Visão Executiva (Diretoria)
+
+Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
+
+## Decisões do Jefferson (23/10/2026)
+
+- **Cores (Brandbook Beep):** Verde Beep `#00AFAA`; neutras/escuras `#F4F4F4`, `#E5E5E5`, `#1F5E89`; ciano/verde `#03E8DC`, `#04D4CE`, `#008E87`; laranjas `#FBA600`, `#F68300`, `#F36508`.
+- **Cards/caixas:** cantos de 15–20px. **Botões:** sem degradê e sem canto reto.
+- **Visão Executiva** abre primeiro só para Diretoria e Admin.
+- **Orçado e planejado:** entram por importação de planilha (sem tela de digitação).
+- **"Saídas no mês" dos elétricos:** contadas pelos checklists de Retirada.
+- **Painel de Multas (fase 2):** liberado por este pedido.
+
+## Andamento
+
+- [x] **A1** `css/tokens.css` com as cores da Beep, carregado pelos dois HTML (23/10/2026). Também antecipado da A3: cores, cantos de 16px nos cards, 10px nos botões, sombras mais suaves.
+- [x] **A2** Tabelas sem vazamento (23/10/2026).
+- [x] **A5** Menu no celular + `<meta viewport>` que faltava no `index.html` (23/10/2026). Falta testar num celular real depois do push.
+- [ ] A3 (resto: tipografia, unificar meio-passos), A4, A6, B, C, D.
+
+## O que encontrei antes de planejar
+
+1. **Não existe `css/tokens.css`.** Os tokens (cores, fontes, raios, espaços) estão dentro do `<style>` do `index.html` e repetidos no `checklist.html` (regra do CLAUDE.md: os dois blocos são idênticos).
+2. **Causa do vazamento das tabelas:** para o cabeçalho da tabela ficar "grudado" no topo ao rolar, o CSS desliga a rolagem horizontal do card (`.frota-sticky-card-body .table-wrap{ overflow:visible }` e `.sticky-table-card > .table-wrap{ overflow:visible }`). Sem rolagem, uma tabela larga (Cadastro da Frota tem 11 colunas) sai da tela. Além disso, o menu lateral não se recolhe no celular (pendência já conhecida).
+3. **Dados que faltam no banco para a Visão Executiva** (contagem de hoje):
+
+| KPI pedido | Situação no banco |
+|---|---|
+| Disponibilidade, preventivas em atraso, km excedente por contrato | **Dados existem** (`veiculos`, `v_revisoes_status`, `v_cadastro_frota`, `v_pool_km_contrato`) |
+| Utilização (planejado × realizado) | **Vazio**: `planejamento_picos` = 0 linhas, `rotas_realizadas` = 0 linhas |
+| Gastos por linha de conta: realizado | **Existe**: 1.165 notas fiscais (jan/2025 a out/2026), todas com categoria |
+| Gastos por linha de conta: orçado | **Vazio**: as 12 categorias têm `orcado_mensal`/`orcado_anual` em branco |
+| Multas: motivos | **Fraco**: `codigo_enquadramento` vazio nas 459 multas; o motivo só está em texto livre (`descricao`) |
+| Multas: ranking de motoristas | **Vazio**: `motorista_identificado_id` vazio nas 459 (pendência já conhecida) |
+| Multas: ranking por hub | **Existe**: as 459 têm `hub_id` |
+| Elétricos: km, custo, recargas no mês | **Existe** (telemetria só desde 12/10/2026; 330 recargas) |
+| Elétricos: TCO × combustão | **Vazio**: `parametros_combustao_equivalente` = 0 linhas; aluguel/manutenção por carro vêm de contratos/OS |
+
+Decisão sugerida: KPI sem dado aparece como cartão **"Sem dados — falta X"** (nunca número inventado), e o preenchimento desses dados vira etapa própria.
+
+## Pontos para o Jefferson decidir
+
+- **Cores exatas da Beep:** preciso dos códigos (hex) do manual de marca, ou de um arquivo/link com a identidade visual. Sem isso não dá para "acertar a cor exata".
+- **Visão Executiva como tela inicial para todos?** Sugestão: tela inicial só para quem tiver o novo módulo `executivo` (diretoria e admin); os demais continuam caindo no primeiro módulo deles.
+- **Quem vê o quê:** a diretoria verá números de Financeiro e Multas. Sugestão: a Visão Executiva mostra só os quadrantes dos módulos que a pessoa já pode ver (o banco continua decidindo, pelo RLS).
+- **Filtro de hub:** Manutenções/Qualidade têm filtro por hub; diretoria normalmente vê tudo. Confirmar que os perfis de diretoria serão admin ou terão todos os hubs.
+- **Origem do orçado e do planejado:** planilha que você manda (importação) ou digitação numa tela nova?
+
+---
+
+## Fase A — Base visual (CSS/tokens e layout)
+
+Cada etapa = 1 commit pequeno, conferido no navegador (claro e escuro, desktop e celular) antes da próxima.
+
+**A1. Separar os tokens em `css/tokens.css`.**
+Mover o bloco de tokens para o arquivo novo e carregá-lo no `index.html` e no `checklist.html` (acaba a cópia duplicada). Nenhum valor muda nesta etapa — a tela deve ficar idêntica. Teste: abrir os dois arquivos e comparar com prints de antes.
+
+**A2. Corrigir o vazamento das tabelas.**
+Dar à `.table-wrap` uma rolagem horizontal própria e manter o cabeçalho fixo de outro jeito (cabeçalho fixo dentro de uma área com altura máxima, ou cabeçalho fixo só quando a tabela cabe na tela). Também: `min-width:0` nos itens do layout em grade/flex que hoje "esticam" o conteúdo. Teste: Cadastro da Frota, Manutenções, Multas, Financeiro e Dash em tela estreita (1024px e 390px) — nada sai do card.
+
+**A3. Cores da Beep + sombras e tipografia.**
+Trocar os valores de `--accent`, `--paper`, `--ink` etc. pelas cores oficiais (depende das cores que você mandar), revisar o modo escuro, sombras mais suaves nos cards, escala de fonte enxuta. Unificar os "meio-passos" (`--fs-sm-2`, `--raio-md-2`, `--raio-md-3`…) em menos tokens. Teste: contraste mínimo de leitura (WCAG AA) nos pares texto/fundo; conferir os 10 painéis e o `checklist.html`.
+
+**A4. Espaçamento consistente.**
+Revisar `padding`/`gap` dos cards, cabeçalhos e formulários para usar só a escala `--espaco-*`; trocar números soltos que restarem. Teste: busca no código por `px` fora dos tokens (lista do que ficou de propósito).
+
+**A5. Menu lateral no celular.**
+Menu recolhível (botão ☰) abaixo de ~900px, conteúdo ocupando a largura toda. Teste: celular real e 390px no navegador.
+
+**A6. Componentes base para o dashboard.**
+Criar no CSS os blocos que a Visão Executiva vai usar: grade de 4 quadrantes (2×2 no desktop, 1 coluna no celular), cartão de KPI clicável (com foco de teclado e cursor), estado "Sem dados", barra simples, mini-gráfico. Reaproveitar o que já existe no Dash de Manutenção (`.gm-*`). Teste: página de exemplo em `testes/` sem dados reais.
+
+---
+
+## Fase B — Visão Executiva (estrutura)
+
+**B1. Módulo e permissão.**
+Novo módulo `executivo` em `usuarios_perfil` (tela Gerenciar acessos ganha a opção) e painel `data-panel="executivo"`, primeiro do menu para quem o tem. Seletor de período no topo (mês atual / ano / escolher mês) e de hub.
+
+**B2. Drill-down (clique leva à tela com filtro).**
+Função única `irPara(modulo, filtros)` que troca de painel e aplica os filtros já existentes daquela tela (ex.: Cadastro da Frota com filtro `km_excedente` e contrato X). Onde a tela de destino não tiver o filtro necessário, ele é criado na própria tela operacional. Teste: cada clique abre a tela certa já filtrada; botão "← Voltar à Visão Executiva".
+
+**B3. Números pelo banco, em uma chamada por quadrante.**
+Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas`, `exec_eletricos`), `security invoker` (o RLS de quem está logado vale) e `hub_liberado` onde o módulo tem hub — mesmo padrão do `dash_manutencao`. Migration em `sql/` com data. Cada regra de cálculo nova vai para `regras.js` e/ou para `testes/regras.test.sql`, com teste.
+
+---
+
+## Fase C — Quadrantes (um por vez, na ordem dos dados disponíveis)
+
+**C1. Operação** (dados já existem, exceto utilização)
+- Disponibilidade: disponíveis × indisponíveis (agora e tendência de `frota_status_diario`) → clica: Cadastro da Frota filtrado por status.
+- Preventivas em atraso: contagem de vencidas/vencendo (`v_revisoes_status`) → clica: Dash de Manutenção, lista de revisões.
+- Contratos: km excedente por contrato (`v_pool_km_contrato`) → clica no contrato: lista das placas daquele contrato.
+- Utilização: planejado × realizado → **"Sem dados"** até a etapa D1.
+
+**C2. Carros Elétricos** (km, custo e recargas existem)
+- KM rodado no mês (`telemetria_diaria`), custo total no mês (`recargas_eletricas.valor`), quantidade de saídas no mês.
+  - Confirmar com você: "saídas" = **recargas** ou **checklists de Retirada** de carros elétricos? (sugestão: Retirada).
+- TCO × combustão → **"Sem dados"** até D3. Fórmula proposta (para aprovar): custo por km elétrico = (aluguel + recargas + manutenção) ÷ km; combustão = mesma soma com combustível estimado pela autonomia e preço do litro da tabela de parâmetros.
+- Também resolve a pendência antiga do card "Integração em teste".
+
+**C3. Multas** (só hub existe hoje)
+- Ranking por hub (quantidade e valor) → clica: Multas filtradas pelo hub.
+- Principais motivos: lista agrupada por `descricao` normalizada, provisória até D2.
+- Ranking de motoristas → **"Sem dados"** até D2.
+- Observação: o CLAUDE.md registra que o dashboard de Multas foi deixado para "fase 2 — só com pedido do Jefferson". Este pedido conta como esse "sim".
+
+**C4. Financeiro** (realizado existe, orçado não)
+- Gastos por linha de conta (categoria): realizado do mês e do ano (`notas_fiscais` por `mes_referencia`) × orçado → orçado como "Sem dados" até D1.
+- Fechamento do mês atual: realizado até hoje + notas lançadas a vencer.
+- Projeção de fechamento do ano: realizado até o mês anterior + média dos últimos 3 meses × meses restantes (fórmula a aprovar; vai para `regras.js` com teste).
+- Clica na categoria → Financeiro filtrado por categoria e mês (filtro novo na tela de Notas Fiscais).
+
+---
+
+## Fase D — Completar os dados que faltam (cada um depende de você)
+
+- **D1.** Orçado por categoria (mensal/anual) e planejamento de picos/rotas realizadas por hub: importação de planilha ou tela de cadastro.
+- **D2.** Multas: ligar `motorista_identificado_id` nas 459 multas antigas (casar o nome do texto com o cadastro, com lista para você conferir antes do UPDATE) e preencher código/motivo da infração.
+- **D3.** Parâmetros de combustão (autonomia km/l, preço do litro, CO₂) por hub.
+
+Comandos que alteram dados reais seguem a regra: mostro o comando exato, com `WHERE` por id, e espero sua aprovação.
+
+---
+
+## Ao fim de cada etapa
+
+1. Rodar `testes/regras.test.html` e `testes/regras.test.sql`.
+2. Conferir no navegador (claro/escuro, desktop/celular) e nos perfis admin e operador com hubs limitados.
+3. Commit pequeno em português. Push só com seu "sim".
+4. Atualizar o CLAUDE.md e marcar `[x]` no backlog.
+
+## Ordem sugerida
+
+A1 → A2 → A3 → A4 → A5 → A6 → B1 → B2 → B3 → C1 → C2 → C3 → C4, com D1–D3 em paralelo, conforme você conseguir os dados.
