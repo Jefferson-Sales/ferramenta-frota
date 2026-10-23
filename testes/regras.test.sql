@@ -392,6 +392,10 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
   insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, previsao_retorno) values (vi1, 'corretiva', 'aguardando_agendamento', now() - interval '2 days', current_date + 3) returning id into osi;
   update frota.ordens_servico set status_liberacao = 'em_reparo', servico_executado = 'TESTE resumo' where id = osi;
+  -- trocas simuladas no histórico: 1 h em agendamento, depois 2 h aguardando pagamento
+  insert into frota.os_status_historico (os_id, campo, valor_anterior, valor_novo, mudou_em) values
+    (osi, 'status', 'aguardando_agendamento', 'aguardando_pagamento', now() + interval '1 hour'),
+    (osi, 'status', 'aguardando_pagamento', 'em_execucao', now() + interval '3 hours');
   insert into frota.os_tratativas (os_id, texto) values (osi, 'TESTE primeira tratativa');
   insert into frota.os_tratativas (os_id, texto) values (osi, 'TESTE segunda tratativa');
   j := frota.exec_operacao(hub3) -> 'disponibilidade';
@@ -403,8 +407,8 @@ begin
   select (e->'os'->>'status_liberacao') || ' / ' || (e->'os'->>'servico_executado') || ' / ' || (e->'os'->>'tratativas') || ' / ' || (e->'os'->'ultima_tratativa'->>'texto') || ' / ' || (e->'os'->'ultima_tratativa'->>'autor')
     into x from jsonb_array_elements(j) e where e->>'placa' = 'ZZT0J04';
   casos := casos || text 'exec_indisponiveis: liberação, serviço, nº de tratativas e a última (com autor)'; obtidos := obtidos || x; esperados := esperados || text 'em_reparo / TESTE resumo / 2 / TESTE segunda tratativa / TESTE Admin';
-  select ((e->'os'->>'seg_agendamento') is not null)::text || ' / ' || coalesce(e->'os'->>'seg_espera_execucao', 'nulo') into x from jsonb_array_elements(j) e where e->>'placa' = 'ZZT0J04';
-  casos := casos || text 'exec_indisponiveis: tempo de agendamento vem do histórico (execução ainda vazia)'; obtidos := obtidos || x; esperados := esperados || text 'true / nulo';
+  select (e->'os'->>'seg_agendamento') || ' / ' || coalesce(e->'os'->>'seg_espera_execucao', 'nulo') || ' / ' || (e->'os'->>'seg_pagamento') into x from jsonb_array_elements(j) e where e->>'placa' = 'ZZT0J04';
+  casos := casos || text 'exec_indisponiveis: agendamento 1 h, aguardando execução vazio, pagamento 2 h (separado)'; obtidos := obtidos || x; esperados := esperados || text '3600 / nulo / 7200';
   -- quem não tem o hub não vê nada (operador de outro hub)
   perform set_config('request.jwt.claims', json_build_object('sub', u_outro, 'role', 'authenticated')::text, true);
   x := (frota.exec_operacao(hub3) -> 'disponibilidade' ->> 'total') || ' / ' || jsonb_array_length(frota.exec_indisponiveis(hub3))::text;

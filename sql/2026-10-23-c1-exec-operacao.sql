@@ -53,6 +53,8 @@ end $$;
 --   aguardando agendamento = tempo em aguardando_agendamento
 --   aguardando execução    = tempo em aguardando_orcamento + aguardando_peca
 --   em execução            = tempo em em_execucao
+--   aguardando pagamento   = tempo em aguardando_pagamento (separado de propósito: demora aqui é
+--                            falha do processo interno, não da oficina — decisão do Jefferson, 23/10/2026)
 create or replace function frota.exec_indisponiveis(p_hub uuid default null)
 returns jsonb language sql stable security invoker set search_path = frota as $$
   select coalesce(jsonb_agg(item order by (item->>'parado_desde') nulls last), '[]')
@@ -65,7 +67,7 @@ returns jsonb language sql stable security invoker set search_path = frota as $$
         'status_liberacao', os.status_liberacao, 'previsao_retorno', os.previsao_retorno,
         'servico_executado', os.servico_executado, 'oficina', ofi.nome,
         'seg_agendamento', f.seg_agendamento, 'seg_espera_execucao', f.seg_espera_execucao,
-        'seg_execucao', f.seg_execucao, 'historico_parcial', f.parcial,
+        'seg_execucao', f.seg_execucao, 'seg_pagamento', f.seg_pagamento, 'historico_parcial', f.parcial,
         'tratativas', t.qtd, 'ultima_tratativa', t.ultima) end
     ) item
     from veiculos v
@@ -80,6 +82,7 @@ returns jsonb language sql stable security invoker set search_path = frota as $$
       select sum(duracao_seg) filter (where valor = 'aguardando_agendamento') seg_agendamento,
              sum(duracao_seg) filter (where valor in ('aguardando_orcamento', 'aguardando_peca')) seg_espera_execucao,
              sum(duracao_seg) filter (where valor = 'em_execucao') seg_execucao,
+             sum(duracao_seg) filter (where valor = 'aguardando_pagamento') seg_pagamento,
              bool_or(origem = 'implantacao') parcial
         from v_os_fases where os_id = os.id and campo = 'status') f on true
     left join lateral (

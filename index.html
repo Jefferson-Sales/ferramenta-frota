@@ -304,6 +304,8 @@
   .ex-indisp-tabela .ex-indisp-texto{ min-width:150px; max-width:210px; white-space:normal; overflow-wrap:anywhere; }
   .ex-indisp-tabela .ex-fases{ white-space:nowrap; }
   .ex-indisp-tabela .ex-fases div{ line-height:1.5; }
+  .ex-indisp-tabela .ex-fase-pag{ color:var(--warning); font-weight:600; }
+  .ex-indisp-tabela .ex-fase-pag .qf-sub{ color:var(--warning); }
   .osd-hist{ list-style:none; margin:0; padding:0; font-size:var(--fs-md); }
   .osd-hist li{ display:flex; flex-wrap:wrap; gap:var(--espaco-1) var(--espaco-4); padding:var(--espaco-2) 0; border-bottom:1px solid var(--line); }
   .osd-hist li:last-child{ border-bottom:none; }
@@ -1785,7 +1787,9 @@
           '<td>' + (desde == null ? "—" : esc(Regras.duracaoTexto(desde))) + '<div class="qf-sub">desde ' + (r.parado_desde ? esc(dateBR(r.parado_desde)) : "—") + '</div></td>' +
           (o ? '<td class="ex-fases"><div><span class="qf-sub">Agendamento</span> ' + esc(t(o.seg_agendamento)) + '</div>' +
                  '<div><span class="qf-sub">Aguard. execução</span> ' + esc(t(o.seg_espera_execucao)) + '</div>' +
-                 (o.seg_execucao ? '<div><span class="qf-sub">Em execução</span> ' + esc(t(o.seg_execucao)) + '</div>' : '') + '</td>' +
+                 (o.seg_execucao ? '<div><span class="qf-sub">Em execução</span> ' + esc(t(o.seg_execucao)) + '</div>' : '') +
+                 // separado de propósito: demora aqui é do processo interno, não da oficina
+                 (o.seg_pagamento ? '<div class="ex-fase-pag"><span class="qf-sub">Aguard. pagamento</span> ' + esc(t(o.seg_pagamento)) + '</div>' : '') + '</td>' +
                '<td>' + (o.previsao_retorno ? (vencida ? pill(dateBR(o.previsao_retorno) + " · vencida", "crit") : esc(dateBR(o.previsao_retorno))) : "—") + '</td>' +
                '<td>' + (o.status_liberacao ? pill(Regras.STATUS_LIBERACAO[o.status_liberacao] || o.status_liberacao, STATUS_LIB_PILL[o.status_liberacao]) : '<span class="qf-sub">não informado</span>') + '<div class="qf-sub">OS: ' + esc(optSt ? optSt.textContent : (o.status || "").replace(/_/g, " ")) + '</div></td>' +
                '<td class="ex-indisp-texto">' + (o.servico_executado ? esc(o.servico_executado) : '<span class="qf-sub">—</span>') + '</td>' +
