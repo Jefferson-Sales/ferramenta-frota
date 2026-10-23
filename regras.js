@@ -42,12 +42,28 @@
     return ref && km < ref ? ref : 0;
   }
 
+  // Revisão preventiva por km (mesma regra da função frota.situacao_revisao no banco):
+  // próximo marco = último marco feito + 10.000 (sem histórico: 10.000).
+  // vencida quando o km chega no marco; vencendo a partir de 1.000 km antes; modelo sem plano de itens → "sem_plano".
+  function proximoMarco(ultimoMarco) {
+    return (Number(ultimoMarco) || 0) + 10000;
+  }
+  function situacaoRevisao(km, proximo, temPlano) {
+    if (!temPlano) return "sem_plano";
+    km = Number(km) || 0;
+    if (km >= proximo) return "vencida";
+    if (km >= proximo - 1000) return "vencendo";
+    return "em_dia";
+  }
+
   global.Regras = {
     OS_FECHADAS: OS_FECHADAS,
     PONTOS_POR_GRAU: PONTOS_POR_GRAU,
     statusQualidade: statusQualidade,
     faixaFranquia: faixaFranquia,
     osVencida: osVencida,
-    kmAbaixoDoUltimo: kmAbaixoDoUltimo
+    kmAbaixoDoUltimo: kmAbaixoDoUltimo,
+    proximoMarco: proximoMarco,
+    situacaoRevisao: situacaoRevisao
   };
 })(typeof window !== "undefined" ? window : globalThis);

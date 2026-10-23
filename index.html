@@ -1005,6 +1005,10 @@
         </div>
         <div class="field" id="os-parado-wrap" hidden><label for="os-parado">O carro (sinistro)</label>
           <select id="os-parado"><option value="">Selecione…</option><option value="sim">Parou — fica indisponível</option><option value="nao">Continua rodando</option></select></div>
+        <div class="field" id="os-prev-km-wrap" hidden><label for="os-km">Km na entrada (preventiva)</label><input id="os-km" type="number" min="1" step="1" inputmode="numeric"></div>
+        <div class="field" id="os-prev-marco-wrap" hidden><label for="os-marco">Revisão de (marco)</label>
+          <select id="os-marco"><option value="">Selecione…</option><option value="10000">10 mil km</option><option value="20000">20 mil km</option><option value="30000">30 mil km</option><option value="40000">40 mil km</option><option value="50000">50 mil km</option><option value="60000">60 mil km</option><option value="70000">70 mil km</option><option value="80000">80 mil km</option><option value="90000">90 mil km</option><option value="100000">100 mil km</option><option value="110000">110 mil km</option><option value="120000">120 mil km</option><option value="130000">130 mil km</option><option value="140000">140 mil km</option><option value="150000">150 mil km</option><option value="160000">160 mil km</option><option value="170000">170 mil km</option><option value="180000">180 mil km</option><option value="190000">190 mil km</option><option value="200000">200 mil km</option></select></div>
+        <div class="field span2" id="os-prev-dica" hidden><div class="ac-hint" id="os-prev-dica-txt"></div></div>
         <div class="field" id="os-data-parou-wrap"><label for="os-data-parou">Parou em</label><input id="os-data-parou" type="datetime-local" required></div>
         <div class="field span2"><label for="os-motivo">Motivo / tratativa</label><input id="os-motivo" placeholder="Ex.: ruído no motor, funilaria, revisão de km…"></div>
         <div class="field"><label for="os-oficina">Oficina (opcional)</label>
@@ -1044,6 +1048,7 @@
 
     <div class="detail-section">
       <h4>Checklist</h4>
+      <div class="ac-hint" id="osd-checklist-aviso" hidden>Itens da revisão por km — <b>provisórios, a confirmar com a caderneta Renault</b>. Marque o que foi trocado; ao concluir a OS, a revisão fica registrada com esses itens.</div>
       <div id="osd-checklist"></div>
     </div>
 
@@ -1918,7 +1923,7 @@
   var anexosCountById = {};
 
   function carregarOS(avisarVencidas){
-    rest("ordens_servico?select=id,tipo,veiculo_parado,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
+    rest("ordens_servico?select=id,tipo,veiculo_parado,km_entrada,marco_km,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
       .then(function(rows){
         osCache = rows || [];
         renderKpisManutencao(rows);
@@ -3157,6 +3162,34 @@
     document.getElementById("os-data-parou-wrap").style.display = (agendada || rodando) ? "none" : "";
     document.getElementById("os-data-parou").required = !agendada && !rodando;
   }
+  // Preventiva: km na entrada + marco da revisão, pré-preenchidos por v_revisoes_status (próximo marco e km mais recente).
+  // Carro com plano de itens (hoje só KWID): a OS nasce com os itens do marco (gatilho no banco) — itens provisórios, "a confirmar".
+  var osPrev = { veiculo: null, info: null };
+  function osFormPreventiva(){
+    var prev = document.getElementById("os-tipo").value === "preventiva";
+    ["os-prev-km-wrap", "os-prev-marco-wrap", "os-prev-dica"].forEach(function(id){ document.getElementById(id).hidden = !prev; });
+    document.getElementById("os-km").required = prev;
+    document.getElementById("os-marco").required = prev;
+    if (!prev) return;
+    var veic = document.getElementById("os-veiculo").value, dica = document.getElementById("os-prev-dica-txt");
+    if (!veic){ dica.textContent = "Escolha o veículo para sugerir o km e a revisão."; return; }
+    if (osPrev.veiculo === veic) return;
+    osPrev = { veiculo: veic, info: null };
+    dica.textContent = "Buscando o histórico de revisões…";
+    rest("v_revisoes_status?veiculo_id=eq." + veic + "&select=proximo_marco,ultimo_marco,km_ref,tem_plano,modelo").then(function(r){
+      if (osPrev.veiculo !== veic) return;
+      var i = osPrev.info = r && r[0];
+      if (!i){ dica.textContent = "Sem histórico de revisões para este carro."; return; }
+      if (!document.getElementById("os-km").value && i.km_ref) document.getElementById("os-km").value = Math.round(i.km_ref);
+      document.getElementById("os-marco").value = String(i.proximo_marco);
+      dica.innerHTML = "Última revisão registrada: <b>" + (i.ultimo_marco ? (i.ultimo_marco / 1000) + " mil km" : "nenhuma") + "</b> · km mais recente: " + esc(Math.round(i.km_ref).toLocaleString("pt-BR")) +
+        (i.tem_plano ? ". A OS já vai abrir com os itens dessa revisão. <b>Itens provisórios — a confirmar com a caderneta Renault.</b>"
+                     : ". Modelo sem plano de itens (" + esc(i.modelo || "—") + "): a OS usa o checklist genérico de preventiva.");
+    }).catch(function(){ dica.textContent = "Não foi possível buscar o histórico de revisões."; });
+  }
+  document.getElementById("os-tipo").addEventListener("change", osFormPreventiva);
+  document.getElementById("os-veiculo").addEventListener("change", osFormPreventiva);
+  document.querySelector('[data-form="os"]').addEventListener("reset", function(){ osPrev = { veiculo: null, info: null }; setTimeout(osFormPreventiva, 0); });
   document.getElementById("os-quando").addEventListener("change", osFormSinistro);
   document.getElementById("os-tipo").addEventListener("change", osFormSinistro);
   document.getElementById("os-parado").addEventListener("change", osFormSinistro);
@@ -3173,10 +3206,17 @@
     var agendada = !rodando && document.getElementById("os-quando").value === "agendada";
     var dataParouVal = document.getElementById("os-data-parou").value;
     if (!agendada && !rodando && !dataParouVal){ setErr("os-err", "Informe quando o carro parou, ou marque como serviço futuro."); return; }
+    var prev = tipo === "preventiva";
+    var kmEntrada = parseInt(document.getElementById("os-km").value, 10), marco = parseInt(document.getElementById("os-marco").value, 10);
+    if (prev && !(kmEntrada > 0)){ setErr("os-err", "Informe o km do carro na entrada (preventiva)."); return; }
+    if (prev && !marco){ setErr("os-err", "Escolha de qual revisão (marco de km) é esta preventiva."); return; }
+    var comPlano = prev && osPrev.veiculo === veiculo && osPrev.info && osPrev.info.tem_plano;
     var body = {
       veiculo_id: veiculo,
       tipo: tipo,
       veiculo_parado: tipo === "sinistro" ? !rodando : null,
+      km_entrada: prev ? kmEntrada : null,
+      marco_km: prev ? marco : null,
       motivo: document.getElementById("os-motivo").value.trim() || null,
       data_parou: (agendada || rodando) ? null : new Date(dataParouVal).toISOString(),
       oficina_id: document.getElementById("os-oficina").value || null,
@@ -3188,7 +3228,7 @@
     };
     rest("ordens_servico", {method:"POST", body: body}).then(function(rows){
       toast(rodando ? "OS de sinistro aberta — carro continua rodando (segue disponível)." : agendada ? "OS agendada com sucesso (carro segue disponível)." : "OS aberta com sucesso — carro marcado indisponível.");
-      if (rows && rows[0]) clonarChecklistPadrao(rows[0].id, body.tipo);
+      if (rows && rows[0] && !comPlano) clonarChecklistPadrao(rows[0].id, body.tipo); // com plano, o banco já criou os itens do marco
       osaLigar(rows && rows[0] && rows[0].id, osaSelecionadas());
       osaLimpar();
       document.getElementById("modal-os").hidden = true;
@@ -3229,7 +3269,9 @@
       '<div><div class="k">Parou em</div>' + (o.data_parou ? dateBR(o.data_parou) : "— (agendada)") + '</div>' +
       '<div><div class="k">Entrada na oficina</div>' + dateBR(o.data_entrada_oficina) + '</div>' +
       '<div><div class="k">Data de liberação real</div>' + dateBR(o.data_liberacao) + '</div>' +
-      '<div><div class="k">Valor total</div>' + money(o.valor_total) + '</div>';
+      '<div><div class="k">Valor total</div>' + money(o.valor_total) + '</div>' +
+      (o.marco_km ? '<div><div class="k">Revisão</div>' + (o.marco_km / 1000) + ' mil km' + (o.km_entrada ? ' · entrou com ' + esc(Number(o.km_entrada).toLocaleString("pt-BR")) + ' km' : '') + '</div>' : '');
+    document.getElementById("osd-checklist-aviso").hidden = !(o.tipo === "preventiva" && o.marco_km);
 
     document.getElementById("osd-status").value = o.status;
     // o banco devolve em UTC; o campo datetime-local precisa da hora local (antes mostrava UTC e, ao salvar, a hora andava +3h)

@@ -25,7 +25,7 @@ declare
   v1 uuid; v2 uuid; v3 uuid; v_inativo uuid; v_venc uuid; v_sd uuid; v_30 uuid; v_31 uuid;
   vc uuid; vd uuid; ck uuid; a_alta uuid; a_crit uuid; a uuid;
   ta uuid; tb uuid; r1 uuid; r2 uuid; dv uuid;
-  sa uuid; sb uuid; os1 uuid; os2 uuid;
+  sa uuid; sb uuid; os1 uuid; os2 uuid; rv uuid; os3 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -218,6 +218,29 @@ begin
   insert into frota.ordens_servico (veiculo_id, tipo, status) values (sb, 'preventiva', 'agendada');
   select status::text into x from frota.veiculos where id = sb;
   casos := casos || text 'carro já indisponível + OS agendada: não libera'; obtidos := obtidos || x; esperados := esperados || text 'indisponivel';
+
+  -- ============================================ 8. REVISÃO PREVENTIVA (aviso, itens do plano, OS concluída)
+  casos := casos || text 'revisão: 48.999 km, marco 50.000 → em_dia'; obtidos := obtidos || frota.situacao_revisao(48999, 50000, true); esperados := esperados || text 'em_dia';
+  casos := casos || text 'revisão: 49.000 km (1.000 antes) → vencendo'; obtidos := obtidos || frota.situacao_revisao(49000, 50000, true); esperados := esperados || text 'vencendo';
+  casos := casos || text 'revisão: 50.000 km → vencida'; obtidos := obtidos || frota.situacao_revisao(50000, 50000, true); esperados := esperados || text 'vencida';
+  casos := casos || text 'revisão: modelo sem plano → sem_plano'; obtidos := obtidos || frota.situacao_revisao(90000, 10000, false); esperados := esperados || text 'sem_plano';
+  casos := casos || text 'revisão: marco 110.000 usa os itens de 10.000'; obtidos := obtidos || frota.marco_no_plano(110000)::text; esperados := esperados || text '10000';
+  insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0F01', hub, 39500, 'disponivel', 'KWID') returning id into rv;
+  insert into frota.revisoes_a_conferir (veiculo_id, marco_km, motivo) values (rv, 40000, 'sem_registro');
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, km_entrada, marco_km)
+    values (rv, 'preventiva', 'aguardando_agendamento', now(), 39500, 40000) returning id into os3;
+  select string_agg(item, ' | ' order by ordem) into x from frota.os_checklist_itens where os_id = os3;
+  casos := casos || text 'OS preventiva 40k (KWID): já nasce com os 10 itens do marco'; obtidos := obtidos || (select count(*)::text from frota.os_checklist_itens where os_id = os3); esperados := esperados || text '10';
+  casos := casos || text 'OS preventiva 40k: inclui discos, não inclui correia'; obtidos := obtidos || (case when x like '%Discos de freio%' and x not like '%Correia%' then 'ok' else x end); esperados := esperados || text 'ok';
+  update frota.os_checklist_itens set concluido = true where os_id = os3 and item in ('Óleo + filtro de óleo', 'Discos de freio');
+  update frota.ordens_servico set status = 'concluida', data_liberacao = now() where id = os3;
+  select marco_km || ' / ' || origem || ' / ' || array_to_string(itens_trocados, ', ') into x from frota.revisoes_preventivas where veiculo_id = rv;
+  casos := casos || text 'OS preventiva concluída grava a revisão com os itens marcados'; obtidos := obtidos || x; esperados := esperados || text '40000 / os / Óleo + filtro de óleo, Discos de freio';
+  select status into x from frota.revisoes_a_conferir where veiculo_id = rv and marco_km = 40000;
+  casos := casos || text 'OS preventiva concluída marca o marco "a conferir" como feito'; obtidos := obtidos || x; esperados := esperados || text 'feita';
+  insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0F02', hub, 100, 'disponivel', 'BYD - Mini Dolphin GL') returning id into rv;
+  insert into frota.ordens_servico (veiculo_id, tipo, status, km_entrada, marco_km) values (rv, 'preventiva', 'agendada', 100, 10000) returning id into os3;
+  casos := casos || text 'OS preventiva de modelo sem plano: sem itens automáticos'; obtidos := obtidos || (select count(*)::text from frota.os_checklist_itens where os_id = os3); esperados := esperados || text '0';
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop
