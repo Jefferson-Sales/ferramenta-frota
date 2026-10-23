@@ -1,0 +1,103 @@
+/* Peças da Visão Executiva (Diretoria). Só tokens de css/tokens.css.
+   Montadas por js/painel-exec.js. Demonstração: testes/painel-exec.demo.html. */
+
+/* ---------- filtros (uma linha acima de tudo) ---------- */
+.ex-filtros{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-4); margin:0 0 var(--espaco-7); }
+.ex-filtros label{ display:flex; align-items:center; gap:var(--espaco-2); font-size:var(--fs-sm); color:var(--muted); }
+.ex-filtros select{ font:inherit; font-size:var(--fs-md); color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--raio-botao); padding:var(--espaco-2) var(--espaco-4); }
+.ex-filtros .ex-atualizado{ margin-left:auto; font-size:var(--fs-sm); color:var(--faint); }
+
+/* ---------- grade de 4 quadrantes: 2×2 no computador, 1 coluna no celular ---------- */
+.ex-grade{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--espaco-7); }
+@media (max-width:980px){ .ex-grade{ grid-template-columns:minmax(0,1fr); } }
+
+.ex-quadrante{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--espaco-7) var(--espaco-8) var(--espaco-8); min-width:0; display:flex; flex-direction:column; gap:var(--espaco-7); }
+.ex-quad-head{ display:flex; align-items:center; justify-content:space-between; gap:var(--espaco-4); }
+.ex-quad-head h2{ font-family:var(--font-display); font-size:var(--fs-xl); font-weight:700; color:var(--ink); margin:0; display:flex; align-items:center; gap:var(--espaco-3); }
+.ex-quad-head h2::before{ content:""; width:4px; height:18px; border-radius:var(--raio-pilula); background:var(--accent-marca); flex:none; }
+.ex-quad-head .ex-ver{ font-size:var(--fs-sm); font-weight:600; color:var(--accent); background:none; border:none; padding:var(--espaco-1) var(--espaco-2); border-radius:var(--raio-botao); cursor:pointer; }
+.ex-quad-head .ex-ver:hover{ background:var(--accent-soft); }
+
+.ex-secao{ min-width:0; }
+.ex-secao h3{ font-family:var(--font-body); font-size:var(--fs-sm); font-weight:600; color:var(--muted); margin:0 0 var(--espaco-3); }
+.ex-nota{ font-size:var(--fs-xs); color:var(--faint); margin:var(--espaco-3) 0 0; line-height:1.4; }
+
+/* ---------- cartão de indicador (é um botão: leva à tela operacional filtrada) ---------- */
+.ex-kpis{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:var(--espaco-4); }
+.ex-kpi{ font:inherit; text-align:left; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:var(--raio-xl); padding:var(--espaco-5) var(--espaco-6); display:flex; flex-direction:column; gap:2px; position:relative; min-width:0; }
+button.ex-kpi{ cursor:pointer; transition:border-color .15s ease, box-shadow .15s ease; }
+button.ex-kpi:hover{ border-color:var(--accent-soft-line); box-shadow:var(--shadow); }
+button.ex-kpi:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+button.ex-kpi::after{ content:"›"; position:absolute; top:var(--espaco-4); right:var(--espaco-5); font-size:var(--fs-xl); line-height:1; color:var(--faint); }
+button.ex-kpi:hover::after{ color:var(--accent); }
+.ex-kpi-rot{ font-size:var(--fs-sm); color:var(--muted); padding-right:var(--espaco-5); }
+.ex-kpi-valor{ font-family:var(--font-body); font-size:var(--fs-4xl); font-weight:600; line-height:1.2; letter-spacing:-0.01em; }
+.ex-kpi-sub{ font-size:var(--fs-xs); color:var(--muted); }
+/* variação: a seta e a cor dizem se é bom ou ruim (texto sempre junto, nunca só cor) */
+.ex-delta{ font-size:var(--fs-xs); font-weight:600; }
+.ex-delta.bom{ color:var(--good); } .ex-delta.ruim{ color:var(--critical); } .ex-delta.neutro{ color:var(--muted); }
+/* estado (ícone + texto, nunca só cor) */
+.ex-kpi .ex-estado{ align-self:flex-start; margin-top:var(--espaco-1); font-size:var(--fs-2xs); font-weight:600; padding:1px var(--espaco-3); border-radius:var(--raio-pilula); }
+.ex-estado.alerta{ background:var(--warning-soft); color:var(--warning); }
+.ex-estado.critico{ background:var(--critical-soft); color:var(--critical); }
+.ex-estado.ok{ background:var(--good-soft); color:var(--good); }
+
+/* "Sem dados": nunca número inventado — diz o que falta */
+.ex-kpi.sem-dados, .ex-vazio{ border-style:dashed; border-color:var(--line-strong); background:var(--surface-2); }
+.ex-kpi.sem-dados .ex-kpi-valor{ font-size:var(--fs-xl); color:var(--faint); }
+.ex-vazio{ border-width:1px; border-radius:var(--raio-xl); padding:var(--espaco-6); font-size:var(--fs-sm); color:var(--muted); line-height:1.45; }
+.ex-vazio b{ display:block; color:var(--ink); font-weight:600; margin-bottom:2px; }
+
+/* ---------- número principal (um só por tela) + medidor ---------- */
+.ex-destaque{ display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--espaco-2) var(--espaco-5); }
+.ex-destaque-valor{ font-family:var(--font-body); font-size:var(--fs-destaque); font-weight:600; line-height:1; letter-spacing:-0.02em; color:var(--ink); }
+.ex-destaque-rot{ font-size:var(--fs-md); color:var(--muted); }
+.ex-kpi.ex-medidor-btn{ border-color:transparent; padding:var(--espaco-3); margin:calc(-1 * var(--espaco-3)); }
+.ex-medidor{ margin-top:var(--espaco-4); }
+.ex-medidor-trilho{ display:flex; height:12px; border-radius:var(--raio-pilula); background:var(--grafico-trilho); overflow:hidden; }
+.ex-medidor-ench{ display:block; height:100%; background:var(--grafico-1); border-radius:var(--raio-pilula); }
+.ex-medidor-leg{ display:flex; flex-wrap:wrap; gap:var(--espaco-2) var(--espaco-7); margin-top:var(--espaco-3); font-size:var(--fs-sm); color:var(--muted); }
+.ex-medidor-leg b{ color:var(--ink); font-weight:600; }
+
+/* ---------- legenda (só quando há 2+ séries) ---------- */
+.ex-legenda{ display:flex; flex-wrap:wrap; gap:var(--espaco-2) var(--espaco-6); font-size:var(--fs-sm); color:var(--muted); margin:0 0 var(--espaco-3); }
+.ex-legenda span{ display:inline-flex; align-items:center; gap:var(--espaco-2); }
+.ex-amostra{ width:10px; height:10px; border-radius:var(--raio-xs); flex:none; }
+.ex-amostra.s1{ background:var(--grafico-1); } .ex-amostra.s2{ background:var(--grafico-2); }
+.ex-amostra.meta{ width:2px; height:12px; border-radius:0; background:var(--grafico-meta); }
+
+/* ---------- barras horizontais (cada linha é clicável) ---------- */
+.ex-barras{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.ex-barra{ font:inherit; width:calc(100% + 2 * var(--espaco-3)); display:grid; grid-template-columns:minmax(72px, 34%) minmax(0,1fr) 7.5em; align-items:center; gap:var(--espaco-4); padding:var(--espaco-2) var(--espaco-3); margin:0 calc(-1 * var(--espaco-3)); background:none; border:none; border-radius:var(--raio-md); color:var(--ink); text-align:left; }
+button.ex-barra{ cursor:pointer; }
+button.ex-barra:hover{ background:var(--surface-2); }
+button.ex-barra:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
+.ex-barra-rot{ font-size:var(--fs-sm-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ex-barra-pista{ position:relative; height:14px; }
+.ex-barra-ench{ position:absolute; left:0; top:2px; height:10px; min-width:2px; background:var(--grafico-1); border-radius:0 var(--raio-xs) var(--raio-xs) 0; }
+.ex-barra-ench.s2{ background:var(--grafico-2); }
+.ex-barra-pista.dupla .ex-barra-ench{ height:6px; top:0; }
+.ex-barra-pista.dupla .ex-barra-ench.s2{ top:8px; }
+/* marca da meta / orçado: traço vertical fino */
+.ex-barra-meta{ position:absolute; top:-2px; width:2px; height:18px; background:var(--grafico-meta); border-radius:var(--raio-xs); box-shadow:0 0 0 2px var(--surface); }
+.ex-barra-val{ font-size:var(--fs-sm); font-variant-numeric:tabular-nums; color:var(--ink); white-space:nowrap; text-align:right; }
+.ex-barra-val small{ color:var(--muted); font-size:var(--fs-2xs); margin-left:var(--espaco-1); }
+.ex-barra-val .acima{ color:var(--critical); font-weight:600; }
+
+/* ---------- ranking (posição + barra) ---------- */
+.ex-ranking .ex-barra{ grid-template-columns:20px minmax(72px, 32%) minmax(0,1fr) 7.5em; }
+.ex-pos{ font-size:var(--fs-xs); font-weight:600; color:var(--faint); text-align:right; font-variant-numeric:tabular-nums; }
+/* celular: nome em cima, barra e valor embaixo (nome inteiro, barra com espaço) */
+@media (max-width:560px){
+  .ex-barra{ grid-template-columns:minmax(0,1fr) 6.5em; row-gap:2px; }
+  .ex-barra-rot{ grid-column:1 / -1; }
+  .ex-ranking .ex-barra{ grid-template-columns:20px minmax(0,1fr) 6.5em; }
+  .ex-ranking .ex-barra-rot{ grid-column:2 / -1; }
+  .ex-ranking .ex-barra-pista{ grid-column:2; }
+}
+
+/* ---------- dica ao passar o mouse / focar ---------- */
+.ex-dica{ position:fixed; z-index:60; pointer-events:none; background:var(--ink); color:var(--paper); font-size:var(--fs-sm); line-height:1.4; padding:var(--espaco-2) var(--espaco-4); border-radius:var(--raio-md); box-shadow:var(--shadow-forte); max-width:260px; }
+
+@media (prefers-reduced-motion:reduce){ button.ex-kpi{ transition:none; } }
+@media (forced-colors:active){ .ex-barra-ench, .ex-medidor-ench, .ex-amostra{ forced-color-adjust:none; } }

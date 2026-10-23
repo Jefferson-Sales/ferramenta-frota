@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visão Executiva — peças (demonstração)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/painel-exec.css">
+<style>
+  /* Só a moldura da página de teste. */
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-body); }
+  main{ max-width:1280px; margin:0 auto; padding:var(--espaco-8) var(--espaco-7) 60px; }
+  .demo-topo{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:var(--espaco-4); margin-bottom:var(--espaco-2); }
+  h1{ font-family:var(--font-display); font-size:var(--fs-4xl); font-weight:800; margin:0; letter-spacing:-0.01em; }
+  .demo-aviso{ font-size:var(--fs-sm); color:var(--warning); background:var(--warning-soft); border-radius:var(--raio-botao); padding:var(--espaco-2) var(--espaco-4); margin:var(--espaco-3) 0 var(--espaco-7); }
+  .demo-tema{ display:inline-flex; border:1px solid var(--line-strong); border-radius:var(--raio-botao); overflow:hidden; }
+  .demo-tema button{ font:inherit; font-size:var(--fs-sm); border:none; background:var(--surface); color:var(--muted); padding:var(--espaco-2) var(--espaco-4); cursor:pointer; }
+  .demo-tema button.on{ background:var(--accent-soft); color:var(--accent); font-weight:600; }
+  .demo-toast{ position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--ink); color:var(--paper); padding:var(--espaco-4) var(--espaco-7); border-radius:var(--raio-botao); font-size:var(--fs-md); box-shadow:var(--shadow-forte); max-width:min(560px, calc(100vw - 32px)); z-index:70; }
+</style>
+</head>
+<body>
+<main>
+  <div class="demo-topo">
+    <h1>Visão Executiva</h1>
+    <div class="demo-tema" role="group" aria-label="Tema">
+      <button type="button" data-tema="">Sistema</button><button type="button" data-tema="light">Claro</button><button type="button" data-tema="dark">Escuro</button>
+    </div>
+  </div>
+  <div class="demo-aviso">Página de teste das peças visuais (etapa A6). <b>Todos os números são fictícios.</b> Clique num indicador para ver para onde ele levaria.</div>
+
+  <div class="ex-filtros">
+    <label>Período <select><option>Outubro/2026</option><option>Ano de 2026</option></select></label>
+    <label>Hub <select><option>Todos os hubs</option><option>Hub Exemplo A</option></select></label>
+    <span class="ex-atualizado">Atualizado às 09:40</span>
+  </div>
+
+  <div class="ex-grade" id="grade"></div>
+</main>
+<div class="demo-toast" id="toast" hidden></div>
+
+<script src="../js/painel-exec.js"></script>
+<script>
+(function(){
+  var P = PainelExec;
+
+  function quadrante(titulo, irTudo, corpo){
+    return '<section class="ex-quadrante"><div class="ex-quad-head"><h2>' + P.esc(titulo) + '</h2>' +
+      '<button type="button" class="ex-ver" data-ir="' + P.esc(JSON.stringify(irTudo)) + '">Ver tudo ›</button></div>' + corpo + '</section>';
+  }
+  function secao(titulo, html, nota){
+    return '<div class="ex-secao"><h3>' + P.esc(titulo) + '</h3>' + html + (nota ? '<p class="ex-nota">' + P.esc(nota) + '</p>' : "") + '</div>';
+  }
+
+  // ---------- Operação ----------
+  var operacao = quadrante("Operação", { modulo:"frota" },
+    P.medidor({ valor:"87%", rot:"da frota disponível agora", parte:{ rot:"disponíveis", n:348 }, resto:{ rot:"indisponíveis", n:52 },
+      ir:{ modulo:"frota", filtro:{ status:"indisponivel" } } }) +
+    P.kpis([
+      { rot:"Preventivas em atraso", valor:"12", sub:"e 9 vencendo em até 1.000 km", estado:{ txt:"⚠ atenção", tipo:"alerta" }, ir:{ modulo:"gestao_manutencao", filtro:{ revisao:"vencida" } } },
+      { rot:"Contratos com km excedente", valor:"3", sub:"de 12 contratos", delta:{ seta:"▲", txt:"1 a mais que setembro", tipo:"ruim" }, ir:{ modulo:"frota", filtro:{ chip:"km_excedente" } } },
+      { rot:"Utilização (planejado × realizado)", semDados:"planejamento de picos e rotas realizadas (importação de planilha)" }
+    ]) +
+    secao("KM excedente por contrato (pool)", P.barras({ itens:[
+      { rot:"Contrato Locadora A", valor:18400, txt:"18,4 mil km", dica:"Locadora A · 42 placas · franquia pool 210 mil km/mês", ir:{ modulo:"frota", filtro:{ contrato:"A", chip:"km_excedente" } } },
+      { rot:"Contrato Locadora B", valor:7200, txt:"7,2 mil km", dica:"Locadora B · 18 placas", ir:{ modulo:"frota", filtro:{ contrato:"B", chip:"km_excedente" } } },
+      { rot:"Contrato Locadora C", valor:950, txt:"950 km", dica:"Locadora C · 6 placas", ir:{ modulo:"frota", filtro:{ contrato:"C", chip:"km_excedente" } } }
+    ] }), "Clique no contrato para ver as placas.")
+  );
+
+  // ---------- Financeiro ----------
+  var financeiro = quadrante("Financeiro", { modulo:"financeiro" },
+    P.kpis([
+      { rot:"Fechamento de outubro", valor:P.moeda(412300, true), sub:"realizado até 23/10 + a vencer", delta:{ seta:"▼", txt:"4% abaixo de setembro", tipo:"bom" }, ir:{ modulo:"financeiro", filtro:{ mes:"2026-10" } } },
+      { rot:"Projeção de 2026", valor:P.moeda(5140000, true), sub:"média dos últimos 3 meses", ir:{ modulo:"financeiro", filtro:{ ano:2026 } } },
+      { rot:"Orçado de 2026", semDados:"orçado por linha de conta (importação de planilha)" }
+    ]) +
+    secao("Gastos por linha de conta — outubro", P.barras({
+      legenda:[ { txt:"Realizado", cls:"s1" }, { txt:"Orçado", cls:"meta" } ],
+      itens:[
+        { rot:"Locação", valor:268000, meta:255000, txt:P.moeda(268000, true), txtAcima:true, dica:"Locação · realizado R$ 268 mil · orçado R$ 255 mil · 5% acima", ir:{ modulo:"financeiro", filtro:{ categoria:"locacao", mes:"2026-10" } } },
+        { rot:"Manutenção", valor:71500, meta:90000, txt:P.moeda(71500, true), dica:"Manutenção · realizado R$ 71,5 mil · orçado R$ 90 mil", ir:{ modulo:"financeiro", filtro:{ categoria:"manutencao" } } },
+        { rot:"Combustível", valor:49800, meta:52000, txt:P.moeda(49800, true), dica:"Combustível · realizado R$ 49,8 mil · orçado R$ 52 mil", ir:{ modulo:"financeiro", filtro:{ categoria:"combustivel" } } },
+        { rot:"Recarga elétrica", valor:9400, meta:12000, txt:P.moeda(9400, true), dica:"Recarga elétrica · realizado R$ 9,4 mil · orçado R$ 12 mil", ir:{ modulo:"financeiro", filtro:{ categoria:"recarga" } } },
+        { rot:"Multas", valor:13600, meta:8000, txt:P.moeda(13600, true), txtAcima:true, dica:"Multas · realizado R$ 13,6 mil · orçado R$ 8 mil · 70% acima", ir:{ modulo:"financeiro", filtro:{ categoria:"multas" } } }
+      ] }), "Traço vertical = orçado. Valor em vermelho = acima do orçado.")
+  );
+
+  // ---------- Multas ----------
+  var multas = quadrante("Multas", { modulo:"multas" },
+    P.kpis([
+      { rot:"Multas em outubro", valor:"37", delta:{ seta:"▲", txt:"8 a mais que setembro", tipo:"ruim" }, ir:{ modulo:"multas", filtro:{ mes:"2026-10" } } },
+      { rot:"Valor em outubro", valor:P.moeda(13600, true), sub:"R$ 4,1 mil absorvidos pela empresa", ir:{ modulo:"multas", filtro:{ mes:"2026-10" } } }
+    ]) +
+    secao("Ranking por hub", P.barras({ ranking:true, itens:[
+      { rot:"Hub Exemplo A", valor:14, txt:"14", dica:"Hub Exemplo A · 14 multas · R$ 5,2 mil", ir:{ modulo:"multas", filtro:{ hub:"A" } } },
+      { rot:"Hub Exemplo B", valor:9, txt:"9", dica:"Hub Exemplo B · 9 multas · R$ 3,1 mil", ir:{ modulo:"multas", filtro:{ hub:"B" } } },
+      { rot:"Hub Exemplo C", valor:6, txt:"6", ir:{ modulo:"multas", filtro:{ hub:"C" } } },
+      { rot:"Hub Exemplo D", valor:5, txt:"5", ir:{ modulo:"multas", filtro:{ hub:"D" } } },
+      { rot:"Outros (4 hubs)", valor:3, txt:"3" }
+    ] })) +
+    secao("Principais motivos", P.barras({ itens:[
+      { rot:"Excesso de velocidade até 20%", valor:15, txt:"15", ir:{ modulo:"multas", filtro:{ motivo:"velocidade20" } } },
+      { rot:"Estacionar em local proibido", valor:11, txt:"11", ir:{ modulo:"multas", filtro:{ motivo:"estacionar" } } },
+      { rot:"Avançar sinal vermelho", valor:6, txt:"6", ir:{ modulo:"multas", filtro:{ motivo:"sinal" } } },
+      { rot:"Rodízio", valor:5, txt:"5", ir:{ modulo:"multas", filtro:{ motivo:"rodizio" } } }
+    ] })) +
+    secao("Ranking de motoristas", P.vazio("Ranking de motoristas", "ligar cada multa antiga ao motorista (etapa D2)"))
+  );
+
+  // ---------- Carros Elétricos ----------
+  var eletricos = quadrante("Carros Elétricos", { modulo:"eletrificacao" },
+    P.kpis([
+      { rot:"KM rodado em outubro", valor:P.compacto(48250) + " km", sub:"telemetria", ir:{ modulo:"eletrificacao", filtro:{ mes:"2026-10" } } },
+      { rot:"Custo de recarga", valor:P.moeda(9400, true), sub:"R$ 0,19 por km", ir:{ modulo:"eletrificacao", filtro:{ mes:"2026-10" } } },
+      { rot:"Saídas no mês", valor:"612", sub:"checklists de Retirada", ir:{ modulo:"qualidade", filtro:{ tipo:"retirada", combustivel:"eletrico" } } }
+    ]) +
+    secao("Custo total por km (TCO) — elétrico × combustão", P.barras({
+      legenda:[ { txt:"Elétrico", cls:"s1" }, { txt:"Combustão (estimado)", cls:"s2" } ],
+      itens:[
+        { rot:"Aluguel", valor:0.92, valor2:0.81, txt:"R$ 0,92 vs 0,81", dica:"Aluguel por km · elétrico R$ 0,92 · combustão R$ 0,81" },
+        { rot:"Energia / combustível", valor:0.19, valor2:0.58, txt:"R$ 0,19 vs 0,58", dica:"Energia por km · elétrico R$ 0,19 · combustão R$ 0,58" },
+        { rot:"Manutenção", valor:0.05, valor2:0.11, txt:"R$ 0,05 vs 0,11", dica:"Manutenção por km · elétrico R$ 0,05 · combustão R$ 0,11" },
+        { rot:"Total", valor:1.16, valor2:1.50, txt:"R$ 1,16 vs 1,50", dica:"Total por km · elétrico R$ 1,16 · combustão R$ 1,50 · 23% mais barato" }
+      ] }), "Na tela real, a parte de combustão fica \"Sem dados\" até a etapa D3 (parâmetros de combustão).")
+  );
+
+  var grade = document.getElementById("grade");
+  grade.innerHTML = operacao + financeiro + multas + eletricos;
+
+  var toast = document.getElementById("toast"), tt;
+  var NOMES = { frota:"Cadastro da Frota", financeiro:"Financeiro", multas:"Multas", eletrificacao:"Carros Elétricos", gestao_manutencao:"Gestão de Manutenção", qualidade:"Qualidade da Frota" };
+  P.ligar(grade, function(destino){
+    var f = destino.filtro ? Object.keys(destino.filtro).map(function(k){ return k + " = " + destino.filtro[k]; }).join(", ") : "sem filtro";
+    toast.textContent = "Abriria: " + (NOMES[destino.modulo] || destino.modulo) + " · " + f;
+    toast.hidden = false; clearTimeout(tt); tt = setTimeout(function(){ toast.hidden = true; }, 3500);
+  });
+
+  // Tema (só na demonstração).
+  var botoes = document.querySelectorAll(".demo-tema button");
+  function tema(t){
+    if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+    botoes.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-tema") === t); });
+  }
+  botoes.forEach(function(b){ b.addEventListener("click", function(){ tema(b.getAttribute("data-tema")); }); });
+  var h = location.hash.replace("#", ""); tema(h === "light" || h === "dark" ? h : "");
+})();
+</script>
+</body>
+</html>

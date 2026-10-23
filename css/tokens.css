@@ -40,6 +40,8 @@
   --critical-soft:#fbe9e8;
   --shadow:0 1px 2px rgba(31,94,137,.05), 0 4px 16px rgba(31,94,137,.06);
   --shadow-forte:0 2px 4px rgba(31,94,137,.06), 0 12px 32px rgba(31,94,137,.12);
+  /* Gráficos (validados para daltonismo e contraste, 23/10/2026). 1 = série principal / realizado; 2 = comparação (ex.: combustão). */
+  --grafico-1:var(--beep-verde-escuro); --grafico-2:var(--beep-laranja-escuro); --grafico-trilho:var(--accent-soft); --grafico-meta:var(--ink);
 
   /* ---------- Fontes ---------- */
   --font-display:"Archivo", ui-sans-serif, system-ui, sans-serif;
@@ -49,7 +51,7 @@
   /* ---------- Forma (não mudam com o tema) ---------- */
   --radius:16px;          /* cards, modais, caixas (Brandbook: 15–20px) */
   --raio-botao:10px;      /* botões: sempre arredondados, sem degradê */
-  --fs-3xs:10.5px; --fs-2xs:11px; --fs-xs:11.5px; --fs-sm:12px; --fs-sm-2:12.5px; --fs-md:13px; --fs-md-2:13.5px; --fs-lg:14px; --fs-lg-2:14.5px; --fs-xl:16px; --fs-xl-2:17px; --fs-2xl:18px; --fs-2xl-2:19px; --fs-3xl:20px; --fs-3xl-2:21px; --fs-4xl:24px; --fs-6xl:34px;
+  --fs-3xs:10.5px; --fs-2xs:11px; --fs-xs:11.5px; --fs-sm:12px; --fs-sm-2:12.5px; --fs-md:13px; --fs-md-2:13.5px; --fs-lg:14px; --fs-lg-2:14.5px; --fs-xl:16px; --fs-xl-2:17px; --fs-2xl:18px; --fs-2xl-2:19px; --fs-3xl:20px; --fs-3xl-2:21px; --fs-4xl:24px; --fs-6xl:34px; --fs-destaque:48px;
   --raio-xs:2px; --raio-sm:6px; --raio-md-2:7px; --raio-md:8px; --raio-md-3:9px; --raio-lg:10px; --raio-xl:12px; --raio-2xl:22px; --raio-pilula:999px;
   --espaco-1:4px; --espaco-2:6px; --espaco-3:8px; --espaco-4:10px; --espaco-5:12px; --espaco-6:14px; --espaco-7:16px; --espaco-8:18px;
   --texto-sobre-cor:#ffffff; --fundo-modal:rgba(15,30,40,.45); --fundo-legenda-foto:rgba(0,0,0,.6);
@@ -64,6 +66,7 @@
     --destaque-2:#7fb3d6;
     --good:#4cbf7c; --good-soft:#173325; --warning:var(--beep-laranja-claro); --warning-forte:var(--beep-laranja-claro); --warning-soft:#3a2a06; --critical:#e5716d; --critical-soft:#3a1d1c;
     --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.3); --shadow-forte:0 2px 4px rgba(0,0,0,.35), 0 12px 32px rgba(0,0,0,.45);
+    --grafico-1:#00A39E; --grafico-2:#E35D06;
     color-scheme:dark;
   }
 }
@@ -74,5 +77,6 @@
   --destaque-2:#7fb3d6;
   --good:#4cbf7c; --good-soft:#173325; --warning:var(--beep-laranja-claro); --warning-forte:var(--beep-laranja-claro); --warning-soft:#3a2a06; --critical:#e5716d; --critical-soft:#3a1d1c;
   --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.3); --shadow-forte:0 2px 4px rgba(0,0,0,.35), 0 12px 32px rgba(0,0,0,.45);
+  --grafico-1:#00A39E; --grafico-2:#E35D06;
   color-scheme:dark;
 }

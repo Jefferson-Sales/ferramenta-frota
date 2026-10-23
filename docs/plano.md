@@ -8,7 +8,9 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - **Cards/caixas:** cantos de 15–20px. **Botões:** sem degradê e sem canto reto.
 - **Visão Executiva** abre primeiro só para Diretoria e Admin.
 - **Orçado e planejado:** entram por importação de planilha (sem tela de digitação).
-- **"Saídas no mês" dos elétricos:** contadas pelos checklists de Retirada.
+- **"Saídas no mês" dos elétricos:** contadas pelos checklists de Retirada; depois, pela API de telemetria (ver D4).
+- **Prioridade:** A6 e B1 antes; A3 e A4 ficam para o fim.
+- **Diretoria:** papel **Visualizador** + permissão "Visão Executiva" — só consulta, sem editar e sem dados pessoais sensíveis (que continuam só para admin).
 - **Painel de Multas (fase 2):** liberado por este pedido.
 
 ## Andamento
@@ -16,7 +18,8 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - [x] **A1** `css/tokens.css` com as cores da Beep, carregado pelos dois HTML (23/10/2026). Também antecipado da A3: cores, cantos de 16px nos cards, 10px nos botões, sombras mais suaves.
 - [x] **A2** Tabelas sem vazamento (23/10/2026).
 - [x] **A5** Menu no celular + `<meta viewport>` que faltava no `index.html` (23/10/2026). Falta testar num celular real depois do push.
-- [ ] A3 (resto: tipografia, unificar meio-passos), A4, A6, B, C, D.
+- [x] **A6** Peças da Visão Executiva (23/10/2026, aguardando avaliação do Jefferson): `css/painel-exec.css` + `js/painel-exec.js` (cartão de indicador clicável, "Sem dados", número principal com medidor, barras com meta/orçado, ranking, legenda, dica ao passar o mouse); demonstração com dados fictícios em `testes/painel-exec.demo.html`. Cores de gráfico `--grafico-1/2` validadas para daltonismo e contraste.
+- [ ] B1 (próxima), B2, B3, C, D; A3 e A4 no fim.
 
 ## O que encontrei antes de planejar
 
@@ -95,7 +98,7 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
 
 **C2. Carros Elétricos** (km, custo e recargas existem)
 - KM rodado no mês (`telemetria_diaria`), custo total no mês (`recargas_eletricas.valor`), quantidade de saídas no mês.
-  - Confirmar com você: "saídas" = **recargas** ou **checklists de Retirada** de carros elétricos? (sugestão: Retirada).
+  - "Saídas": checklists de **Retirada** de carros elétricos até a integração D4; depois, eventos de saída da API de telemetria.
 - TCO × combustão → **"Sem dados"** até D3. Fórmula proposta (para aprovar): custo por km elétrico = (aluguel + recargas + manutenção) ÷ km; combustão = mesma soma com combustível estimado pela autonomia e preço do litro da tabela de parâmetros.
 - Também resolve a pendência antiga do card "Integração em teste".
 
@@ -118,6 +121,7 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
 - **D1.** Orçado por categoria (mensal/anual) e planejamento de picos/rotas realizadas por hub: importação de planilha ou tela de cadastro.
 - **D2.** Multas: ligar `motorista_identificado_id` nas 459 multas antigas (casar o nome do texto com o cadastro, com lista para você conferir antes do UPDATE) e preencher código/motivo da infração.
 - **D3.** Parâmetros de combustão (autonomia km/l, preço do litro, CO₂) por hub.
+- **D4.** Carros Elétricos — **percentual de bateria** e **eventos de saída** virão por integração com a API de telemetria (decisão do Jefferson, 23/10/2026). Falta definir com ele: qual API/endpoint (é a mesma Questar/Exodus do `sync-telemetria-questar` ou outra?), credencial (fica nos segredos da Edge Function, nunca no código), frequência de sincronização e onde gravar (tabela nova com RLS no padrão do projeto). Até a integração existir, o KPI "Saídas no mês" conta os checklists de **Retirada** de carros elétricos (decisão anterior) e o % de bateria vem do que o motorista informa no checklist.
 
 Comandos que alteram dados reais seguem a regra: mostro o comando exato, com `WHERE` por id, e espero sua aprovação.
 
