@@ -8,7 +8,10 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - **Cards/caixas:** cantos de 15–20px. **Botões:** sem degradê e sem canto reto.
 - **Visão Executiva** abre primeiro só para Diretoria e Admin.
 - **Orçado e planejado:** entram por importação de planilha (sem tela de digitação).
-- **"Saídas no mês" dos elétricos e uso diário da frota toda:** pela telemetria Questar (D4). O checklist de Retirada **não** é mais usado para medir uso (decisão de 23/10/2026, substitui a anterior).
+- **Uso diário da frota (realizado) — por telemetria, dividida por tipo de carro (correção do Jefferson, 23/10/2026):**
+  - **Elétricos:** utilização, saídas e % de bateria pela API **Questar/Exodus** (D4) — só os elétricos têm Questar.
+  - **Combustão** (quase toda a frota): utilização por **outra API de telemetria, fornecedor a definir** (D6) — o Jefferson envia na fase D.
+  - O checklist de Retirada **não** é usado para medir uso.
 - **Planejado da Utilização:** consulta do Metabase com agendas/rotas por dia (D5).
 - **Manutenção (C1):** aprovados o histórico de status da OS e a tratativa com a oficina como histórico imutável.
 - **Telemetria (D4):** aprovado testar o campo de nível para a bateria; **não** gravar latitude/longitude.
@@ -112,11 +115,12 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
   | Tratativa com a oficina (observações/histórico do auxiliar) | **não existe** como histórico (`observacoes` é um texto só, sobrescrito) | Tabela nova `os_tratativas` (OS, quem, quando, texto), só acrescenta, ninguém apaga; RLS de Manutenções + hub; quem opera Manutenções/Checklist escreve, Diretoria só lê. |
 
   Esse detalhe também serve à tela de Manutenções (não só à Diretoria). Migration própria + testes em `regras.test.sql` (tempos por fase).
-  **Aprovado pelo Jefferson (23/10/2026):** criar o histórico de status da OS (`os_status_historico`) e a tratativa como histórico imutável (`os_tratativas`: quem, quando, o quê; ninguém edita nem apaga). Ainda a definir: textos do "status de liberação" e se "serviço executado" vira campo próprio.
+  **Aprovado pelo Jefferson (23/10/2026):** criar o histórico de status da OS (`os_status_historico`) e a tratativa como histórico imutável (`os_tratativas`: quem, quando, o quê; ninguém edita nem apaga). **Status de liberação:** campo próprio com 4 opções — Aguardando orçamento/aprovação, Em reparo, Pronto, aguardando retirada, Liberado (OS concluída vira Liberado sozinha). **Serviço executado:** campo de texto próprio, resumo limpo escrito pelo auxiliar.
+  **Banco feito em 23/10/2026** (`sql/2026-10-23-c1-historico-os-tratativas.sql`): colunas `servico_executado` e `status_liberacao`, tabelas `os_status_historico` e `os_tratativas` (RLS de Manutenções + hub; imutáveis até para o dono do banco), view `v_os_fases` (tempo em cada status). 19 testes novos em `regras.test.sql` (81 no total, todos ok). Pendente de aprovação: "foto inicial" das 16 OS em aberto (`sql/2026-10-23-c1-historico-os-foto-inicial.sql`).
 - Preventivas em atraso: contagem de vencidas/vencendo (`v_revisoes_status`) → clica: Dash de Manutenção, lista de revisões.
 - Contratos: km excedente por contrato (`v_pool_km_contrato`) → clica no contrato: lista das placas daquele contrato.
 - Utilização: planejado × realizado → **"Sem dados"** até as etapas D4 (realizado) e D5 (planejado). **Nova regra (Jefferson, 23/10/2026):**
-  - **Realizado = telemetria Questar, para toda a frota.** Carro com pelo menos uma viagem registrada no dia = carro utilizado no dia. O checklist de Retirada **deixa de ser** a medida de uso (o motorista pode esquecer de preencher); continua valendo para qualidade/anomalias e para a trava de devolução.
+  - **Realizado = telemetria.** Carro com pelo menos uma viagem registrada no dia = carro utilizado no dia. Elétricos pela Questar (D4); combustão pela telemetria do outro fornecedor (D6, a definir). Até D6, a Utilização mostra só os elétricos, avisando que a combustão está "Sem dados" (nunca soma parcial como se fosse o total). O checklist de Retirada **deixa de ser** a medida de uso (o motorista pode esquecer de preencher); continua valendo para qualidade/anomalias e para a trava de devolução.
   - **Planejado = consulta do Metabase** com as agendas/rotas programadas por dia (integração D5).
   - Indicador: por dia e hub, carros planejados × carros com viagem; no mês, média diária e % de aderência. Regra de cálculo em `regras.js`/SQL com teste.
   - As tabelas antigas `planejamento_picos` e `rotas_realizadas` (vazias) ficam sem uso por enquanto (não apagar).
@@ -151,10 +155,16 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
   - Cada viagem = uma **saída**: `drive_id` (chave para não duplicar), `license_number`, `start_time`/`end_time`, `distance`, `start_mileage`/`total_mileage`, `energy_type`.
   - **Bateria:** a documentação **não tem campo de bateria**; o mais próximo é `start_fuel_level_percent`/`end_fuel_level_percent`. Primeiro passo: chamar para 1 carro elétrico e conferir se esses campos trazem a carga (%) — se vierem vazios, o % de bateria continua vindo do checklist.
   - **Dados pessoais e localização (aprovado, 23/10/2026):** **não gravar** latitude/longitude nem endereço — não há rastreamento de mapa, só dados de uso. Gravar só o `driver_code` para ligar à matrícula; tabela nova `telemetria_viagens` com RLS (Cadastro da Frota/Carros Elétricos + Visão Executiva), sem acesso anônimo.
-  - **Escopo ampliado (23/10/2026): toda a frota, não só os elétricos** — a telemetria passa a ser a fonte da verdade de uso diário (ver Utilização no C1). Primeiro conferir quantos dos ~400 carros têm equipamento Questar; carro sem equipamento aparece como "sem telemetria" (nunca como "não utilizado").
-  - Sincronização: junto do cron diário das 02:00 (dia anterior), com reprocessamento idempotente por `drive_id`; para 400 carros, chamadas em lotes de 100 `vehicle_id`. O % de bateria continua vindo do checklist enquanto o campo de nível não for confirmado.
+  - **Escopo: só os carros elétricos** (corrigido pelo Jefferson em 23/10/2026 — a Questar só está nos elétricos; a combustão vai pela D6). Carro sem telemetria aparece como "sem telemetria", nunca como "não utilizado".
+  - Sincronização: junto do cron diário das 02:00 (dia anterior), com reprocessamento idempotente por `drive_id`; chamadas em lotes de até 100 `vehicle_id`. O % de bateria continua vindo do checklist enquanto o campo de nível não for confirmado.
   - **Teste do campo de nível: aprovado** — consultar 1 carro elétrico e conferir `start_fuel_level_percent`/`end_fuel_level_percent`.
-- **D5.** **Integração Metabase — planejado da Utilização** (decisão de 23/10/2026). Fonte: a consulta do Metabase com as agendas/rotas programadas por dia. Precisa do Jefferson: URL do Metabase, id da consulta (pergunta salva), credencial de leitura (vai para os segredos da Edge Function, nunca no código nem no chat) e o formato das colunas (dia, hub, placa ou quantidade de carros). Sincronização diária por Edge Function + cron, gravando em tabela nova com RLS. É a pendência "Integração Pipefy e Metabase: aguardando credenciais" do CLAUDE.md.
+- **D5.** **Integração Metabase — planejado da Utilização** (decisão de 23/10/2026). É a pendência "Integração Pipefy e Metabase: aguardando credenciais" do CLAUDE.md.
+  - **Endereço:** https://dados.beepapp.com.br · **Pergunta (consulta) nº 11296** (informados pelo Jefferson, 23/10/2026).
+  - **Formato da resposta:** colunas `data_visita`, `bu` e **uma coluna por hub** (ex.: Vila Olímpia, Tatuapé, Alphaville…) com o **número de rotas planejadas**. Usar só as linhas em que `bu` = **"Total do dia"**; cada coluna de hub vira uma linha (dia, hub, rotas planejadas).
+  - **Cuidados:** (1) o nome da coluna precisa casar com `hubs.nome` — tabela de-para (nome no Metabase → hub_id), e coluna sem par vira aviso, não é descartada em silêncio; (2) hub novo no Metabase = coluna nova, a leitura não pode depender de lista fixa de colunas; (3) confirmar com o Jefferson se **1 rota planejada = 1 carro** para comparar com carros utilizados.
+  - **Credencial:** acesso só de leitura (usuário de serviço ou chave de API do Metabase), guardado nos segredos da Edge Function — nunca no código nem no chat. Ainda falta o Jefferson providenciar.
+  - Sincronização diária por Edge Function + cron (próximos dias e reprocessa os últimos), gravando em tabela nova `utilizacao_planejada` (dia, hub_id, rotas, sincronizado_em) com RLS.
+- **D6.** **Telemetria dos carros a combustão** — fornecedor **a definir** (o Jefferson envia na fase D). Mesmo desenho da D4: viagens por dia, só dados de uso (sem localização), token nos segredos da Edge Function, tabela com RLS.
 
 Comandos que alteram dados reais seguem a regra: mostro o comando exato, com `WHERE` por id, e espero sua aprovação.
 

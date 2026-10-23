@@ -28,6 +28,7 @@ declare
   ta uuid; tb uuid; r1 uuid; r2 uuid; dv uuid;
   sa uuid; sb uuid; os1 uuid; os2 uuid; rv uuid; os3 uuid;
   hub2 uuid; u_op uuid; u_outro uuid; u_vis uuid; u_adm uuid; cf uuid; cv uuid;
+  vh uuid; osh uuid; osf uuid; tr uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -308,6 +309,76 @@ begin
   select origem || ' / ' || (data_revisao = current_date - 200)::text into x from frota.revisoes_preventivas where veiculo_id = cv and marco_km = 10000;
   casos := casos || text 'Feita (admin): não sobrescreve revisão que veio da planilha'; obtidos := obtidos || x; esperados := esperados || text 'planilha / true';
   perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 10. HISTÓRICO DE STATUS DA OS, STATUS DE LIBERAÇÃO E TRATATIVAS (C1)
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0H01', hub, 1000, 'disponivel') returning id into vh;
+  perform set_config('request.jwt.claims', json_build_object('sub', u_op, 'role', 'authenticated')::text, true);
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou) values (vh, 'corretiva', 'aguardando_agendamento', now()) returning id into osh;
+  select count(*) || ' / ' || coalesce(max(valor_anterior), 'nulo') || ' → ' || max(valor_novo) || ' / ' || max(mudou_por_nome) into x
+    from frota.os_status_historico where os_id = osh and campo = 'status';
+  casos := casos || text 'histórico: OS nova grava o status inicial e quem abriu'; obtidos := obtidos || x; esperados := esperados || text '1 / nulo → aguardando_agendamento / TESTE Operador';
+  update frota.ordens_servico set status = 'em_execucao' where id = osh;
+  select valor_anterior || ' → ' || valor_novo into x from frota.os_status_historico where os_id = osh and campo = 'status' order by id desc limit 1;
+  casos := casos || text 'histórico: troca de status grava de → para'; obtidos := obtidos || x; esperados := esperados || text 'aguardando_agendamento → em_execucao';
+  update frota.ordens_servico set status = 'em_execucao', observacoes = 'TESTE só observação' where id = osh;
+  select count(*)::text into x from frota.os_status_historico where os_id = osh and campo = 'status';
+  casos := casos || text 'histórico: salvar sem mudar o status não grava linha'; obtidos := obtidos || x; esperados := esperados || text '2';
+  update frota.ordens_servico set status_liberacao = 'pronto_retirada', servico_executado = 'TESTE troca de pastilhas' where id = osh;
+  select coalesce(valor_anterior, 'nulo') || ' → ' || valor_novo into x from frota.os_status_historico where os_id = osh and campo = 'status_liberacao' order by id desc limit 1;
+  casos := casos || text 'histórico: status de liberação também é registrado'; obtidos := obtidos || x; esperados := esperados || text 'nulo → pronto_retirada';
+  begin update frota.ordens_servico set status_liberacao = 'qualquer' where id = osh; x := 'aceitou'; exception when check_violation then x := 'recusou'; end;
+  casos := casos || text 'status de liberação fora das 4 opções é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.ordens_servico set status = 'concluida' where id = osh;
+  select status_liberacao || ' / ' || servico_executado into x from frota.ordens_servico where id = osh;
+  casos := casos || text 'OS concluída: status de liberação vira "liberado" (resumo do serviço fica)'; obtidos := obtidos || x; esperados := esperados || text 'liberado / TESTE troca de pastilhas';
+  select string_agg(campo || ':' || valor_novo, ', ' order by id) into x from frota.os_status_historico where os_id = osh and id > (select max(id) - 2 from frota.os_status_historico where os_id = osh);
+  casos := casos || text 'OS concluída: histórico tem a conclusão e a liberação'; obtidos := obtidos || x; esperados := esperados || text 'status:concluida, status_liberacao:liberado';
+  perform set_config('request.jwt.claims', '', true);
+  begin update frota.os_status_historico set valor_novo = 'cancelada' where os_id = osh; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Registro de histórico não pode%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'histórico: ninguém edita (nem o dono do banco)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.os_status_historico where os_id = osh; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Registro de histórico não pode%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'histórico: ninguém apaga'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+
+  -- tempo em cada fase (v_os_fases): trocas simuladas 1 h e 3 h depois da abertura
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou) values (vh, 'corretiva', 'aguardando_orcamento', now()) returning id into osf;
+  insert into frota.os_status_historico (os_id, campo, valor_anterior, valor_novo, mudou_em) values
+    (osf, 'status', 'aguardando_orcamento', 'em_execucao', now() + interval '1 hour'),
+    (osf, 'status', 'em_execucao', 'concluida', now() + interval '3 hours');
+  select string_agg(valor || '=' || to_char(duracao, 'HH24:MI'), ', ' order by inicio) into x from frota.v_os_fases where os_id = osf and campo = 'status';
+  casos := casos || text 'tempo por fase: orçamento 1 h, execução 2 h, concluída não conta'; obtidos := obtidos || x; esperados := esperados || text 'aguardando_orcamento=01:00, em_execucao=02:00, concluida=00:00';
+  select string_agg(atual::text, ',' order by inicio) into x from frota.v_os_fases where os_id = osf and campo = 'status';
+  casos := casos || text 'tempo por fase: só o último período é o atual'; obtidos := obtidos || x; esperados := esperados || text 'false,false,true';
+
+  -- tratativas, entrando como usuário logado (o RLS vale)
+  perform set_config('request.jwt.claims', json_build_object('sub', u_op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.os_tratativas (os_id, texto, autor_id, autor_nome) values (osh, '  Oficina pediu mais 2 dias para a peça  ', u_adm, 'Alguém Forjado') returning id into tr;
+  execute 'reset role';
+  select autor_nome || ' / ' || (autor_id = u_op)::text || ' / ' || texto into x from frota.os_tratativas where id = tr;
+  casos := casos || text 'tratativa: operador do hub registra; autor e hora vêm do servidor'; obtidos := obtidos || x; esperados := esperados || text 'TESTE Operador / true / Oficina pediu mais 2 dias para a peça';
+  execute 'set local role authenticated';
+  begin insert into frota.os_tratativas (os_id, texto) values (osh, ' a '); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'tratativa: texto curto demais é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.os_tratativas set texto = 'TESTE editado' where id = tr; get diagnostics x = row_count; x := case when x = '0' then 'recusou' else 'aceitou' end; exception when others then x := 'recusou'; end;
+  casos := casos || text 'tratativa: o próprio autor não edita'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_vis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin insert into frota.os_tratativas (os_id, texto) values (osh, 'TESTE visualizador tentando'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'tratativa: visualizador não registra'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select count(*)::text into x from frota.os_tratativas where os_id = osh;
+  casos := casos || text 'tratativa: visualizador do hub lê'; obtidos := obtidos || x; esperados := esperados || text '1';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_outro, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin insert into frota.os_tratativas (os_id, texto) values (osh, 'TESTE outro hub tentando'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'tratativa: operador de outro hub não registra'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select count(*)::text || ' / ' || (select count(*) from frota.os_status_historico where os_id = osh)::text into x from frota.os_tratativas where os_id = osh;
+  casos := casos || text 'operador de outro hub não lê tratativas nem histórico'; obtidos := obtidos || x; esperados := esperados || text '0 / 0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  begin delete from frota.os_tratativas where id = tr; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Registro de histórico não pode%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'tratativa: ninguém apaga (nem o dono do banco)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop
