@@ -280,6 +280,25 @@
   .modal-close{ background:none; border:none; color:var(--muted); font-size:var(--fs-2xl); line-height:1; padding:var(--espaco-1); }
   .modal-actions{ display:flex; justify-content:flex-end; gap:var(--espaco-3); margin-top:var(--espaco-8); }
   .field-err{ color:var(--critical); font-size:var(--fs-sm); margin-top:var(--espaco-1); }
+  /* Detalhe da OS: tratativas com a oficina e histórico de status (C1) */
+  .osd-trat-novo textarea{ width:100%; font:inherit; font-size:var(--fs-md); color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--raio-md); padding:var(--espaco-3) var(--espaco-4); resize:vertical; }
+  .osd-trat-novo textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
+  .osd-trat-acoes{ display:flex; align-items:center; justify-content:space-between; gap:var(--espaco-4); flex-wrap:wrap; margin:var(--espaco-2) 0 var(--espaco-5); }
+  .osd-trat-acoes .ac-hint{ margin:0; }
+  .osd-trat-acoes .btn{ width:auto; }
+  .osd-trat{ border-left:3px solid var(--accent-soft-line); padding:var(--espaco-1) 0 var(--espaco-1) var(--espaco-5); margin-bottom:var(--espaco-4); }
+  .osd-trat-meta{ font-size:var(--fs-xs); color:var(--muted); margin-bottom:2px; }
+  .osd-trat-meta b{ color:var(--ink); font-weight:600; }
+  .osd-trat-texto{ font-size:var(--fs-md); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .osd-vazio{ font-size:var(--fs-sm-2); color:var(--muted); }
+  .osd-largo{ grid-column:1 / -1; }
+  .osd-hist{ list-style:none; margin:0; padding:0; font-size:var(--fs-md); }
+  .osd-hist li{ display:flex; flex-wrap:wrap; gap:var(--espaco-1) var(--espaco-4); padding:var(--espaco-2) 0; border-bottom:1px solid var(--line); }
+  .osd-hist li:last-child{ border-bottom:none; }
+  .osd-hist .quando{ font-family:var(--font-mono); font-size:var(--fs-sm); color:var(--muted); min-width:112px; }
+  .osd-hist .quem{ color:var(--muted); font-size:var(--fs-sm); }
+  .osd-hist .tempo{ margin-left:auto; font-size:var(--fs-sm); color:var(--muted); white-space:nowrap; }
+  .osd-hist .tempo.atual{ color:var(--warning); font-weight:600; }
 </style>
 
 <!-- ===================== LOGIN ===================== -->
@@ -1182,6 +1201,23 @@
       </div>
     </div>
 
+    <div class="detail-section">
+      <h4>Tratativas com a oficina</h4>
+      <div class="osd-trat-novo" data-edit="manutencao">
+        <textarea id="osd-trat-texto" rows="2" maxlength="4000" placeholder="Ex.: Oficina pediu mais 2 dias para chegar a peça; previsão nova 28/10."></textarea>
+        <div class="osd-trat-acoes">
+          <span class="ac-hint">Fica registrado com seu nome, data e hora. Não dá para editar nem apagar depois.</span>
+          <button type="button" class="btn" id="osd-trat-enviar">Adicionar tratativa</button>
+        </div>
+      </div>
+      <div id="osd-tratativas"></div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Histórico de status</h4>
+      <div id="osd-historico"></div>
+    </div>
+
     <form id="osd-form" data-edit="manutencao">
       <h4>Atualizar OS</h4>
       <div class="form-grid">
@@ -1205,6 +1241,17 @@
         <div class="field"><label for="osd-liberacao">Data de liberação (real)</label><input id="osd-liberacao" type="date"></div>
         <div class="field"><label for="osd-oficina">Oficina</label><select id="osd-oficina"><option value="">—</option></select></div>
         <div class="field"><label for="osd-contato">Contato da oficina</label><input id="osd-contato"></div>
+        <div class="field"><label for="osd-status-lib">Status de liberação</label>
+          <select id="osd-status-lib">
+            <option value="">— Não informado</option>
+            <option value="aguardando_orcamento">Aguardando orçamento/aprovação</option>
+            <option value="em_reparo">Em reparo</option>
+            <option value="pronto_retirada">Pronto, aguardando retirada</option>
+            <option value="liberado">Liberado</option>
+          </select>
+        </div>
+        <div class="field span2"><label for="osd-servico">Serviço executado <span class="ac-hubs-sub">(resumo para a Diretoria)</span></label>
+          <textarea id="osd-servico" rows="2" maxlength="2000" placeholder="Ex.: Troca das pastilhas e discos dianteiros; alinhamento."></textarea></div>
         <div class="field span2"><label for="osd-obs">Observações</label><textarea id="osd-obs" rows="2"></textarea></div>
       </div>
       <div class="field-err" id="osd-err" hidden></div>
@@ -2103,7 +2150,7 @@
   var anexosCountById = {};
 
   function carregarOS(avisarVencidas){
-    rest("ordens_servico?select=id,tipo,veiculo_parado,km_entrada,marco_km,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
+    rest("ordens_servico?select=id,tipo,veiculo_parado,km_entrada,marco_km,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,servico_executado,status_liberacao,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
       .then(function(rows){
         osCache = rows || [];
         renderKpisManutencao(rows);
@@ -3450,7 +3497,9 @@
       '<div><div class="k">Entrada na oficina</div>' + dateBR(o.data_entrada_oficina) + '</div>' +
       '<div><div class="k">Data de liberação real</div>' + dateBR(o.data_liberacao) + '</div>' +
       '<div><div class="k">Valor total</div>' + money(o.valor_total) + '</div>' +
-      (o.marco_km ? '<div><div class="k">Revisão</div>' + (o.marco_km / 1000) + ' mil km' + (o.km_entrada ? ' · entrou com ' + esc(Number(o.km_entrada).toLocaleString("pt-BR")) + ' km' : '') + '</div>' : '');
+      (o.marco_km ? '<div><div class="k">Revisão</div>' + (o.marco_km / 1000) + ' mil km' + (o.km_entrada ? ' · entrou com ' + esc(Number(o.km_entrada).toLocaleString("pt-BR")) + ' km' : '') + '</div>' : '') +
+      '<div><div class="k">Status de liberação</div>' + (o.status_liberacao ? pill(Regras.STATUS_LIBERACAO[o.status_liberacao] || o.status_liberacao, STATUS_LIB_PILL[o.status_liberacao]) : "—") + '</div>' +
+      (o.servico_executado ? '<div class="osd-largo"><div class="k">Serviço executado</div><div class="osd-trat-texto">' + esc(o.servico_executado) + '</div></div>' : '');
     document.getElementById("osd-checklist-aviso").hidden = !(o.tipo === "preventiva" && o.marco_km);
 
     document.getElementById("osd-status").value = o.status;
@@ -3465,8 +3514,13 @@
     document.getElementById("osd-contato").value = o.contato_oficina || "";
     document.getElementById("osd-contato").dataset.auto = "";
     document.getElementById("osd-obs").value = o.observacoes || "";
+    document.getElementById("osd-status-lib").value = o.status_liberacao || "";
+    document.getElementById("osd-servico").value = o.servico_executado || "";
+    document.getElementById("osd-trat-texto").value = "";
     setErr("osd-err", "");
 
+    carregarTratativasOS(osId);
+    carregarHistoricoOS(osId);
     carregarAnexosOS(osId);
     carregarChecklistOS(osId);
     carregarAnomaliasOS(osId);
@@ -3493,7 +3547,9 @@
       data_liberacao: document.getElementById("osd-liberacao").value ? new Date(document.getElementById("osd-liberacao").value).toISOString() : null,
       oficina_id: document.getElementById("osd-oficina").value || null,
       contato_oficina: document.getElementById("osd-contato").value.trim() || null,
-      observacoes: document.getElementById("osd-obs").value.trim() || null
+      observacoes: document.getElementById("osd-obs").value.trim() || null,
+      status_liberacao: document.getElementById("osd-status-lib").value || null,
+      servico_executado: document.getElementById("osd-servico").value.trim() || null
     };
     if (osdAtual.tipo === "sinistro" && paradoSel) body.veiculo_parado = paradoSel === "sim";
     if (body.status === "concluida" && !body.data_liberacao) body.data_liberacao = new Date().toISOString();
@@ -3507,6 +3563,63 @@
       if (body.status === "cancelada" && osAntes.status !== "cancelada" && currentPanel === "qualidade") loadQualidade();
     }).catch(function(e){ setErr("osd-err", e.message); });
   });
+
+  // OS concluída = carro liberado (o banco também garante isso por gatilho).
+  document.getElementById("osd-status").addEventListener("change", function(ev){
+    if (ev.target.value === "concluida") document.getElementById("osd-status-lib").value = "liberado";
+  });
+
+  // ---------------- tratativas com a oficina (só acrescenta; ninguém edita/apaga) ----------------
+  var STATUS_LIB_PILL = { aguardando_orcamento:"warn", em_reparo:"warn", pronto_retirada:"good", liberado:"good" };
+  function carregarTratativasOS(osId){
+    var host = document.getElementById("osd-tratativas");
+    host.innerHTML = '<span class="osd-vazio">Carregando…</span>';
+    rest("os_tratativas?os_id=eq." + osId + "&select=texto,autor_nome,criado_em&order=criado_em.desc").then(function(rows){
+      if (!osdAtual || osdAtual.id !== osId) return;
+      if (!rows.length){ host.innerHTML = '<span class="osd-vazio">Nenhuma tratativa registrada ainda.</span>'; return; }
+      host.innerHTML = rows.map(function(t){
+        return '<div class="osd-trat"><div class="osd-trat-meta"><b>' + esc(t.autor_nome || "—") + '</b> · ' + esc(dateTimeBR(t.criado_em)) + '</div>' +
+          '<div class="osd-trat-texto">' + esc(t.texto) + '</div></div>';
+      }).join("");
+    }).catch(function(e){ host.innerHTML = '<span class="osd-vazio">Erro ao carregar tratativas: ' + esc(e.message) + '</span>'; });
+  }
+  document.getElementById("osd-trat-enviar").addEventListener("click", function(){
+    if (!osdAtual) return;
+    var campo = document.getElementById("osd-trat-texto"), btn = this;
+    var texto = campo.value.trim();
+    if (texto.length < 3){ toast("Escreva a tratativa (pelo menos 3 letras).", true); campo.focus(); return; }
+    var osId = osdAtual.id;
+    btn.disabled = true;
+    rest("os_tratativas", {method:"POST", body:{ os_id: osId, texto: texto }}).then(function(){
+      campo.value = "";
+      toast("Tratativa registrada.");
+      carregarTratativasOS(osId);
+    }).catch(function(e){ toast("Não foi possível registrar: " + e.message, true); })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  // ---------------- histórico de status (gravado pelo banco a cada troca) ----------------
+  function carregarHistoricoOS(osId){
+    var host = document.getElementById("osd-historico");
+    host.innerHTML = '<span class="osd-vazio">Carregando…</span>';
+    rest("v_os_fases?os_id=eq." + osId + "&select=campo,valor,inicio,duracao_seg,atual,origem,mudou_por_nome&order=inicio.desc").then(function(fases){
+      if (!osdAtual || osdAtual.id !== osId) return;
+      if (!fases.length){ host.innerHTML = '<span class="osd-vazio">Sem histórico (OS fechada antes de 23/10/2026, quando o registro começou).</span>'; return; }
+      host.innerHTML = '<ul class="osd-hist">' + fases.map(function(f){
+        // mesmos nomes do campo Status do formulário ("Aguardando peça", "Em execução"…)
+        var opt = f.campo === "status" ? document.querySelector('#osd-status option[value="' + f.valor + '"]') : null;
+        var rotulo = f.campo === "status_liberacao" ? "Liberação: " + (Regras.STATUS_LIBERACAO[f.valor] || f.valor || "—")
+                   : (opt ? opt.textContent : (f.valor || "—").replace(/_/g, " "));
+        var fechado = ["concluida", "cancelada", "liberado"].indexOf(f.valor) > -1;
+        // período atual: conta até agora ("há 2 d"); concluída/cancelada/liberado não conta tempo
+        var tempo = fechado && f.atual ? "" : (f.atual ? "há " : "") + Regras.duracaoTexto(f.duracao_seg * 1000);
+        return '<li><span class="quando">' + esc(dateTimeBR(f.inicio)) + '</span><span>' + esc(rotulo) +
+          (f.origem === "implantacao" ? ' <span class="quem">(já estava assim quando o histórico começou)</span>' : '') +
+          (f.mudou_por_nome ? ' <span class="quem">· ' + esc(f.mudou_por_nome) + '</span>' : '') + '</span>' +
+          (tempo ? '<span class="tempo' + (f.atual ? ' atual' : '') + '">' + esc(tempo) + '</span>' : '') + '</li>';
+      }).join("") + '</ul>';
+    }).catch(function(e){ host.innerHTML = '<span class="osd-vazio">Erro ao carregar histórico: ' + esc(e.message) + '</span>'; });
+  }
 
   document.getElementById("osd-fechar-os").addEventListener("click", function(){
     if (!osdAtual) return;

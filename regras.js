@@ -65,7 +65,33 @@
     return perfil.papel === "visualizador" && (perfil.modulos_visualizacao || []).indexOf("executivo") > -1;
   }
 
+  // Status de liberação da OS (decisão do Jefferson, 23/10/2026). Mesmos valores da
+  // constraint os_status_liberacao_valido no banco; OS concluída vira "liberado" (gatilho).
+  var STATUS_LIBERACAO = {
+    aguardando_orcamento: "Aguardando orçamento/aprovação",
+    em_reparo: "Em reparo",
+    pronto_retirada: "Pronto, aguardando retirada",
+    liberado: "Liberado"
+  };
+
+  // Tempo em texto curto, para "há quanto tempo está neste status".
+  // < 1 min → "menos de 1 min"; < 1 h → "40 min"; < 1 dia → "5 h" ou "5 h 20 min"; a partir de 1 dia → "2 d" ou "2 d 3 h".
+  // Vazio, inválido ou negativo → "—".
+  function duracaoTexto(ms) {
+    ms = Number(ms);
+    if (ms === null || isNaN(ms) || ms < 0) return "—";
+    var min = Math.floor(ms / 60000);
+    if (min < 1) return "menos de 1 min";
+    if (min < 60) return min + " min";
+    var h = Math.floor(min / 60), m = min % 60;
+    if (h < 24) return h + " h" + (m ? " " + m + " min" : "");
+    var d = Math.floor(h / 24), hr = h % 24;
+    return d + " d" + (hr ? " " + hr + " h" : "");
+  }
+
   global.Regras = {
+    STATUS_LIBERACAO: STATUS_LIBERACAO,
+    duracaoTexto: duracaoTexto,
     podeVerExecutivo: podeVerExecutivo,
     OS_FECHADAS: OS_FECHADAS,
     PONTOS_POR_GRAU: PONTOS_POR_GRAU,

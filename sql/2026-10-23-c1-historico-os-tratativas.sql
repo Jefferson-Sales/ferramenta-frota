@@ -153,3 +153,22 @@ grant select on frota.v_os_fases to authenticated;
 -- largas do padrão do schema; fica só leitura para logados.
 revoke all on frota.v_os_fases from anon, authenticated;
 grant select on frota.v_os_fases to authenticated;
+
+-- ajuste (migration c1_v_os_fases_segundos_e_quem): a view ganhou duracao_seg (segundos,
+-- para o painel não precisar interpretar o formato de intervalo) e mudou_por_nome.
+create or replace view frota.v_os_fases with (security_invoker = true) as
+select h.os_id, h.campo, h.valor_novo as valor, h.mudou_em as inicio,
+       case when lead(h.mudou_em) over w is not null then lead(h.mudou_em) over w
+            when h.valor_novo in ('concluida', 'cancelada', 'liberado') then h.mudou_em
+            else null end as fim,
+       coalesce(lead(h.mudou_em) over w,
+                case when h.valor_novo in ('concluida', 'cancelada', 'liberado') then h.mudou_em else now() end) - h.mudou_em as duracao,
+       lead(h.mudou_em) over w is null as atual,
+       h.origem,
+       extract(epoch from coalesce(lead(h.mudou_em) over w,
+                case when h.valor_novo in ('concluida', 'cancelada', 'liberado') then h.mudou_em else now() end) - h.mudou_em)::bigint as duracao_seg,
+       h.mudou_por_nome
+from frota.os_status_historico h
+window w as (partition by h.os_id, h.campo order by h.mudou_em, h.id);
+revoke all on frota.v_os_fases from anon, authenticated;
+grant select on frota.v_os_fases to authenticated;

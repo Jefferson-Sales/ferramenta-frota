@@ -125,6 +125,23 @@
   igual("operador com 'executivo' gravado → não vê",          R.podeVerExecutivo({ papel:"operador", ativo:true, modulos_visualizacao:["executivo"], modulos_operador:["executivo"] }), false);
   igual("sem perfil carregado → não vê",                      R.podeVerExecutivo(null), false);
 
+  // ----------------------------------------------------------------------------
+  grupo("OS — tempo em cada status (texto)");
+  var MIN = 60000, HORA = 60 * MIN, DIA = 24 * HORA;
+  igual("30 segundos → menos de 1 min",        R.duracaoTexto(30000), "menos de 1 min");
+  igual("40 min",                              R.duracaoTexto(40 * MIN), "40 min");
+  igual("59 min 59 s → 59 min (arredonda para baixo)", R.duracaoTexto(60 * MIN - 1000), "59 min");
+  igual("5 h exatas → 5 h",                    R.duracaoTexto(5 * HORA), "5 h");
+  igual("5 h 20 min",                          R.duracaoTexto(5 * HORA + 20 * MIN), "5 h 20 min");
+  igual("2 dias exatos → 2 d",                 R.duracaoTexto(2 * DIA), "2 d");
+  igual("2 d 3 h (minutos não aparecem)",      R.duracaoTexto(2 * DIA + 3 * HORA + 45 * MIN), "2 d 3 h");
+  igual("negativo → —",                        R.duracaoTexto(-5), "—");
+  igual("vazio → —",                           R.duracaoTexto(undefined), "—");
+
+  grupo("OS — status de liberação (as 4 opções do Jefferson)");
+  igual("4 opções, na ordem", Object.keys(R.STATUS_LIBERACAO).join(","), "aguardando_orcamento,em_reparo,pronto_retirada,liberado");
+  igual("texto de pronto_retirada", R.STATUS_LIBERACAO.pronto_retirada, "Pronto, aguardando retirada");
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){
