@@ -5,7 +5,8 @@
 --
 -- O que ele faz:
 --   1. cria registros FICTÍCIOS (locadora, hub, contratos, veículos, checklists e
---      anomalias, todos com nome "TESTE"/placa "ZZT…");
+--      anomalias, todos com nome "TESTE"/placa "ZZT…"; na seção 9, também 4 logins
+--      fictícios "teste.…@zzt.invalid" para simular quem clica em Feita/Não feita);
 --   2. lê as mesmas views e chama as mesmas funções que o sistema usa;
 --   3. compara cada resultado com o valor esperado;
 --   4. termina com RAISE EXCEPTION, que DESFAZ TUDO o que foi criado.
@@ -26,6 +27,7 @@ declare
   vc uuid; vd uuid; ck uuid; a_alta uuid; a_crit uuid; a uuid;
   ta uuid; tb uuid; r1 uuid; r2 uuid; dv uuid;
   sa uuid; sb uuid; os1 uuid; os2 uuid; rv uuid; os3 uuid;
+  hub2 uuid; u_op uuid; u_outro uuid; u_vis uuid; u_adm uuid; cf uuid; cv uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -241,6 +243,71 @@ begin
   insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0F02', hub, 100, 'disponivel', 'BYD - Mini Dolphin GL') returning id into rv;
   insert into frota.ordens_servico (veiculo_id, tipo, status, km_entrada, marco_km) values (rv, 'preventiva', 'agendada', 100, 10000) returning id into os3;
   casos := casos || text 'OS preventiva de modelo sem plano: sem itens automáticos'; obtidos := obtidos || (select count(*)::text from frota.os_checklist_itens where os_id = os3); esperados := esperados || text '0';
+
+  -- ============================================ 9. LISTA "A CONFERIR" (botões Feita / Não feita → conferir_revisao)
+  -- usuários fictícios (somem no fim, junto com o resto); cada caso "entra" como um deles pelo request.jwt.claims
+  insert into frota.hubs (nome) values ('TESTE Hub 2') returning id into hub2;
+  u_op := gen_random_uuid(); u_outro := gen_random_uuid(); u_vis := gen_random_uuid(); u_adm := gen_random_uuid();
+  insert into auth.users (id, email, aud, role) values
+    (u_op, 'teste.op@zzt.invalid', 'authenticated', 'authenticated'), (u_outro, 'teste.outro@zzt.invalid', 'authenticated', 'authenticated'),
+    (u_vis, 'teste.vis@zzt.invalid', 'authenticated', 'authenticated'), (u_adm, 'teste.adm@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (u_op, 'TESTE Operador', 'operador', '{manutencao}', '{manutencao}'),
+    (u_outro, 'TESTE Operador Outro Hub', 'operador', '{manutencao}', '{manutencao}'),
+    (u_vis, 'TESTE Visualizador', 'visualizador', '{manutencao}', '{}'),
+    (u_adm, 'TESTE Admin', 'admin', '{}', '{}');
+  insert into frota.usuarios_hubs (user_id, hub_id) values (u_op, hub), (u_outro, hub2), (u_vis, hub);
+  -- carro KWID com a 10k da planilha e 20k/30k/40k "a conferir"
+  insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0G01', hub, 25000, 'disponivel', 'KWID') returning id into cv;
+  insert into frota.revisoes_preventivas (veiculo_id, marco_km, data_revisao, origem) values (cv, 10000, current_date - 200, 'planilha');
+  insert into frota.revisoes_a_conferir (veiculo_id, marco_km, motivo, anotacao) values
+    (cv, 10000, 'duplicada_divergente', 'TESTE já na planilha'), (cv, 20000, 'sem_registro', null),
+    (cv, 30000, 'proxima_indicada', null), (cv, 40000, 'nao_fez', null);
+
+  -- visualizador não confere
+  perform set_config('request.jwt.claims', json_build_object('sub', u_vis, 'role', 'authenticated')::text, true);
+  select id into cf from frota.revisoes_a_conferir where veiculo_id = cv and marco_km = 20000;
+  begin res := frota.conferir_revisao(cf, true, null, null); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'a conferir: visualizador não pode marcar'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  -- operador de outro hub não confere
+  perform set_config('request.jwt.claims', json_build_object('sub', u_outro, 'role', 'authenticated')::text, true);
+  begin res := frota.conferir_revisao(cf, true, null, null); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Veículo fora dos seus hubs%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'a conferir: operador de outro hub não pode marcar'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  -- operador do hub: data no futuro é recusada
+  perform set_config('request.jwt.claims', json_build_object('sub', u_op, 'role', 'authenticated')::text, true);
+  begin res := frota.conferir_revisao(cf, true, current_date + 2, null); x := 'aceitou'; exception when others then x := case when sqlerrm like 'A data da revisão não pode ser no futuro%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'a conferir: data no futuro é recusada'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select status into x from frota.revisoes_a_conferir where id = cf;
+  casos := casos || text 'a conferir: recusas não mudam o item'; obtidos := obtidos || x; esperados := esperados || text 'a_conferir';
+  -- Feita com data
+  res := frota.conferir_revisao(cf, true, current_date - 10, ' confirmado com a oficina ');
+  select status || ' / ' || (conferido_por = u_op)::text || ' / ' || conferido_obs into x from frota.revisoes_a_conferir where id = cf;
+  casos := casos || text 'Feita: item vira feita, com quem conferiu e observação'; obtidos := obtidos || x; esperados := esperados || text 'feita / true / confirmado com a oficina';
+  select origem || ' / ' || (data_revisao = current_date - 10)::text || ' / ' || (observacao like 'Conferido por TESTE Operador%')::text into x
+    from frota.revisoes_preventivas where veiculo_id = cv and marco_km = 20000;
+  casos := casos || text 'Feita: grava a revisão (origem manual, data informada)'; obtidos := obtidos || coalesce(x, 'nada gravado'); esperados := esperados || text 'manual / true / true';
+  select proximo_marco::text into x from frota.v_revisoes_status where veiculo_id = cv;
+  casos := casos || text 'Feita: próximo marco passa para 30.000'; obtidos := obtidos || coalesce(x, 'carro não aparece'); esperados := esperados || text '30000';
+  -- conferir o mesmo item de novo
+  begin res := frota.conferir_revisao(cf, false, null, null); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Este marco já foi conferido%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'a conferir: item já conferido não muda de novo'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  -- Feita sem data
+  select id into cf from frota.revisoes_a_conferir where veiculo_id = cv and marco_km = 30000;
+  res := frota.conferir_revisao(cf, true, null, null);
+  select coalesce(data_revisao::text, 'sem data') into x from frota.revisoes_preventivas where veiculo_id = cv and marco_km = 30000;
+  casos := casos || text 'Feita sem data: revisão gravada "sem data"'; obtidos := obtidos || coalesce(x, 'nada gravado'); esperados := esperados || text 'sem data';
+  -- Não feita
+  select id into cf from frota.revisoes_a_conferir where veiculo_id = cv and marco_km = 40000;
+  res := frota.conferir_revisao(cf, false, null, null);
+  select status || ' / ' || (select count(*) from frota.revisoes_preventivas where veiculo_id = cv and marco_km = 40000)::text into x from frota.revisoes_a_conferir where id = cf;
+  casos := casos || text 'Não feita: item vira nao_feita, sem revisão gravada'; obtidos := obtidos || x; esperados := esperados || text 'nao_feita / 0';
+  -- admin confere em qualquer hub; marco que já está na planilha não é sobrescrito
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  select id into cf from frota.revisoes_a_conferir where veiculo_id = cv and marco_km = 10000;
+  res := frota.conferir_revisao(cf, true, current_date, null);
+  select origem || ' / ' || (data_revisao = current_date - 200)::text into x from frota.revisoes_preventivas where veiculo_id = cv and marco_km = 10000;
+  casos := casos || text 'Feita (admin): não sobrescreve revisão que veio da planilha'; obtidos := obtidos || x; esperados := esperados || text 'planilha / true';
+  perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop
