@@ -25,6 +25,7 @@ declare
   v1 uuid; v2 uuid; v3 uuid; v_inativo uuid; v_venc uuid; v_sd uuid; v_30 uuid; v_31 uuid;
   vc uuid; vd uuid; ck uuid; a_alta uuid; a_crit uuid; a uuid;
   ta uuid; tb uuid; r1 uuid; r2 uuid; dv uuid;
+  sa uuid; sb uuid; os1 uuid; os2 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -184,6 +185,39 @@ begin
   insert into frota.checklists (veiculo_id, tipo, km, colaborador_matricula, status, enviado_em) values (ta, 'retirada', 1, 'T9003', 'enviado', frota.trava_devolucao_desde() - interval '1 hour');
   select coalesce((select placa from frota.retirada_pendente('T9003', tb)), 'nenhuma') into x;
   casos := casos || text 'trava: retirada de antes da implantação não trava'; obtidos := obtidos || x; esperados := esperados || text 'nenhuma';
+
+  -- ============================================ 7. OS × STATUS DO VEÍCULO (sinistro parou / continua rodando)
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0E01', hub, 100, 'disponivel') returning id into sa;
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, veiculo_parado)
+    values (sa, 'sinistro', 'aguardando_agendamento', now(), false) returning id into os1;
+  select status::text into x from frota.veiculos where id = sa;
+  casos := casos || text 'sinistro "continua rodando": carro segue disponível'; obtidos := obtidos || x; esperados := esperados || text 'disponivel';
+  update frota.ordens_servico set veiculo_parado = true where id = os1;
+  select status::text into x from frota.veiculos where id = sa;
+  casos := casos || text 'sinistro trocado para "parou": carro fica indisponível'; obtidos := obtidos || x; esperados := esperados || text 'indisponivel';
+  update frota.ordens_servico set veiculo_parado = false where id = os1;
+  select status::text into x from frota.veiculos where id = sa;
+  casos := casos || text 'sinistro de volta para "continua rodando": carro volta a disponível'; obtidos := obtidos || x; esperados := esperados || text 'disponivel';
+  -- sem resposta (OS antigas): conta como parado, igual a antes
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou) values (sa, 'sinistro', 'aguardando_agendamento', now()) returning id into os2;
+  select status::text into x from frota.veiculos where id = sa;
+  casos := casos || text 'sinistro sem resposta: conta como parado'; obtidos := obtidos || x; esperados := esperados || text 'indisponivel';
+  -- duas OS segurando o carro (os1 vira parada de novo): concluir uma não libera
+  update frota.ordens_servico set veiculo_parado = true where id = os1;
+  update frota.ordens_servico set status = 'concluida' where id = os2;
+  select status::text into x from frota.veiculos where id = sa;
+  casos := casos || text 'duas OS paradas: concluir uma mantém indisponível'; obtidos := obtidos || x; esperados := esperados || text 'indisponivel';
+  update frota.ordens_servico set status = 'cancelada' where id = os1;
+  select status::text into x from frota.veiculos where id = sa;
+  casos := casos || text 'duas OS paradas: fechar a última libera'; obtidos := obtidos || x; esperados := esperados || text 'disponivel';
+  -- carro indisponível por outro motivo (sem OS): abrir OS que não para o carro não pode liberá-lo
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0E02', hub, 100, 'indisponivel') returning id into sb;
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, veiculo_parado) values (sb, 'sinistro', 'aguardando_agendamento', now(), false);
+  select status::text into x from frota.veiculos where id = sb;
+  casos := casos || text 'carro já indisponível + OS "continua rodando": não libera'; obtidos := obtidos || x; esperados := esperados || text 'indisponivel';
+  insert into frota.ordens_servico (veiculo_id, tipo, status) values (sb, 'preventiva', 'agendada');
+  select status::text into x from frota.veiculos where id = sb;
+  casos := casos || text 'carro já indisponível + OS agendada: não libera'; obtidos := obtidos || x; esperados := esperados || text 'indisponivel';
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop

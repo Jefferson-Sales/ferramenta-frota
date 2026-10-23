@@ -1003,6 +1003,8 @@
         <div class="field"><label for="os-tipo">Tipo</label>
           <select id="os-tipo"><option value="corretiva">Corretiva</option><option value="preventiva">Preventiva</option><option value="sinistro">Sinistro</option><option value="pneu">Pneu</option><option value="outro">Outro</option></select>
         </div>
+        <div class="field" id="os-parado-wrap" hidden><label for="os-parado">O carro (sinistro)</label>
+          <select id="os-parado"><option value="">Selecione…</option><option value="sim">Parou — fica indisponível</option><option value="nao">Continua rodando</option></select></div>
         <div class="field" id="os-data-parou-wrap"><label for="os-data-parou">Parou em</label><input id="os-data-parou" type="datetime-local" required></div>
         <div class="field span2"><label for="os-motivo">Motivo / tratativa</label><input id="os-motivo" placeholder="Ex.: ruído no motor, funilaria, revisão de km…"></div>
         <div class="field"><label for="os-oficina">Oficina (opcional)</label>
@@ -1075,6 +1077,8 @@
             <option value="cancelada">Cancelada</option>
           </select>
         </div>
+        <div class="field" id="osd-parado-wrap" hidden><label for="osd-parado">O carro (sinistro)</label>
+          <select id="osd-parado"><option value="">Não informado (conta como parado)</option><option value="sim">Parou — fica indisponível</option><option value="nao">Continua rodando</option></select></div>
         <div class="field"><label for="osd-data-parou">Parou em</label><input id="osd-data-parou" type="datetime-local"></div>
         <div class="field"><label for="osd-valor">Valor total (R$)</label><input id="osd-valor" type="number" step="0.01"></div>
         <div class="field"><label for="osd-previsao">Previsão de retorno</label><input id="osd-previsao" type="date"></div>
@@ -1914,7 +1918,7 @@
   var anexosCountById = {};
 
   function carregarOS(avisarVencidas){
-    rest("ordens_servico?select=id,tipo,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
+    rest("ordens_servico?select=id,tipo,veiculo_parado,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
       .then(function(rows){
         osCache = rows || [];
         renderKpisManutencao(rows);
@@ -2006,7 +2010,7 @@
         "<td>" + esc(v.placa || "—") + "</td>" +
         "<td>" + esc(v.fornecedores ? v.fornecedores.nome : "—") + "</td>" +
         "<td>" + esc(v.hubs ? v.hubs.nome : "—") + "</td>" +
-        "<td>" + pill(o.tipo, {sinistro:"crit",corretiva:"warn",preventiva:"good",pneu:"neutral",outro:"neutral"}[o.tipo]) + " " + esc(o.motivo || "") + "</td>" +
+        "<td>" + pill(o.tipo, {sinistro:"crit",corretiva:"warn",preventiva:"good",pneu:"neutral",outro:"neutral"}[o.tipo]) + (o.veiculo_parado === false ? " " + pill("rodando", "neutral") : "") + " " + esc(o.motivo || "") + "</td>" +
         "<td>" + statusVeiculoPill + "</td>" +
         "<td>" + (o.data_parou ? dateBR(o.data_parou) : "—") + "</td>" +
         "<td>" + (dias != null ? dias : "—") + "</td>" +
@@ -3141,25 +3145,40 @@
     limparFormOficina();
   }
 
-  document.getElementById("os-quando").addEventListener("change", function(){
-    var agendada = this.value === "agendada";
-    document.getElementById("os-data-parou-wrap").style.display = agendada ? "none" : "";
-    document.getElementById("os-data-parou").required = !agendada;
-  });
+  // Sinistro pergunta se o carro parou ou continua rodando. "Continua rodando" não pede "Parou em"
+  // nem "Quando" (a OS não deixa o carro indisponível — gatilho no banco ignora veiculo_parado = false).
+  function osFormSinistro(){
+    var sinistro = document.getElementById("os-tipo").value === "sinistro";
+    var rodando = sinistro && document.getElementById("os-parado").value === "nao";
+    document.getElementById("os-parado-wrap").hidden = !sinistro;
+    document.getElementById("os-parado").required = sinistro;
+    document.getElementById("os-quando").closest(".field").style.display = rodando ? "none" : "";
+    var agendada = !rodando && document.getElementById("os-quando").value === "agendada";
+    document.getElementById("os-data-parou-wrap").style.display = (agendada || rodando) ? "none" : "";
+    document.getElementById("os-data-parou").required = !agendada && !rodando;
+  }
+  document.getElementById("os-quando").addEventListener("change", osFormSinistro);
+  document.getElementById("os-tipo").addEventListener("change", osFormSinistro);
+  document.getElementById("os-parado").addEventListener("change", osFormSinistro);
+  document.querySelector('[data-form="os"]').addEventListener("reset", function(){ setTimeout(osFormSinistro, 0); });
 
   document.querySelector('[data-form="os"]').addEventListener("submit", function(ev){
     ev.preventDefault();
     setErr("os-err", "");
     var veiculo = document.getElementById("os-veiculo").value;
     if (!veiculo){ setErr("os-err", "Selecione o veículo."); return; }
-    var agendada = document.getElementById("os-quando").value === "agendada";
+    var tipo = document.getElementById("os-tipo").value, parado = document.getElementById("os-parado").value;
+    if (tipo === "sinistro" && !parado){ setErr("os-err", "Informe se o carro parou ou continua rodando."); return; }
+    var rodando = tipo === "sinistro" && parado === "nao";
+    var agendada = !rodando && document.getElementById("os-quando").value === "agendada";
     var dataParouVal = document.getElementById("os-data-parou").value;
-    if (!agendada && !dataParouVal){ setErr("os-err", "Informe quando o carro parou, ou marque como serviço futuro."); return; }
+    if (!agendada && !rodando && !dataParouVal){ setErr("os-err", "Informe quando o carro parou, ou marque como serviço futuro."); return; }
     var body = {
       veiculo_id: veiculo,
-      tipo: document.getElementById("os-tipo").value,
+      tipo: tipo,
+      veiculo_parado: tipo === "sinistro" ? !rodando : null,
       motivo: document.getElementById("os-motivo").value.trim() || null,
-      data_parou: agendada ? null : new Date(dataParouVal).toISOString(),
+      data_parou: (agendada || rodando) ? null : new Date(dataParouVal).toISOString(),
       oficina_id: document.getElementById("os-oficina").value || null,
       contato_oficina: document.getElementById("os-contato").value.trim() || null,
       previsao_retorno: document.getElementById("os-previsao").value || null,
@@ -3168,7 +3187,7 @@
       status: agendada ? "agendada" : "aguardando_agendamento"
     };
     rest("ordens_servico", {method:"POST", body: body}).then(function(rows){
-      toast(agendada ? "OS agendada com sucesso (carro segue disponível)." : "OS aberta com sucesso — carro marcado indisponível.");
+      toast(rodando ? "OS de sinistro aberta — carro continua rodando (segue disponível)." : agendada ? "OS agendada com sucesso (carro segue disponível)." : "OS aberta com sucesso — carro marcado indisponível.");
       if (rows && rows[0]) clonarChecklistPadrao(rows[0].id, body.tipo);
       osaLigar(rows && rows[0] && rows[0].id, osaSelecionadas());
       osaLimpar();
@@ -3176,7 +3195,7 @@
       ev.target.reset();
       document.getElementById("os-contato").dataset.auto = "";
       renderVeiculosOS();
-      document.getElementById("os-data-parou-wrap").style.display = "";
+      osFormSinistro();
       loadManutencao();
     }).catch(function(e){ setErr("os-err", e.message); });
   });
@@ -3215,6 +3234,8 @@
     document.getElementById("osd-status").value = o.status;
     // o banco devolve em UTC; o campo datetime-local precisa da hora local (antes mostrava UTC e, ao salvar, a hora andava +3h)
     document.getElementById("osd-data-parou").value = o.data_parou ? isoParaCampoLocal(o.data_parou) : "";
+    document.getElementById("osd-parado-wrap").hidden = o.tipo !== "sinistro";
+    document.getElementById("osd-parado").value = o.veiculo_parado === true ? "sim" : o.veiculo_parado === false ? "nao" : "";
     document.getElementById("osd-valor").value = o.valor_total != null ? o.valor_total : "";
     document.getElementById("osd-previsao").value = o.previsao_retorno || "";
     document.getElementById("osd-liberacao").value = o.data_liberacao ? o.data_liberacao.slice(0,10) : "";
@@ -3236,8 +3257,10 @@
     setErr("osd-err", "");
     var novoStatus = document.getElementById("osd-status").value;
     var dataParouVal = document.getElementById("osd-data-parou").value;
-    if (novoStatus !== "agendada" && !dataParouVal){
-      setErr("osd-err", "Informe quando o carro parou (obrigatório fora do status agendada).");
+    var paradoSel = document.getElementById("osd-parado").value;
+    var rodando = osdAtual.tipo === "sinistro" && paradoSel === "nao";
+    if (novoStatus !== "agendada" && !rodando && !dataParouVal){
+      setErr("osd-err", "Informe quando o carro parou (obrigatório fora do status agendada, exceto sinistro com carro rodando).");
       return;
     }
     var body = {
@@ -3250,6 +3273,7 @@
       contato_oficina: document.getElementById("osd-contato").value.trim() || null,
       observacoes: document.getElementById("osd-obs").value.trim() || null
     };
+    if (osdAtual.tipo === "sinistro" && paradoSel) body.veiculo_parado = paradoSel === "sim";
     if (body.status === "concluida" && !body.data_liberacao) body.data_liberacao = new Date().toISOString();
     if (body.status === "concluida" && !osdAtual.data_conclusao) body.data_conclusao = new Date().toISOString();
     var osAntes = osdAtual;

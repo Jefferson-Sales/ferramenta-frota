@@ -33,7 +33,7 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 
 ## 3. Módulo de Manutenções (OS)
 
-- [ ] Ao registrar um sinistro, incluir campo indicando se o carro **fica indisponível** ou **continua rodando**.
+- [x] Ao registrar um sinistro, incluir campo indicando se o carro **fica indisponível** ou **continua rodando**. _(entregue em 23/10/2026)_
 - [x] Permitir cadastrar uma oficina nova diretamente na tela de abertura de OS (sem precisar sair do fluxo).
 - [x] Incluir campo de busca por placa na abertura de OS.
 - [x] Puxar o contato da oficina automaticamente (a partir do cadastro dela), ao selecioná-la na OS.
