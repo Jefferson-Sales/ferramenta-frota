@@ -1736,15 +1736,19 @@
         estado: telParcial ? { txt: "⚠ telemetria desde " + dataBR(d.telemetria_desde), tipo: "alerta" } : null,
         ir: { modulo: "eletrificacao" } },
       { rot: "Custo total no período", valor: P.moeda(custoTotal, true),
-        sub: "aluguel " + (verFrota ? P.moeda(custoAluguel, true) : "sem acesso") + " · recargas " + P.moeda(custoRec, true) + " · manutenção " + (verManut ? P.moeda(custoMan, true) : "sem acesso"),
+        sub: "aluguel " + (verFrota ? P.moeda(custoAluguel, true) + (alu.meses_previsto ? " (com previsto)" : "") : "sem acesso") + " · recargas " + P.moeda(custoRec, true) + " · manutenção " + (verManut ? P.moeda(custoMan, true) : "sem acesso"),
         estado: recAtrasada ? { txt: "⚠ recargas lançadas até " + dataBR(d.ultima_recarga), tipo: "alerta" } : null,
         ir: { modulo: "eletrificacao" } },
       { rot: "Saídas no período", semDados: "viagens da telemetria Questar (etapa D4)" }
     ]);
     // composição do custo (uma série: mostra o peso de cada parte)
     html += '<div class="ex-secao"><h3>De onde vem o custo</h3>' + P.barras({ itens: [
-      { rot: "Aluguel" + (alu.meses > 1 ? " (" + alu.meses + " meses)" : ""), valor: custoAluguel, txt: verFrota ? P.moeda(custoAluguel, true) : "sem acesso",
-        dica: verFrota ? "Soma do valor mensal dos contratos de " + P.num(alu.carros_com_valor || 0) + " elétricos × " + alu.meses + (alu.meses > 1 ? " meses" : " mês") : "Precisa da visualização do Cadastro da Frota" },
+      { rot: "Aluguel " + (alu.meses_nf && alu.meses_previsto ? "(NF + previsto)" : alu.meses_previsto ? "(previsto)" : "(NF)"),
+        valor: custoAluguel, txt: verFrota ? P.moeda(custoAluguel, true) : "sem acesso",
+        dica: verFrota ? "Notas de LOCAÇÃO VEICULAR: " + P.num(alu.meses_nf || 0) + (alu.meses_nf === 1 ? " mês" : " meses") +
+          (alu.ultima_nf ? " (última: " + EX_MESES[Number(alu.ultima_nf.slice(5, 7)) - 1].toLowerCase() + "/" + alu.ultima_nf.slice(0, 4) + ")" : "") +
+          (alu.meses_previsto ? " · previsto pelo contrato (" + P.moeda(alu.mensal, true) + "/mês, nota ainda não lançada): " + P.num(alu.meses_previsto) + (alu.meses_previsto === 1 ? " mês" : " meses") : "")
+          : "Precisa da visualização do Cadastro da Frota" },
       { rot: "Recargas (energia)", valor: custoRec, txt: P.moeda(custoRec, true),
         dica: P.num(rec.qtd || 0) + " recargas · " + P.num(Math.round(Number(rec.kwh) || 0)) + " kWh · última lançada em " + dataBR(d.ultima_recarga) },
       { rot: "Manutenção", valor: custoMan, txt: verManut ? P.moeda(custoMan, true) : "sem acesso",

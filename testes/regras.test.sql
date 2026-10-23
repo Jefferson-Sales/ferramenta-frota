@@ -443,6 +443,15 @@ begin
   casos := casos || text 'exec_eletricos: janeiro a março = 3 meses de aluguel'; obtidos := obtidos || ((j->'aluguel'->>'meses') || ' / ' || (j->'aluguel'->>'periodo')); esperados := esperados || text '3 / 18000';
   begin j := frota.exec_eletricos('2026-03-31', '2026-03-01', hub4); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Período inválido%' then 'recusou' else sqlerrm end; end;
   casos := casos || text 'exec_eletricos: período invertido é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  -- aluguel pela NF de LOCAÇÃO VEICULAR (locadora só de elétricos): mês antes da última NF sem nota = 0; depois = contrato "previsto"
+  update frota.veiculos set locadora_id = forn where id in (ve1, ve2);
+  insert into frota.notas_fiscais (fornecedor_id, categoria_id, mes_referencia, valor)
+    values (forn, (select id from frota.categorias_custo where nome ilike 'loca%veic%' limit 1), '2031-03-01', 5800);
+  j := frota.exec_eletricos('2031-02-01', '2031-04-30') -> 'aluguel';
+  x := (j->>'meses_nf') || ' / ' || (j->>'meses_previsto') || ' / ' || (j->>'nf') || ' / ' || ((j->>'periodo')::numeric = 5800 + (j->>'mensal')::numeric)::text;
+  casos := casos || text 'aluguel: fev sem NF (antes da última) = 0; mar = NF; abr = contrato previsto'; obtidos := obtidos || x; esperados := esperados || text '1 / 1 / 5800 / true';
+  j := frota.exec_eletricos('2031-03-01', '2031-03-31', hub4) -> 'aluguel';
+  casos := casos || text 'aluguel com filtro de hub: NF não tem hub, fica o contrato do hub'; obtidos := obtidos || ((j->>'meses_nf') || ' / ' || (j->>'periodo')); esperados := esperados || text '0 / 6000';
   perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado
