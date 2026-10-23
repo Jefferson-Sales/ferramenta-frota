@@ -22,7 +22,8 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - [x] **A5** Menu no celular + `<meta viewport>` que faltava no `index.html` (23/10/2026). Falta testar num celular real depois do push.
 - [x] **Título** "Gestão da Frota Beep Saúde" + ícone de carro no login, menu e barra do celular (23/10/2026).
 - [x] **A6** Peças da Visão Executiva (23/10/2026, aprovada pelo Jefferson): `css/painel-exec.css` + `js/painel-exec.js` (cartão de indicador clicável, "Sem dados", número principal com medidor, barras com meta/orçado, ranking, legenda, dica ao passar o mouse); demonstração com dados fictícios em `testes/painel-exec.demo.html`. Cores de gráfico `--grafico-1/2` validadas para daltonismo e contraste.
-- [ ] B1 (próxima), B2, B3, C, D; A3 e A4 no fim.
+- [x] **B1** Permissão "Visão Executiva" (módulo `executivo`, só Visualizador; Admin vê) e tela base com filtros de período e hub; primeiro item do menu (23/10/2026). Edge Function `usuarios` com a trava; `Regras.podeVerExecutivo` com 7 testes.
+- [ ] B2 (próxima), B3, C, D; A3 e A4 no fim.
 
 ## O que encontrei antes de planejar
 

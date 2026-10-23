@@ -5,6 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/painel-exec.css">
 <style>
   /* layout: topbar fixo + sidebar de módulos (gated por permissão) + painel de conteúdo por módulo */
   *{box-sizing:border-box;}
@@ -335,6 +336,18 @@
   </div>
 
   <div class="main">
+
+    <!-- VISÃO EXECUTIVA (Diretoria) — B1: tela base; os números entram nas etapas C1–C4 -->
+    <section class="panel" data-panel="executivo">
+      <div class="topline"><h1>Visão Executiva</h1></div>
+      <p class="section-desc">Resumo para a Diretoria. Clique num indicador para abrir a tela de trabalho já filtrada.</p>
+      <div class="ex-filtros">
+        <label>Período <select id="ex-periodo"></select></label>
+        <label>Hub <select id="ex-hub"><option value="">Todos os hubs</option></select></label>
+        <span class="ex-atualizado" id="ex-resumo"></span>
+      </div>
+      <div class="ex-grade" id="ex-grade"></div>
+    </section>
 
     <!-- GESTÃO DA FROTA -->
     <section class="panel" data-panel="frota">
@@ -1351,6 +1364,7 @@
 <div id="toast-host"></div>
 
 <script src="regras.js"></script>
+<script src="js/painel-exec.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1372,6 +1386,7 @@
   }
 
   var MODULES = [
+    {key:"executivo", label:"Visão Executiva"}, // primeiro: é a tela inicial de quem tem (Diretoria e Admin)
     {key:"frota", label:"Cadastro da Frota"},
     {key:"manutencao", label:"Manutenções"},
     {key:"gestao_manutencao", label:"Gestão de Manutenção"},
@@ -1514,6 +1529,7 @@
   // 'checklist' (auxiliares de frota) ou 'manutencao' — a mesma regra do RLS (posso_ver_checklist).
   function canView(mod){
     if (!perfil || perfil.ativo === false) return false;
+    if (mod === "executivo") return Regras.podeVerExecutivo(perfil); // Admin ou Visualizador (Diretoria) com a permissão
     if (mod === "qualidade") return canView("checklist") || canView("manutencao");
     if (mod === "gestao_manutencao") return canView("manutencao"); // Dash: mesmo acesso (e hubs) de Manutenções
     if (perfil.papel === "admin") return true;
@@ -1531,6 +1547,64 @@
 
   // ---------------- nav / panels ----------------
   var currentPanel = null;
+
+  // ---------------- Visão Executiva (Diretoria) ----------------
+  // B1: tela base com filtros de período e hub; cada quadrante só aparece para
+  // quem pode ver o módulo de origem (o clique leva até lá). Números: etapas C1–C4.
+  var EX = { periodo: "mes", hub: "", iniciado: false };
+  var EX_QUADRANTES = [
+    { titulo: "Operação",         modulo: "frota",         etapa: "C1", pode: function(){ return canView("frota") || canView("manutencao"); } },
+    { titulo: "Financeiro",       modulo: "financeiro",    etapa: "C4", pode: function(){ return canView("financeiro"); } },
+    { titulo: "Multas",           modulo: "multas",        etapa: "C3", pode: function(){ return canView("multas"); } },
+    { titulo: "Carros Elétricos", modulo: "eletrificacao", etapa: "C2", pode: function(){ return canView("eletrificacao"); } }
+  ];
+  var EX_MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  function exPeriodos(){
+    var hoje = new Date(), ano = hoje.getFullYear(), mes = hoje.getMonth();
+    var ant = new Date(ano, mes - 1, 1);
+    return [
+      { v: "mes", txt: EX_MESES[mes] + "/" + ano + " (mês atual)" },
+      { v: "mes_anterior", txt: EX_MESES[ant.getMonth()] + "/" + ant.getFullYear() },
+      { v: "ano", txt: "Ano de " + ano + " (até hoje)" }
+    ];
+  }
+  function exIniciar(){
+    if (EX.iniciado) return;
+    EX.iniciado = true;
+    var selP = document.getElementById("ex-periodo"), selH = document.getElementById("ex-hub");
+    selP.innerHTML = exPeriodos().map(function(p){ return '<option value="' + p.v + '">' + esc(p.txt) + '</option>'; }).join("");
+    selP.value = EX.periodo;
+    selP.addEventListener("change", function(){ EX.periodo = selP.value; renderExecutivo(); });
+    selH.addEventListener("change", function(){ EX.hub = selH.value; renderExecutivo(); });
+    // Lista de hubs: o RLS decide o que a pessoa enxerga; se não puder ler, fica só "Todos os hubs".
+    rest("hubs?select=id,nome&order=nome").then(function(rows){
+      selH.innerHTML = '<option value="">Todos os hubs</option>' + (rows || []).map(function(h){
+        return '<option value="' + esc(h.id) + '">' + esc(h.nome) + '</option>';
+      }).join("");
+      selH.value = EX.hub;
+    }).catch(function(){});
+    PainelExec.ligar(document.getElementById("ex-grade"), function(destino){
+      if (destino && destino.modulo && canView(destino.modulo)) showPanel(destino.modulo);
+    });
+  }
+  function loadExecutivo(){ exIniciar(); renderExecutivo(); }
+  function renderExecutivo(){
+    var selP = document.getElementById("ex-periodo"), selH = document.getElementById("ex-hub");
+    var pTxt = selP.options[selP.selectedIndex] ? selP.options[selP.selectedIndex].text : "";
+    var hTxt = selH.options[selH.selectedIndex] ? selH.options[selH.selectedIndex].text : "Todos os hubs";
+    document.getElementById("ex-resumo").textContent = pTxt + " · " + hTxt;
+    var visiveis = EX_QUADRANTES.filter(function(q){ return q.pode(); });
+    var grade = document.getElementById("ex-grade");
+    if (!visiveis.length){
+      grade.innerHTML = '<div class="ex-vazio"><b>Nenhum quadrante liberado</b>Para ver os números, o administrador precisa liberar a visualização dos módulos (Cadastro da Frota, Financeiro, Multas, Carros Elétricos) no seu acesso.</div>';
+      return;
+    }
+    grade.innerHTML = visiveis.map(function(q){
+      return '<section class="ex-quadrante"><div class="ex-quad-head"><h2>' + esc(q.titulo) + '</h2>' +
+        '<button type="button" class="ex-ver" data-ir="' + esc(JSON.stringify({ modulo: q.modulo })) + '">Ver tudo ›</button></div>' +
+        '<div class="ex-vazio"><b>Em construção</b>Os números deste quadrante chegam na etapa ' + esc(q.etapa) + ' do plano.</div></section>';
+    }).join("");
+  }
 
   function buildNav(){
     var nav = document.getElementById("nav");
@@ -1589,6 +1663,7 @@
     document.querySelectorAll("[data-edit]").forEach(function(el){
       el.hidden = !canEdit(el.dataset.edit);
     });
+    if (key === "executivo") loadExecutivo();
     if (key === "frota") { loadFrota(); ajustarStickyFrota(); }
     if (key === "manutencao") loadManutencao(true);
     if (key === "qualidade"){ loadQualidade(); if (QF.tela === "diaria") loadQualidadeDiaria(); }
@@ -4181,6 +4256,7 @@
   // ---------------- Gerenciar acessos (só admin) ----------------
   // Tudo passa pela Edge Function `usuarios`, que confere no servidor se quem chama é admin ativo.
   var AC_MODULOS = [
+    {key:"executivo", label:"Visão Executiva (Diretoria)"},
     {key:"frota", label:"Cadastro da Frota"},
     {key:"manutencao", label:"Manutenções"},
     {key:"checklist", label:"Checklist / Qualidade da Frota"},
@@ -4188,7 +4264,7 @@
     {key:"financeiro", label:"Financeiro"},
     {key:"eletrificacao", label:"Carros Elétricos"}
   ];
-  var AC_CURTO = {frota:"Frota", manutencao:"Manutenção", checklist:"Checklist", multas:"Multas", financeiro:"Financeiro", eletrificacao:"Elétricos"};
+  var AC_CURTO = {executivo:"Executiva", frota:"Frota", manutencao:"Manutenção", checklist:"Checklist", multas:"Multas", financeiro:"Financeiro", eletrificacao:"Elétricos"};
   var AC = { lista: [], hubs: [], carregando: false, editando: null };
   var AC_MODULOS_COM_HUB = ["manutencao", "checklist"];
 
@@ -4315,13 +4391,15 @@
     tabela.classList.toggle("desab", papel === "admin");
     document.querySelectorAll("#ac-mods-body input").forEach(function(cb){
       var ehOpe = cb.hasAttribute("data-ac-ope");
-      if (papel === "admin"){ cb.disabled = true; cb.checked = true; }
+      var ehExec = cb.getAttribute(ehOpe ? "data-ac-ope" : "data-ac-vis") === "executivo";
+      if (papel === "admin"){ cb.disabled = true; cb.checked = !(ehExec && ehOpe); }
+      else if (ehExec && (ehOpe || papel !== "visualizador")){ cb.disabled = true; cb.checked = false; } // Visão Executiva: só "Vê", só Visualizador
       else if (papel === "visualizador" && ehOpe){ cb.disabled = true; cb.checked = false; }
       else cb.disabled = false;
     });
     if (papel === "admin") hint.textContent = "Admin vê e opera todos os módulos e acessa esta tela.";
-    else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada.";
-    else hint.textContent = "Quem opera um módulo também vê. Auxiliar de frota: papel Operador, Checklist em \"Opera\" e matrícula preenchida (libera a Inspeção técnica no formulário do checklist).";
+    else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada. Diretoria: marque Visão Executiva e também os módulos que ela poderá abrir pelos indicadores (Cadastro da Frota, Financeiro, Multas, Carros Elétricos).";
+    else hint.textContent = "Quem opera um módulo também vê. Visão Executiva é só para Visualizador (Diretoria). Auxiliar de frota: papel Operador, Checklist em \"Opera\" e matrícula preenchida (libera a Inspeção técnica no formulário do checklist).";
     acAjustarHubs();
   }
 

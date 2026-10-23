@@ -10,7 +10,8 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSess
 const db = () => admin.schema("frota");
 
 // módulos que existem no perfil ("qualidade" é derivado de checklist/manutencao, não entra aqui)
-const MODULOS = ["frota", "manutencao", "checklist", "multas", "financeiro", "eletrificacao"];
+// "executivo" = Visão Executiva (Diretoria): só Visualizador, só "vê" (admin já vê tudo).
+const MODULOS = ["executivo", "frota", "manutencao", "checklist", "multas", "financeiro", "eletrificacao"];
 const PAPEIS = ["admin", "operador", "visualizador"];
 const BAN_DESATIVADO = "876000h"; // ~100 anos; "none" remove o bloqueio
 
@@ -69,6 +70,9 @@ async function camposPerfil(body: any, userId: string | null) {
   if (!PAPEIS.includes(papel)) throw new Falha("Papel inválido.");
   let operador = limparModulos(body.modulos_operador);
   let visualizacao = limparModulos(body.modulos_visualizacao);
+  if (papel === "operador" && (visualizacao.includes("executivo") || operador.includes("executivo")))
+    throw new Falha("Visão Executiva é só para o papel Visualizador (Diretoria). Admin já vê.");
+  operador = operador.filter((m) => m !== "executivo");                  // ninguém "opera" a Visão Executiva
   if (papel === "admin") { operador = []; visualizacao = []; }          // admin vê e opera tudo
   else if (papel === "visualizador") operador = [];                      // visualizador não opera
   else visualizacao = MODULOS.filter((m) => visualizacao.includes(m) || operador.includes(m)); // quem opera também vê

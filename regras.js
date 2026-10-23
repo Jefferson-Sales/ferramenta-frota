@@ -56,7 +56,17 @@
     return "em_dia";
   }
 
+  // Visão Executiva (Diretoria): Admin ativo, ou Visualizador ativo com a permissão "executivo".
+  // Operador nunca (decisão do Jefferson, 23/10/2026: tela só de consulta da Diretoria).
+  // A mesma trava existe na Edge Function `usuarios` (não deixa gravar "executivo" para operador).
+  function podeVerExecutivo(perfil) {
+    if (!perfil || perfil.ativo === false) return false;
+    if (perfil.papel === "admin") return true;
+    return perfil.papel === "visualizador" && (perfil.modulos_visualizacao || []).indexOf("executivo") > -1;
+  }
+
   global.Regras = {
+    podeVerExecutivo: podeVerExecutivo,
     OS_FECHADAS: OS_FECHADAS,
     PONTOS_POR_GRAU: PONTOS_POR_GRAU,
     statusQualidade: statusQualidade,

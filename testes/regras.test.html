@@ -115,6 +115,16 @@
   igual("grave = 5",      R.PONTOS_POR_GRAU.grave, 5);
   igual("gravíssima = 7", R.PONTOS_POR_GRAU.gravissima, 7);
 
+  // ----------------------------------------------------------------------------
+  grupo("Visão Executiva — quem pode ver");
+  igual("admin ativo → vê",                                   R.podeVerExecutivo({ papel:"admin", ativo:true }), true);
+  igual("admin desativado → não vê",                          R.podeVerExecutivo({ papel:"admin", ativo:false }), false);
+  igual("visualizador com 'executivo' → vê",                  R.podeVerExecutivo({ papel:"visualizador", ativo:true, modulos_visualizacao:["executivo","frota"] }), true);
+  igual("visualizador sem 'executivo' → não vê",              R.podeVerExecutivo({ papel:"visualizador", ativo:true, modulos_visualizacao:["frota"] }), false);
+  igual("visualizador desativado com 'executivo' → não vê",   R.podeVerExecutivo({ papel:"visualizador", ativo:false, modulos_visualizacao:["executivo"] }), false);
+  igual("operador com 'executivo' gravado → não vê",          R.podeVerExecutivo({ papel:"operador", ativo:true, modulos_visualizacao:["executivo"], modulos_operador:["executivo"] }), false);
+  igual("sem perfil carregado → não vê",                      R.podeVerExecutivo(null), false);
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){
