@@ -1,0 +1,67 @@
+-- =============================================================================
+-- C2: quadrante de Carros Elétricos da Visão Executiva (23/10/2026)
+--   exec_eletricos(p_ini, p_fim, p_hub) → um JSON com km, recargas, aluguel, manutenção
+-- security invoker: cada parte respeita o RLS de quem vê (telemetria/recargas = Carros
+-- Elétricos; aluguel = Cadastro da Frota; manutenção = Manutenções + hub).
+-- Datas p_ini/p_fim são dias de Brasília (inclusive).
+-- Fontes e limites (23/10/2026):
+--   km       = telemetria_diaria (Questar), existe desde 12/10/2026
+--   recargas = recargas_eletricas (lançadas à mão pelo formulário; última em 06/10/2026)
+--   aluguel  = soma do valor mensal dos contratos dos elétricos × meses do período
+--   manutenção = valor_total das OS de elétricos no período (OS cancelada fora)
+-- Saídas: virão das viagens da Questar (D4) — ainda não existem.
+-- =============================================================================
+create or replace function frota.exec_eletricos(p_ini date, p_fim date, p_hub uuid default null)
+returns jsonb language plpgsql stable security invoker set search_path = frota as $$
+declare
+  ini_ts timestamptz := (p_ini::timestamp at time zone 'America/Sao_Paulo');
+  fim_ts timestamptz := ((p_fim + 1)::timestamp at time zone 'America/Sao_Paulo');
+  meses int := (extract(year from p_fim)::int - extract(year from p_ini)::int) * 12
+               + extract(month from p_fim)::int - extract(month from p_ini)::int + 1;
+  r jsonb := '{}';
+begin
+  if p_ini is null or p_fim is null or p_fim < p_ini then raise exception 'Período inválido.'; end if;
+
+  r := r || jsonb_build_object('carros', (
+    select count(*) from veiculos v
+     where v.ativo and v.status <> 'devolvido' and v.tipo_combustivel::text = 'eletrico'
+       and (p_hub is null or v.hub_id = p_hub)));
+
+  r := r || jsonb_build_object('km', (
+    select jsonb_build_object(
+      'total', round(coalesce(sum(t.km_rodado), 0)::numeric, 1), 'carros', count(distinct t.veiculo_id), 'dias', count(distinct t.data),
+      'por_hub', coalesce((select jsonb_agg(x order by (x->>'km')::numeric desc) from (
+          select jsonb_build_object('hub_id', v2.hub_id, 'hub', coalesce(h.nome, 'Sem hub'), 'km', round(sum(t2.km_rodado)::numeric, 1), 'carros', count(distinct t2.veiculo_id)) x
+            from telemetria_diaria t2 left join veiculos v2 on v2.id = t2.veiculo_id left join hubs h on h.id = v2.hub_id
+           where t2.data between p_ini and p_fim and (p_hub is null or v2.hub_id = p_hub)
+           group by v2.hub_id, h.nome) s), '[]'))
+    from telemetria_diaria t left join veiculos v on v.id = t.veiculo_id
+    where t.data between p_ini and p_fim and (p_hub is null or v.hub_id = p_hub)));
+  r := r || jsonb_build_object('telemetria_desde', (select min(data) from telemetria_diaria));
+
+  r := r || jsonb_build_object('recargas', (
+    select jsonb_build_object('qtd', count(*), 'valor', coalesce(sum(re.valor), 0), 'kwh', coalesce(sum(re.kwh), 0))
+      from recargas_eletricas re left join veiculos v on v.id = re.veiculo_id
+     where re.data_hora >= ini_ts and re.data_hora < fim_ts
+       and (p_hub is null or coalesce(re.hub_id, v.hub_id) = p_hub)));
+  r := r || jsonb_build_object('ultima_recarga', (select max((data_hora at time zone 'America/Sao_Paulo')::date) from recargas_eletricas));
+
+  r := r || jsonb_build_object('aluguel', (
+    select jsonb_build_object('mensal', coalesce(sum(c.valor_mensal), 0), 'carros_com_valor', count(c.valor_mensal),
+                              'meses', meses, 'periodo', coalesce(sum(c.valor_mensal), 0) * meses)
+      from v_cadastro_frota c
+     where c.ativo and c.tipo_combustivel::text = 'eletrico' and (p_hub is null or c.hub_id = p_hub)));
+
+  r := r || jsonb_build_object('manutencao', (
+    select jsonb_build_object('os', count(*), 'valor', coalesce(sum(o.valor_total), 0))
+      from ordens_servico o join veiculos v on v.id = o.veiculo_id
+     where v.tipo_combustivel::text = 'eletrico' and o.status <> 'cancelada'
+       and coalesce(o.data_conclusao, o.data_parou, o.created_at) >= ini_ts
+       and coalesce(o.data_conclusao, o.data_parou, o.created_at) < fim_ts
+       and (p_hub is null or v.hub_id = p_hub)));
+
+  return r;
+end $$;
+
+revoke all on function frota.exec_eletricos(date, date, uuid) from public, anon;
+grant execute on function frota.exec_eletricos(date, date, uuid) to authenticated;

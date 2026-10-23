@@ -98,7 +98,39 @@
     return "crit";
   }
 
+  // Visão Executiva: datas do filtro de período (texto "AAAA-MM-DD"; hoje = data local de Brasília).
+  // mes = do dia 1 até hoje; mes_anterior = o mês anterior inteiro; ano = de 1º de janeiro até hoje.
+  function periodoDatas(codigo, hoje) {
+    var a = Number(hoje.slice(0, 4)), m = Number(hoje.slice(5, 7));
+    var dois = function(n){ return (n < 10 ? "0" : "") + n; };
+    if (codigo === "mes_anterior") {
+      var am = m === 1 ? 12 : m - 1, aa = m === 1 ? a - 1 : a;
+      var ultimo = new Date(Date.UTC(aa, am, 0)).getUTCDate();
+      return { ini: aa + "-" + dois(am) + "-01", fim: aa + "-" + dois(am) + "-" + dois(ultimo) };
+    }
+    if (codigo === "ano") return { ini: a + "-01-01", fim: hoje };
+    return { ini: a + "-" + dois(m) + "-01", fim: hoje };
+  }
+
+  // Custo por km dos elétricos só é confiável se km e recargas cobrem o mesmo período:
+  // a telemetria tem que existir desde o início do período, e a última recarga lançada não
+  // pode estar mais de 7 dias antes do fim do período (recarga é lançada à mão).
+  // Devolve a lista de motivos (vazia = confiável). Datas em "AAAA-MM-DD".
+  function coberturaCustoKm(ini, fim, telemetriaDesde, ultimaRecarga) {
+    var motivos = [];
+    if (!telemetriaDesde) motivos.push("sem telemetria de km");
+    else if (telemetriaDesde > ini) motivos.push("telemetria de km só desde " + telemetriaDesde.split("-").reverse().join("/"));
+    if (!ultimaRecarga) motivos.push("nenhuma recarga lançada");
+    else {
+      var limite = new Date(Date.UTC(Number(fim.slice(0, 4)), Number(fim.slice(5, 7)) - 1, Number(fim.slice(8, 10)) - 7)).toISOString().slice(0, 10);
+      if (ultimaRecarga < limite) motivos.push("recargas lançadas só até " + ultimaRecarga.split("-").reverse().join("/"));
+    }
+    return motivos;
+  }
+
   global.Regras = {
+    periodoDatas: periodoDatas,
+    coberturaCustoKm: coberturaCustoKm,
     faixaDisponibilidade: faixaDisponibilidade,
     STATUS_LIBERACAO: STATUS_LIBERACAO,
     duracaoTexto: duracaoTexto,

@@ -30,6 +30,7 @@ declare
   hub2 uuid; u_op uuid; u_outro uuid; u_vis uuid; u_adm uuid; cf uuid; cv uuid;
   vh uuid; osh uuid; osf uuid; tr uuid;
   hub3 uuid; vi1 uuid; vi2 uuid; osi uuid; j jsonb;
+  hub4 uuid; c_el uuid; ve1 uuid; ve2 uuid; vcb uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -413,6 +414,35 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', u_outro, 'role', 'authenticated')::text, true);
   x := (frota.exec_operacao(hub3) -> 'disponibilidade' ->> 'total') || ' / ' || jsonb_array_length(frota.exec_indisponiveis(hub3))::text;
   casos := casos || text 'exec_*: usuário sem o hub vê 0 carros'; obtidos := obtidos || x; esperados := esperados || text '0 / 0';
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 12. VISÃO EXECUTIVA — CARROS ELÉTRICOS (exec_eletricos)
+  -- hub próprio: 2 elétricos e 1 a combustão no mesmo contrato (R$ 3.000/mês por carro); período = março/2026
+  insert into frota.hubs (nome) values ('TESTE Hub 4') returning id into hub4;
+  insert into frota.contratos (locadora_id, numero_contrato, valor_mensal, data_fim) values (forn, 'TESTE ELETRICOS', 3000, current_date + 300) returning id into c_el;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status, tipo_combustivel) values ('ZZT0K01', hub4, c_el, 1, 'disponivel', 'eletrico') returning id into ve1;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status, tipo_combustivel) values ('ZZT0K02', hub4, c_el, 1, 'disponivel', 'eletrico') returning id into ve2;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status, tipo_combustivel) values ('ZZT0K03', hub4, c_el, 1, 'disponivel', 'combustao') returning id into vcb;
+  insert into frota.telemetria_diaria (veiculo_id, data, km_rodado, fonte) values
+    (ve1, '2026-03-10', 100.5, 'teste'), (ve2, '2026-03-11', 50, 'teste'), (ve1, '2026-04-01', 999, 'teste');
+  insert into frota.recargas_eletricas (veiculo_id, hub_id, data_hora, kwh, valor, fonte) values
+    (ve1, hub4, '2026-03-05 10:00-03', 10, 40, 'teste'), (ve2, hub4, '2026-03-31 23:30-03', 15, 60, 'teste'),
+    (ve1, hub4, '2026-04-01 00:30-03', 99, 999, 'teste');
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, data_conclusao, valor_total) values (ve1, 'corretiva', 'concluida', '2026-03-18 09:00-03', '2026-03-20 12:00-03', 500);
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, valor_total) values (ve2, 'corretiva', 'cancelada', '2026-03-21 12:00-03', 999);
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, data_conclusao, valor_total) values (vcb, 'corretiva', 'concluida', '2026-03-21 09:00-03', '2026-03-22 12:00-03', 777);
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  j := frota.exec_eletricos('2026-03-01', '2026-03-31', hub4);
+  x := (j->>'carros') || ' / ' || (j->'km'->>'total') || ' / ' || (j->'km'->>'carros');
+  casos := casos || text 'exec_eletricos: só elétricos; km do período (fora do mês não entra)'; obtidos := obtidos || x; esperados := esperados || text '2 / 150.5 / 2';
+  x := (j->'recargas'->>'qtd') || ' / ' || (j->'recargas'->>'valor') || ' / ' || (j->'manutencao'->>'valor');
+  casos := casos || text 'exec_eletricos: recargas do mês (23h30 do dia 31 entra; 00h30 do dia 1º não) e manutenção sem OS cancelada nem combustão'; obtidos := obtidos || x; esperados := esperados || text '2 / 100 / 500';
+  x := (j->'aluguel'->>'mensal') || ' / ' || (j->'aluguel'->>'meses') || ' / ' || (j->'aluguel'->>'periodo');
+  casos := casos || text 'exec_eletricos: aluguel = valor mensal dos 2 elétricos × 1 mês'; obtidos := obtidos || x; esperados := esperados || text '6000 / 1 / 6000';
+  j := frota.exec_eletricos('2026-01-01', '2026-03-31', hub4);
+  casos := casos || text 'exec_eletricos: janeiro a março = 3 meses de aluguel'; obtidos := obtidos || ((j->'aluguel'->>'meses') || ' / ' || (j->'aluguel'->>'periodo')); esperados := esperados || text '3 / 18000';
+  begin j := frota.exec_eletricos('2026-03-31', '2026-03-01', hub4); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Período inválido%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'exec_eletricos: período invertido é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado

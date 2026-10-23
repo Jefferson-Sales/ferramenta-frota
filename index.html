@@ -1697,10 +1697,75 @@
       var ver = q.modulo === "frota" && !canView("frota") ? "manutencao" : q.modulo;
       return '<section class="ex-quadrante"><div class="ex-quad-head"><h2>' + esc(q.titulo) + '</h2>' +
         '<button type="button" class="ex-ver" data-ir="' + esc(JSON.stringify({ modulo: ver })) + '">Ver tudo ›</button></div>' +
-        '<div class="ex-q-corpo" id="ex-q-' + q.modulo + '">' + (q.etapa === "C1" ? '<p class="ex-nota">Carregando…</p>'
+        '<div class="ex-q-corpo" id="ex-q-' + q.modulo + '">' + (EX_PRONTOS[q.etapa] ? '<p class="ex-nota">Carregando…</p>'
           : '<div class="ex-vazio"><b>Em construção</b>Os números deste quadrante chegam na etapa ' + esc(q.etapa) + ' do plano.</div>') + '</div></section>';
     }).join("");
-    if (visiveis.some(function(q){ return q.etapa === "C1"; })) exCarregarOperacao();
+    visiveis.forEach(function(q){ if (EX_PRONTOS[q.etapa]) EX_PRONTOS[q.etapa](); });
+  }
+  // quadrantes já construídos (etapa do plano → função que carrega)
+  var EX_PRONTOS = { C1: function(){ exCarregarOperacao(); }, C2: function(){ exCarregarEletricos(); } };
+  function exHoje(){ return isoParaCampoLocal(new Date().toISOString()).slice(0, 10); } // data de hoje em Brasília
+
+  // ---- C2: quadrante de Carros Elétricos ----
+  var exElToken = 0;
+  function exCarregarEletricos(){
+    var tok = ++exElToken, host = document.getElementById("ex-q-eletrificacao");
+    var per = Regras.periodoDatas(EX.periodo, exHoje());
+    rest("rpc/exec_eletricos", { method: "POST", body: { p_ini: per.ini, p_fim: per.fim, p_hub: EX.hub || null } }).then(function(d){
+      if (tok !== exElToken || !host.isConnected) return;
+      host.innerHTML = exRenderEletricos(d || {}, per);
+    }).catch(function(e){
+      if (tok !== exElToken) return;
+      host.innerHTML = '<div class="ex-vazio"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>';
+    });
+  }
+  function exRenderEletricos(d, per){
+    var P = PainelExec, km = d.km || {}, rec = d.recargas || {}, alu = d.aluguel || {}, man = d.manutencao || {};
+    var dataBR = function(s){ return s ? s.split("-").reverse().join("/") : "—"; };
+    var verFrota = canView("frota"), verManut = canView("manutencao");
+    var kmTotal = Number(km.total) || 0;
+    var custoAluguel = verFrota ? Number(alu.periodo) || 0 : 0, custoRec = Number(rec.valor) || 0, custoMan = verManut ? Number(man.valor) || 0 : 0;
+    var custoTotal = custoAluguel + custoRec + custoMan;
+    var telParcial = d.telemetria_desde && d.telemetria_desde > per.ini;
+    var motivos = Regras.coberturaCustoKm(per.ini, per.fim, d.telemetria_desde, d.ultima_recarga);
+    var recAtrasada = motivos.some(function(m){ return m.indexOf("recargas") === 0 || m.indexOf("nenhuma recarga") === 0; });
+    var html = "";
+    html += P.kpis([
+      { rot: "KM rodado", valor: P.compacto(kmTotal) + " km",
+        sub: P.num(km.carros || 0) + " de " + P.num(d.carros || 0) + " carros com telemetria",
+        estado: telParcial ? { txt: "⚠ telemetria desde " + dataBR(d.telemetria_desde), tipo: "alerta" } : null,
+        ir: { modulo: "eletrificacao" } },
+      { rot: "Custo total no período", valor: P.moeda(custoTotal, true),
+        sub: "aluguel " + (verFrota ? P.moeda(custoAluguel, true) : "sem acesso") + " · recargas " + P.moeda(custoRec, true) + " · manutenção " + (verManut ? P.moeda(custoMan, true) : "sem acesso"),
+        estado: recAtrasada ? { txt: "⚠ recargas lançadas até " + dataBR(d.ultima_recarga), tipo: "alerta" } : null,
+        ir: { modulo: "eletrificacao" } },
+      { rot: "Saídas no período", semDados: "viagens da telemetria Questar (etapa D4)" }
+    ]);
+    // composição do custo (uma série: mostra o peso de cada parte)
+    html += '<div class="ex-secao"><h3>De onde vem o custo</h3>' + P.barras({ itens: [
+      { rot: "Aluguel" + (alu.meses > 1 ? " (" + alu.meses + " meses)" : ""), valor: custoAluguel, txt: verFrota ? P.moeda(custoAluguel, true) : "sem acesso",
+        dica: verFrota ? "Soma do valor mensal dos contratos de " + P.num(alu.carros_com_valor || 0) + " elétricos × " + alu.meses + (alu.meses > 1 ? " meses" : " mês") : "Precisa da visualização do Cadastro da Frota" },
+      { rot: "Recargas (energia)", valor: custoRec, txt: P.moeda(custoRec, true),
+        dica: P.num(rec.qtd || 0) + " recargas · " + P.num(Math.round(Number(rec.kwh) || 0)) + " kWh · última lançada em " + dataBR(d.ultima_recarga) },
+      { rot: "Manutenção", valor: custoMan, txt: verManut ? P.moeda(custoMan, true) : "sem acesso",
+        dica: verManut ? P.num(man.os || 0) + " OS de elétricos no período" : "Precisa da visualização de Manutenções" }
+    ] }) + (recAtrasada ? '<p class="ex-nota">As recargas são lançadas à mão; a última é de ' + esc(dataBR(d.ultima_recarga)) + '. O custo de energia está incompleto até os lançamentos ficarem em dia.</p>' : '') + '</div>';
+    // custo por km (TCO): só com km e recargas do mesmo período
+    if (motivos.length || !kmTotal){
+      html += '<div class="ex-vazio"><b>Custo por km (TCO) × combustão</b>Ainda sem dado confiável: ' + esc(motivos.length ? motivos.join("; ") : "nenhum km no período") +
+        '. A comparação com a combustão também depende dos parâmetros de combustão (etapa D3).</div>';
+    } else {
+      var rkm = custoTotal / kmTotal;
+      html += '<div class="ex-secao"><h3>Custo por km (TCO)</h3>' + P.kpis([
+        { rot: "Elétrico", valor: "R$ " + P.num(rkm, 2) + "/km", sub: "custo total ÷ " + P.compacto(kmTotal) + " km" },
+        { rot: "Combustão (estimado)", semDados: "parâmetros de combustão — autonomia e preço do litro (etapa D3)" }
+      ]) + '</div>';
+    }
+    var hubs = (km.por_hub || []).slice(0, 6);
+    if (hubs.length) html += '<div class="ex-secao"><h3>KM rodado por hub</h3>' + P.barras({ itens: hubs.map(function(h){
+      return { rot: h.hub, valor: Number(h.km), txt: P.compacto(Number(h.km)) + " km", dica: h.hub + " · " + P.num(h.carros) + " carros com telemetria", ir: { modulo: "eletrificacao" } };
+    }) }) + '</div>';
+    return html;
   }
 
   // ---- C1: quadrante de Operação ----
