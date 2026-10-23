@@ -8,7 +8,10 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - **Cards/caixas:** cantos de 15–20px. **Botões:** sem degradê e sem canto reto.
 - **Visão Executiva** abre primeiro só para Diretoria e Admin.
 - **Orçado e planejado:** entram por importação de planilha (sem tela de digitação).
-- **"Saídas no mês" dos elétricos:** contadas pelos checklists de Retirada; depois, pela API de telemetria (ver D4).
+- **"Saídas no mês" dos elétricos e uso diário da frota toda:** pela telemetria Questar (D4). O checklist de Retirada **não** é mais usado para medir uso (decisão de 23/10/2026, substitui a anterior).
+- **Planejado da Utilização:** consulta do Metabase com agendas/rotas por dia (D5).
+- **Manutenção (C1):** aprovados o histórico de status da OS e a tratativa com a oficina como histórico imutável.
+- **Telemetria (D4):** aprovado testar o campo de nível para a bateria; **não** gravar latitude/longitude.
 - **Prioridade:** A6 e B1 antes; A3 e A4 ficam para o fim.
 - **Diretoria:** papel **Visualizador** + permissão "Visão Executiva" — só consulta, sem editar e sem dados pessoais sensíveis (que continuam só para admin).
 - **Painel de Multas (fase 2):** liberado por este pedido.
@@ -22,7 +25,7 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - [x] **A5** Menu no celular + `<meta viewport>` que faltava no `index.html` (23/10/2026). Falta testar num celular real depois do push.
 - [x] **Título** "Gestão da Frota Beep Saúde" + ícone de carro no login, menu e barra do celular (23/10/2026).
 - [x] **A6** Peças da Visão Executiva (23/10/2026, aprovada pelo Jefferson): `css/painel-exec.css` + `js/painel-exec.js` (cartão de indicador clicável, "Sem dados", número principal com medidor, barras com meta/orçado, ranking, legenda, dica ao passar o mouse); demonstração com dados fictícios em `testes/painel-exec.demo.html`. Cores de gráfico `--grafico-1/2` validadas para daltonismo e contraste.
-- [x] **B1** Permissão "Visão Executiva" (módulo `executivo`, só Visualizador; Admin vê) e tela base com filtros de período e hub; primeiro item do menu (23/10/2026). Edge Function `usuarios` com a trava; `Regras.podeVerExecutivo` com 7 testes.
+- [x] **B1** Permissão "Visão Executiva" (módulo `executivo`, só Visualizador; Admin vê) e tela base com filtros de período e hub; primeiro item do menu (23/10/2026). Edge Function `usuarios` com a trava; `Regras.podeVerExecutivo` com 7 testes. **Publicada em 23/10/2026** (função `usuarios` versão 3 + push).
 - [ ] B2 (próxima), B3, C, D; A3 e A4 no fim.
 
 ## O que encontrei antes de planejar
@@ -109,13 +112,18 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
   | Tratativa com a oficina (observações/histórico do auxiliar) | **não existe** como histórico (`observacoes` é um texto só, sobrescrito) | Tabela nova `os_tratativas` (OS, quem, quando, texto), só acrescenta, ninguém apaga; RLS de Manutenções + hub; quem opera Manutenções/Checklist escreve, Diretoria só lê. |
 
   Esse detalhe também serve à tela de Manutenções (não só à Diretoria). Migration própria + testes em `regras.test.sql` (tempos por fase).
+  **Aprovado pelo Jefferson (23/10/2026):** criar o histórico de status da OS (`os_status_historico`) e a tratativa como histórico imutável (`os_tratativas`: quem, quando, o quê; ninguém edita nem apaga). Ainda a definir: textos do "status de liberação" e se "serviço executado" vira campo próprio.
 - Preventivas em atraso: contagem de vencidas/vencendo (`v_revisoes_status`) → clica: Dash de Manutenção, lista de revisões.
 - Contratos: km excedente por contrato (`v_pool_km_contrato`) → clica no contrato: lista das placas daquele contrato.
-- Utilização: planejado × realizado → **"Sem dados"** até a etapa D1.
+- Utilização: planejado × realizado → **"Sem dados"** até as etapas D4 (realizado) e D5 (planejado). **Nova regra (Jefferson, 23/10/2026):**
+  - **Realizado = telemetria Questar, para toda a frota.** Carro com pelo menos uma viagem registrada no dia = carro utilizado no dia. O checklist de Retirada **deixa de ser** a medida de uso (o motorista pode esquecer de preencher); continua valendo para qualidade/anomalias e para a trava de devolução.
+  - **Planejado = consulta do Metabase** com as agendas/rotas programadas por dia (integração D5).
+  - Indicador: por dia e hub, carros planejados × carros com viagem; no mês, média diária e % de aderência. Regra de cálculo em `regras.js`/SQL com teste.
+  - As tabelas antigas `planejamento_picos` e `rotas_realizadas` (vazias) ficam sem uso por enquanto (não apagar).
 
 **C2. Carros Elétricos** (km, custo e recargas existem)
 - KM rodado no mês (`telemetria_diaria`), custo total no mês (`recargas_eletricas.valor`), quantidade de saídas no mês.
-  - "Saídas": checklists de **Retirada** de carros elétricos até a integração D4; depois, eventos de saída da API de telemetria.
+  - "Saídas": viagens da telemetria Questar (D4), mesma fonte da Utilização. Enquanto D4 não estiver no ar, o cartão mostra "Sem dados" (não usa mais Retirada como substituto — decisão de 23/10/2026).
 - TCO × combustão → **"Sem dados"** até D3. Fórmula proposta (para aprovar): custo por km elétrico = (aluguel + recargas + manutenção) ÷ km; combustão = mesma soma com combustível estimado pela autonomia e preço do litro da tabela de parâmetros.
 - Também resolve a pendência antiga do card "Integração em teste".
 
@@ -135,15 +143,18 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
 
 ## Fase D — Completar os dados que faltam (cada um depende de você)
 
-- **D1.** Orçado por categoria (mensal/anual) e planejamento de picos/rotas realizadas por hub: importação de planilha ou tela de cadastro.
+- **D1.** Orçado por categoria (mensal/anual): importação de planilha. (O planejado da Utilização saiu daqui e foi para D5.)
 - **D2.** Multas: ligar `motorista_identificado_id` nas 459 multas antigas (casar o nome do texto com o cadastro, com lista para você conferir antes do UPDATE) e preencher código/motivo da infração.
 - **D3.** Parâmetros de combustão (autonomia km/l, preço do litro, CO₂) por hub.
 - **D4.** Carros Elétricos — **percentual de bateria** e **eventos de saída** virão por integração com a API de telemetria (decisão do Jefferson, 23/10/2026). **API confirmada:** a mesma Questar/Exodus do `sync-telemetria-questar`, ação `get_vehicle_trips_extended` (doc: https://exodus-api-doc.app.questar.io/docs/get_vehicle_trips_extended/). Token: segredo `QUESTAR_API_TOKEN`, já no projeto (lido só dentro da Edge Function). Detalhes da documentação:
   - `POST https://app.questar.io/v2/questar-units/api`, `action.name = "get_vehicle_trips_extended"`; filtro por `vehicle_id` (até 100), `license_number` ou `driver_id`; `from_date`/`to_date` com no máximo **32 dias**; até 2.000 viagens por página (`has_more`); a sessão da paginação vence em ~30 min.
   - Cada viagem = uma **saída**: `drive_id` (chave para não duplicar), `license_number`, `start_time`/`end_time`, `distance`, `start_mileage`/`total_mileage`, `energy_type`.
   - **Bateria:** a documentação **não tem campo de bateria**; o mais próximo é `start_fuel_level_percent`/`end_fuel_level_percent`. Primeiro passo: chamar para 1 carro elétrico e conferir se esses campos trazem a carga (%) — se vierem vazios, o % de bateria continua vindo do checklist.
-  - **Dados pessoais e localização:** a resposta traz nome/código do motorista e latitude/longitude de início e fim. Proposta: **não gravar** coordenadas nem endereço (não precisamos para os KPIs) e gravar só o `driver_code` para ligar à matrícula; tabela nova `telemetria_viagens` com RLS (Carros Elétricos + Visão Executiva), sem acesso anônimo.
-  - Sincronização: junto do cron diário das 02:00 (dia anterior), com reprocessamento idempotente por `drive_id`. Até a integração existir, o KPI "Saídas no mês" conta os checklists de **Retirada** de carros elétricos (decisão anterior) e o % de bateria vem do que o motorista informa no checklist.
+  - **Dados pessoais e localização (aprovado, 23/10/2026):** **não gravar** latitude/longitude nem endereço — não há rastreamento de mapa, só dados de uso. Gravar só o `driver_code` para ligar à matrícula; tabela nova `telemetria_viagens` com RLS (Cadastro da Frota/Carros Elétricos + Visão Executiva), sem acesso anônimo.
+  - **Escopo ampliado (23/10/2026): toda a frota, não só os elétricos** — a telemetria passa a ser a fonte da verdade de uso diário (ver Utilização no C1). Primeiro conferir quantos dos ~400 carros têm equipamento Questar; carro sem equipamento aparece como "sem telemetria" (nunca como "não utilizado").
+  - Sincronização: junto do cron diário das 02:00 (dia anterior), com reprocessamento idempotente por `drive_id`; para 400 carros, chamadas em lotes de 100 `vehicle_id`. O % de bateria continua vindo do checklist enquanto o campo de nível não for confirmado.
+  - **Teste do campo de nível: aprovado** — consultar 1 carro elétrico e conferir `start_fuel_level_percent`/`end_fuel_level_percent`.
+- **D5.** **Integração Metabase — planejado da Utilização** (decisão de 23/10/2026). Fonte: a consulta do Metabase com as agendas/rotas programadas por dia. Precisa do Jefferson: URL do Metabase, id da consulta (pergunta salva), credencial de leitura (vai para os segredos da Edge Function, nunca no código nem no chat) e o formato das colunas (dia, hub, placa ou quantidade de carros). Sincronização diária por Edge Function + cron, gravando em tabela nova com RLS. É a pendência "Integração Pipefy e Metabase: aguardando credenciais" do CLAUDE.md.
 
 Comandos que alteram dados reais seguem a regra: mostro o comando exato, com `WHERE` por id, e espero sua aprovação.
 

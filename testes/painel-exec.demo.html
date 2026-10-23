@@ -117,7 +117,7 @@
     P.kpis([
       { rot:"KM rodado em outubro", valor:P.compacto(48250) + " km", sub:"telemetria", ir:{ modulo:"eletrificacao", filtro:{ mes:"2026-10" } } },
       { rot:"Custo de recarga", valor:P.moeda(9400, true), sub:"R$ 0,19 por km", ir:{ modulo:"eletrificacao", filtro:{ mes:"2026-10" } } },
-      { rot:"Saídas no mês", valor:"612", sub:"checklists de Retirada", ir:{ modulo:"qualidade", filtro:{ tipo:"retirada", combustivel:"eletrico" } } }
+      { rot:"Saídas no mês", valor:"612", sub:"viagens na telemetria", ir:{ modulo:"eletrificacao", filtro:{ mes:"2026-10" } } }
     ]) +
     secao("Custo total por km (TCO) — elétrico × combustão", P.barras({
       legenda:[ { txt:"Elétrico", cls:"s1" }, { txt:"Combustão (estimado)", cls:"s2" } ],
