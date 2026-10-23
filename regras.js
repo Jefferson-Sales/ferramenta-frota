@@ -89,7 +89,17 @@
     return d + " d" + (hr ? " " + hr + " h" : "");
   }
 
+  // Disponibilidade da frota (Dash de Manutenção e Visão Executiva): cor pela % disponível.
+  // ≥ 90% verde; ≥ 80% amarelo; abaixo vermelho; sem dado neutro.
+  function faixaDisponibilidade(pct) {
+    if (pct == null || isNaN(pct)) return "neutral";
+    if (pct >= 90) return "good";
+    if (pct >= 80) return "warn";
+    return "crit";
+  }
+
   global.Regras = {
+    faixaDisponibilidade: faixaDisponibilidade,
     STATUS_LIBERACAO: STATUS_LIBERACAO,
     duracaoTexto: duracaoTexto,
     podeVerExecutivo: podeVerExecutivo,

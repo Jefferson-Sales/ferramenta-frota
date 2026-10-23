@@ -138,6 +138,13 @@
   igual("negativo → —",                        R.duracaoTexto(-5), "—");
   igual("vazio → —",                           R.duracaoTexto(undefined), "—");
 
+  grupo("Disponibilidade da frota — cor");
+  igual("90% → verde",          R.faixaDisponibilidade(90), "good");
+  igual("89,9% → amarelo",      R.faixaDisponibilidade(89.9), "warn");
+  igual("80% → amarelo",        R.faixaDisponibilidade(80), "warn");
+  igual("79,9% → vermelho",     R.faixaDisponibilidade(79.9), "crit");
+  igual("sem dado → neutro",    R.faixaDisponibilidade(null), "neutral");
+
   grupo("OS — status de liberação (as 4 opções do Jefferson)");
   igual("4 opções, na ordem", Object.keys(R.STATUS_LIBERACAO).join(","), "aguardando_orcamento,em_reparo,pronto_retirada,liberado");
   igual("texto de pronto_retirada", R.STATUS_LIBERACAO.pronto_retirada, "Pronto, aguardando retirada");

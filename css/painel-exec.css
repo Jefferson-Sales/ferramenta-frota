@@ -37,7 +37,7 @@ button.ex-kpi:hover::after{ color:var(--accent); }
 .ex-delta{ font-size:var(--fs-xs); font-weight:600; }
 .ex-delta.bom{ color:var(--good); } .ex-delta.ruim{ color:var(--critical); } .ex-delta.neutro{ color:var(--muted); }
 /* estado (ícone + texto, nunca só cor) */
-.ex-kpi .ex-estado{ align-self:flex-start; margin-top:var(--espaco-1); font-size:var(--fs-2xs); font-weight:600; padding:1px var(--espaco-3); border-radius:var(--raio-pilula); }
+.ex-kpi .ex-estado, .ex-destaque .ex-estado{ align-self:flex-start; margin-top:var(--espaco-1); font-size:var(--fs-2xs); font-weight:600; padding:1px var(--espaco-3); border-radius:var(--raio-pilula); }
 .ex-estado.alerta{ background:var(--warning-soft); color:var(--warning); }
 .ex-estado.critico{ background:var(--critical-soft); color:var(--critical); }
 .ex-estado.ok{ background:var(--good-soft); color:var(--good); }

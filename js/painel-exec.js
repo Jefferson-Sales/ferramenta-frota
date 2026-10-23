@@ -62,16 +62,19 @@
     return '<div class="ex-vazio"><b>' + esc(titulo) + '</b>Sem dados. Falta: ' + esc(falta) + '</div>';
   }
 
-  // Número principal + medidor de duas partes (ex.: disponíveis × indisponíveis).
-  // o = { valor:"87%", rot, parte:{rot, n}, resto:{rot, n}, ir? }
+  // Número principal + medidor (ex.: disponíveis × indisponíveis × outros).
+  // o = { valor:"87%", rot, parte:{rot, n}, resto:{rot, n}, extras?:[{rot, n}], estado?:{txt, tipo}, ir? }
+  // O preenchimento é a "parte"; resto e extras formam o trilho.
   function medidor(o){
-    var total = (o.parte.n || 0) + (o.resto.n || 0);
+    var extras = (o.extras || []).filter(function(e){ return e.n; });
+    var total = (o.parte.n || 0) + (o.resto.n || 0) + extras.reduce(function(s, e){ return s + e.n; }, 0);
     var pct = total ? Math.round(o.parte.n / total * 1000) / 10 : 0;
     var corpo =
       '<div class="ex-destaque"><span class="ex-destaque-valor">' + esc(o.valor) + '</span><span class="ex-destaque-rot">' + esc(o.rot) + '</span></div>' +
       '<div class="ex-medidor"><div class="ex-medidor-trilho" role="img" aria-label="' + esc(o.parte.rot + ": " + o.parte.n + " de " + total) + '">' +
       '<span class="ex-medidor-ench" style="width:' + pct + '%"></span></div>' +
-      '<div class="ex-medidor-leg"><span><b>' + num(o.parte.n) + '</b> ' + esc(o.parte.rot) + '</span><span><b>' + num(o.resto.n) + '</b> ' + esc(o.resto.rot) + '</span></div></div>';
+      '<div class="ex-medidor-leg"><span><b>' + num(o.parte.n) + '</b> ' + esc(o.parte.rot) + '</span><span><b>' + num(o.resto.n) + '</b> ' + esc(o.resto.rot) + '</span>' +
+      extras.map(function(e){ return '<span><b>' + num(e.n) + '</b> ' + esc(e.rot) + '</span>'; }).join("") + '</div></div>';
     if (!o.ir) return '<div>' + corpo + '</div>';
     return '<button type="button" class="ex-kpi ex-medidor-btn"' + attrIr(o.ir) + '>' + corpo + '</button>';
   }

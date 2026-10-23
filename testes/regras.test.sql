@@ -29,6 +29,7 @@ declare
   sa uuid; sb uuid; os1 uuid; os2 uuid; rv uuid; os3 uuid;
   hub2 uuid; u_op uuid; u_outro uuid; u_vis uuid; u_adm uuid; cf uuid; cv uuid;
   vh uuid; osh uuid; osf uuid; tr uuid;
+  hub3 uuid; vi1 uuid; vi2 uuid; osi uuid; j jsonb;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -379,6 +380,36 @@ begin
   perform set_config('request.jwt.claims', '', true);
   begin delete from frota.os_tratativas where id = tr; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Registro de histórico não pode%' then 'recusou' else sqlerrm end; end;
   casos := casos || text 'tratativa: ninguém apaga (nem o dono do banco)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+
+  -- ============================================ 11. VISÃO EXECUTIVA — QUADRANTE DE OPERAÇÃO (exec_operacao / exec_indisponiveis)
+  -- hub próprio com composição conhecida: 3 disponíveis, 2 indisponíveis (1 com OS parada, 1 sem OS), 1 em mobilização, 1 devolvido (fora da conta)
+  insert into frota.hubs (nome) values ('TESTE Hub 3') returning id into hub3;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values
+    ('ZZT0J01', hub3, 1, 'disponivel'), ('ZZT0J02', hub3, 1, 'disponivel'), ('ZZT0J03', hub3, 1, 'disponivel'),
+    ('ZZT0J06', hub3, 1, 'em_mobilizacao'), ('ZZT0J07', hub3, 1, 'devolvido');
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0J04', hub3, 1, 'disponivel') returning id into vi1;
+  insert into frota.veiculos (placa, hub_id, km_atual, status, status_desde) values ('ZZT0J05', hub3, 1, 'indisponivel', now() - interval '3 days') returning id into vi2;
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  insert into frota.ordens_servico (veiculo_id, tipo, status, data_parou, previsao_retorno) values (vi1, 'corretiva', 'aguardando_agendamento', now() - interval '2 days', current_date + 3) returning id into osi;
+  update frota.ordens_servico set status_liberacao = 'em_reparo', servico_executado = 'TESTE resumo' where id = osi;
+  insert into frota.os_tratativas (os_id, texto) values (osi, 'TESTE primeira tratativa');
+  insert into frota.os_tratativas (os_id, texto) values (osi, 'TESTE segunda tratativa');
+  j := frota.exec_operacao(hub3) -> 'disponibilidade';
+  x := (j->>'total') || ' / ' || (j->>'disponivel') || ' / ' || (j->>'indisponivel') || ' / ' || (j->>'em_mobilizacao');
+  casos := casos || text 'exec_operacao: total (sem devolvido) / disponíveis / indisponíveis / em mobilização'; obtidos := obtidos || x; esperados := esperados || text '6 / 3 / 2 / 1';
+  j := frota.exec_indisponiveis(hub3);
+  select string_agg((e->>'placa') || ':' || case when e->'os' = 'null'::jsonb then 'sem OS' else 'OS' end, ', ' order by e->>'parado_desde') into x from jsonb_array_elements(j) e;
+  casos := casos || text 'exec_indisponiveis: parado há mais tempo primeiro; carro sem OS aparece como "sem OS"'; obtidos := obtidos || x; esperados := esperados || text 'ZZT0J05:sem OS, ZZT0J04:OS';
+  select (e->'os'->>'status_liberacao') || ' / ' || (e->'os'->>'servico_executado') || ' / ' || (e->'os'->>'tratativas') || ' / ' || (e->'os'->'ultima_tratativa'->>'texto') || ' / ' || (e->'os'->'ultima_tratativa'->>'autor')
+    into x from jsonb_array_elements(j) e where e->>'placa' = 'ZZT0J04';
+  casos := casos || text 'exec_indisponiveis: liberação, serviço, nº de tratativas e a última (com autor)'; obtidos := obtidos || x; esperados := esperados || text 'em_reparo / TESTE resumo / 2 / TESTE segunda tratativa / TESTE Admin';
+  select ((e->'os'->>'seg_agendamento') is not null)::text || ' / ' || coalesce(e->'os'->>'seg_espera_execucao', 'nulo') into x from jsonb_array_elements(j) e where e->>'placa' = 'ZZT0J04';
+  casos := casos || text 'exec_indisponiveis: tempo de agendamento vem do histórico (execução ainda vazia)'; obtidos := obtidos || x; esperados := esperados || text 'true / nulo';
+  -- quem não tem o hub não vê nada (operador de outro hub)
+  perform set_config('request.jwt.claims', json_build_object('sub', u_outro, 'role', 'authenticated')::text, true);
+  x := (frota.exec_operacao(hub3) -> 'disponibilidade' ->> 'total') || ' / ' || jsonb_array_length(frota.exec_indisponiveis(hub3))::text;
+  casos := casos || text 'exec_*: usuário sem o hub vê 0 carros'; obtidos := obtidos || x; esperados := esperados || text '0 / 0';
+  perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop

@@ -292,6 +292,18 @@
   .osd-trat-texto{ font-size:var(--fs-md); white-space:pre-wrap; overflow-wrap:anywhere; }
   .osd-vazio{ font-size:var(--fs-sm-2); color:var(--muted); }
   .osd-largo{ grid-column:1 / -1; }
+  /* Visão Executiva: voltar e detalhe dos indisponíveis */
+  .ex-voltar{ font:inherit; font-size:var(--fs-sm-2); font-weight:600; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-soft-line); border-radius:var(--raio-botao); padding:var(--espaco-2) var(--espaco-5); margin:0 0 var(--espaco-5); cursor:pointer; }
+  .ex-voltar:hover{ border-color:var(--accent); }
+  .ex-voltar:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .ex-q-corpo{ display:flex; flex-direction:column; gap:var(--espaco-7); min-width:0; }
+  .ex-q-corpo .ex-nota{ margin:0; }
+  .modal.modal-largo{ max-width:1180px; }
+  .ex-indisp-tabela td{ vertical-align:top; }
+  .ex-indisp-tabela td:first-child, .ex-indisp-tabela td:nth-child(2){ white-space:nowrap; }
+  .ex-indisp-tabela .ex-indisp-texto{ min-width:150px; max-width:210px; white-space:normal; overflow-wrap:anywhere; }
+  .ex-indisp-tabela .ex-fases{ white-space:nowrap; }
+  .ex-indisp-tabela .ex-fases div{ line-height:1.5; }
   .osd-hist{ list-style:none; margin:0; padding:0; font-size:var(--fs-md); }
   .osd-hist li{ display:flex; flex-wrap:wrap; gap:var(--espaco-1) var(--espaco-4); padding:var(--espaco-2) 0; border-bottom:1px solid var(--line); }
   .osd-hist li:last-child{ border-bottom:none; }
@@ -355,6 +367,8 @@
   </div>
 
   <div class="main">
+
+    <button type="button" class="ex-voltar" id="ex-voltar" hidden>‹ Voltar à Visão Executiva</button>
 
     <!-- VISÃO EXECUTIVA (Diretoria) — B1: tela base; os números entram nas etapas C1–C4 -->
     <section class="panel" data-panel="executivo">
@@ -1169,6 +1183,14 @@
   </div>
 </div>
 
+<!-- Visão Executiva: carros indisponíveis agora (clique na disponibilidade) -->
+<div class="modal-overlay" id="modal-ex-indisp" hidden>
+  <div class="modal modal-largo">
+    <div class="modal-head"><h3 id="ex-indisp-titulo">Carros indisponíveis</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div id="ex-indisp-body"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-os-detalhe" hidden>
   <div class="modal" style="max-width:640px;">
     <div class="modal-head"><h3 id="osd-titulo">OS</h3><button class="modal-close" data-close-modal>×</button></div>
@@ -1630,9 +1652,32 @@
       }).join("");
       selH.value = EX.hub;
     }).catch(function(){});
-    PainelExec.ligar(document.getElementById("ex-grade"), function(destino){
-      if (destino && destino.modulo && canView(destino.modulo)) showPanel(destino.modulo);
-    });
+    PainelExec.ligar(document.getElementById("ex-grade"), exIr);
+    PainelExec.ligar(document.getElementById("ex-indisp-body"), exIr);
+    document.getElementById("ex-voltar").addEventListener("click", function(){ showPanel("executivo"); });
+  }
+
+  // Drill-down: leva à tela de trabalho já filtrada. destino = { modulo, filtro?, os?, indisponiveis? }
+  var osAbrirDepois = null; // OS para abrir quando a lista de Manutenções terminar de carregar
+  function exIr(destino){
+    if (!destino) return;
+    if (destino.indisponiveis){ exAbrirIndisponiveis(); return; }
+    if (!destino.modulo || !canView(destino.modulo)) return;
+    var f = destino.filtro || {};
+    if (destino.modulo === "frota"){
+      frotaFiltros.busca = ""; frotaFiltros.contrato = f.contrato || ""; frotaFiltros.chip = f.chip || "todos";
+      document.getElementById("frota-busca").value = "";
+      document.getElementById("frota-filtro-contrato").value = frotaFiltros.contrato;
+      document.getElementById("frota-filtro-chip").value = frotaFiltros.chip;
+    }
+    if (destino.modulo === "manutencao" && destino.os) osAbrirDepois = destino.os;
+    if (destino.modulo === "gestao_manutencao" && f.revisao) document.getElementById("gm-rev-filtro").value = f.revisao;
+    document.getElementById("modal-ex-indisp").hidden = true;
+    showPanel(destino.modulo);
+    document.getElementById("ex-voltar").hidden = false;
+    if (destino.modulo === "gestao_manutencao" && f.revisao){
+      setTimeout(function(){ var c = document.getElementById("gm-rev-body"); if (c) c.closest(".card").scrollIntoView({ block: "start" }); }, 600);
+    } else window.scrollTo(0, 0);
   }
   function loadExecutivo(){ exIniciar(); renderExecutivo(); }
   function renderExecutivo(){
@@ -1647,10 +1692,107 @@
       return;
     }
     grade.innerHTML = visiveis.map(function(q){
+      var ver = q.modulo === "frota" && !canView("frota") ? "manutencao" : q.modulo;
       return '<section class="ex-quadrante"><div class="ex-quad-head"><h2>' + esc(q.titulo) + '</h2>' +
-        '<button type="button" class="ex-ver" data-ir="' + esc(JSON.stringify({ modulo: q.modulo })) + '">Ver tudo ›</button></div>' +
-        '<div class="ex-vazio"><b>Em construção</b>Os números deste quadrante chegam na etapa ' + esc(q.etapa) + ' do plano.</div></section>';
+        '<button type="button" class="ex-ver" data-ir="' + esc(JSON.stringify({ modulo: ver })) + '">Ver tudo ›</button></div>' +
+        '<div class="ex-q-corpo" id="ex-q-' + q.modulo + '">' + (q.etapa === "C1" ? '<p class="ex-nota">Carregando…</p>'
+          : '<div class="ex-vazio"><b>Em construção</b>Os números deste quadrante chegam na etapa ' + esc(q.etapa) + ' do plano.</div>') + '</div></section>';
     }).join("");
+    if (visiveis.some(function(q){ return q.etapa === "C1"; })) exCarregarOperacao();
+  }
+
+  // ---- C1: quadrante de Operação ----
+  var exOpToken = 0;
+  function exCarregarOperacao(){
+    var tok = ++exOpToken, host = document.getElementById("ex-q-frota");
+    rest("rpc/exec_operacao", { method: "POST", body: { p_hub: EX.hub || null } }).then(function(d){
+      if (tok !== exOpToken || !host.isConnected) return;
+      host.innerHTML = exRenderOperacao(d || {});
+    }).catch(function(e){
+      if (tok !== exOpToken) return;
+      host.innerHTML = '<div class="ex-vazio"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>';
+    });
+  }
+  function exRenderOperacao(d){
+    var P = PainelExec, html = "", disp = d.disponibilidade || {}, pv = d.preventivas || {}, ct = d.contratos || {};
+    var verManut = canView("manutencao"), verFrota = canView("frota");
+    // Disponibilidade e preventivas vêm da Manutenção (com filtro de hub); km excedente vem do Cadastro da Frota.
+    if (verManut){
+      var pct = disp.total ? Math.round(disp.disponivel / disp.total * 1000) / 10 : null;
+      var faixa = Regras.faixaDisponibilidade(pct);
+      html += P.medidor({
+        valor: pct == null ? "—" : String(pct).replace(".", ",") + "%", rot: "da frota disponível agora",
+        estado: faixa === "good" ? null : { txt: faixa === "warn" ? "⚠ abaixo de 90%" : "⚠ abaixo de 80%", tipo: faixa === "warn" ? "alerta" : "critico" },
+        parte: { rot: "disponíveis", n: disp.disponivel || 0 },
+        resto: { rot: "indisponíveis", n: disp.indisponivel || 0 },
+        extras: [{ rot: "em mobilização", n: disp.em_mobilizacao || 0 }, { rot: "a desmobilizar", n: disp.desmobilizar || 0 }, { rot: "outros", n: disp.outros || 0 }],
+        ir: disp.indisponivel ? { indisponiveis: true } : null
+      });
+      if (disp.indisponivel) html += '<p class="ex-nota">Clique na disponibilidade para ver os ' + P.num(disp.indisponivel) + ' carros indisponíveis, com prazos e tratativas.</p>';
+    } else {
+      html += '<div class="ex-vazio"><b>Disponibilidade e preventivas</b>Precisam da visualização de Manutenções (com os hubs) no seu acesso.</div>';
+    }
+    var kpis = [];
+    if (verManut) kpis.push({ rot: "Preventivas em atraso", valor: P.num(pv.vencidas || 0),
+      sub: (pv.vencendo ? P.num(pv.vencendo) + " vencendo (até 1.000 km)" : "nenhuma vencendo"),
+      estado: pv.vencidas ? { txt: "⚠ atenção", tipo: "alerta" } : { txt: "✓ em dia", tipo: "ok" },
+      ir: { modulo: "gestao_manutencao", filtro: { revisao: "vencida" } } });
+    if (verFrota) kpis.push({ rot: "Contratos com km excedente", valor: P.num(ct.com_excedente || 0),
+      sub: "de " + P.num(ct.total || 0) + " em pool" + (ct.custo_estimado ? " · " + P.moeda(ct.custo_estimado, true) + " estimado" : ""),
+      ir: { modulo: "frota", filtro: { chip: "km_excedente" } } });
+    kpis.push({ rot: "Utilização (planejado × realizado)", semDados: "telemetria dos carros (Questar nos elétricos; combustão a definir) e rotas planejadas do Metabase" });
+    html += P.kpis(kpis);
+    if (verFrota){
+      var lista = (ct.lista || []).slice(0, 5);
+      html += '<div class="ex-secao"><h3>KM excedente por contrato (pool)</h3>' + (lista.length ? P.barras({ itens: lista.map(function(c){
+        var nome = c.numero || c.locadora || "Contrato";
+        return { rot: nome, valor: Number(c.km_excedente), txt: P.compacto(Number(c.km_excedente)) + " km",
+          dica: nome + (c.locadora ? " · " + c.locadora : "") + " · " + P.num(c.carros) + " carros · " + String(c.pct).replace(".", ",") + "% da franquia · custo estimado " + P.moeda(c.custo, true),
+          ir: { modulo: "frota", filtro: { contrato: c.contrato_id } } };
+      }) }) + '<p class="ex-nota">Clique no contrato para ver as placas. O km é do contrato inteiro (não filtra por hub).</p>'
+        : '<p class="ex-nota">Nenhum contrato em pool passou da franquia.</p>') + '</div>';
+    }
+    return html;
+  }
+
+  // ---- detalhe dos carros indisponíveis (clique na disponibilidade) ----
+  function exAbrirIndisponiveis(){
+    var body = document.getElementById("ex-indisp-body");
+    body.innerHTML = '<p class="ex-nota">Carregando…</p>';
+    openModal("modal-ex-indisp");
+    rest("rpc/exec_indisponiveis", { method: "POST", body: { p_hub: EX.hub || null } }).then(function(rows){
+      exRenderIndisponiveis(rows || []);
+    }).catch(function(e){ body.innerHTML = '<div class="ex-vazio"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>'; });
+  }
+  function exRenderIndisponiveis(rows){
+    var body = document.getElementById("ex-indisp-body"), agora = Date.now(), hojeTxt = isoParaCampoLocal(new Date().toISOString()).slice(0, 10); // hoje no horário de Brasília
+    var semOs = rows.filter(function(r){ return !r.os; }).length, parcial = rows.some(function(r){ return r.os && r.os.historico_parcial; });
+    document.getElementById("ex-indisp-titulo").textContent = rows.length + (rows.length === 1 ? " carro indisponível" : " carros indisponíveis");
+    if (!rows.length){ body.innerHTML = '<p class="ex-nota">Nenhum carro indisponível agora.</p>'; return; }
+    var t = function(s){ return s == null ? "—" : Regras.duracaoTexto(s * 1000); };
+    var abrirOs = canView("manutencao");
+    body.innerHTML =
+      '<p class="ex-nota">Do parado há mais tempo para o mais recente' + (abrirOs ? '; clique na placa para abrir a OS' : '') + '. Tempos por fase contam a partir de 23/10/2026' + (parcial ? ' (para OS que já estavam abertas, o tempo anterior não foi registrado)' : '') + '.' +
+      (semOs ? ' ' + semOs + (semOs === 1 ? ' carro está indisponível sem OS aberta.' : ' carros estão indisponíveis sem OS aberta.') : '') + '</p>' +
+      '<div class="table-wrap ex-indisp-tabela"><table><thead><tr><th>Carro</th><th>Parado há</th><th>Tempo por fase</th><th>Previsão de retorno</th><th>Liberação</th><th>Serviço executado</th><th>Última tratativa</th></tr></thead><tbody>' +
+      rows.map(function(r){
+        var o = r.os, desde = r.parado_desde ? agora - new Date(r.parado_desde).getTime() : null;
+        var vencida = o && o.previsao_retorno && o.previsao_retorno < hojeTxt;
+        var ult = o && o.ultima_tratativa;
+        var optSt = o ? document.querySelector('#osd-status option[value="' + o.status + '"]') : null;
+        var placa = abrirOs && o ? '<button type="button" class="qf-link" title="Abrir a OS" data-ir="' + esc(JSON.stringify({ modulo: "manutencao", os: o.id })) + '">' + esc(r.placa) + ' ›</button>' : '<b class="qf-placa">' + esc(r.placa) + '</b>';
+        return '<tr><td>' + placa + '<div class="qf-sub">' + esc(r.modelo || "") + '</div><div class="qf-sub">' + esc(r.hub || "—") + '</div></td>' +
+          '<td>' + (desde == null ? "—" : esc(Regras.duracaoTexto(desde))) + '<div class="qf-sub">desde ' + (r.parado_desde ? esc(dateBR(r.parado_desde)) : "—") + '</div></td>' +
+          (o ? '<td class="ex-fases"><div><span class="qf-sub">Agendamento</span> ' + esc(t(o.seg_agendamento)) + '</div>' +
+                 '<div><span class="qf-sub">Aguard. execução</span> ' + esc(t(o.seg_espera_execucao)) + '</div>' +
+                 (o.seg_execucao ? '<div><span class="qf-sub">Em execução</span> ' + esc(t(o.seg_execucao)) + '</div>' : '') + '</td>' +
+               '<td>' + (o.previsao_retorno ? (vencida ? pill(dateBR(o.previsao_retorno) + " · vencida", "crit") : esc(dateBR(o.previsao_retorno))) : "—") + '</td>' +
+               '<td>' + (o.status_liberacao ? pill(Regras.STATUS_LIBERACAO[o.status_liberacao] || o.status_liberacao, STATUS_LIB_PILL[o.status_liberacao]) : '<span class="qf-sub">não informado</span>') + '<div class="qf-sub">OS: ' + esc(optSt ? optSt.textContent : (o.status || "").replace(/_/g, " ")) + '</div></td>' +
+               '<td class="ex-indisp-texto">' + (o.servico_executado ? esc(o.servico_executado) : '<span class="qf-sub">—</span>') + '</td>' +
+               '<td class="ex-indisp-texto">' + (ult ? esc(ult.texto) + '<div class="qf-sub">' + esc(ult.autor || "") + ' · ' + esc(dateTimeBR(ult.quando)) + (o.tratativas > 1 ? ' · +' + (o.tratativas - 1) + ' anteriores' : '') + '</div>' : '<span class="qf-sub">nenhuma</span>') + '</td>'
+             : '<td colspan="5"><span class="qf-sub">Sem OS aberta segurando o carro (indisponível por outro motivo).</span></td>') +
+          '</tr>';
+      }).join("") + '</tbody></table></div>';
   }
 
   function buildNav(){
@@ -1699,6 +1841,7 @@
   function showPanel(key){
     if ((key === "acessos" || key === "motoristas") && !souAdmin()) return;
     abrirMenuMobile(false);
+    document.getElementById("ex-voltar").hidden = true; // volta a aparecer só quando o clique veio da Visão Executiva (exIr)
     currentPanel = key;
     document.querySelectorAll(".panel").forEach(function(p){
       p.classList.toggle("active", p.dataset.panel === key);
@@ -1780,7 +1923,7 @@
 
     var selFiltro = document.getElementById("frota-filtro-contrato");
     if (selFiltro){
-      var cur2 = selFiltro.value;
+      var cur2 = frotaFiltros.contrato || selFiltro.value; // filtro pode ter vindo da Visão Executiva antes das opções existirem
       selFiltro.innerHTML = '<option value="">Todos os contratos</option>' + rows.map(function(c){
         var label = (c.numero_contrato || (c.fornecedores ? c.fornecedores.nome : "Contrato"));
         return '<option value="' + c.id + '">' + esc(label) + "</option>";
@@ -2153,6 +2296,7 @@
     rest("ordens_servico?select=id,tipo,veiculo_parado,km_entrada,marco_km,motivo,status,data_parou,data_entrada_oficina,data_conclusao,data_liberacao,previsao_retorno,contato_oficina,cobertura,valor_total,observacoes,servico_executado,status_liberacao,veiculo_id,veiculos(placa,status,hubs(nome),fornecedores(nome)),oficinas(id,nome)&order=data_parou.desc.nullslast,created_at.desc&limit=300")
       .then(function(rows){
         osCache = rows || [];
+        if (osAbrirDepois){ var abrir = osAbrirDepois; osAbrirDepois = null; setTimeout(function(){ abrirDetalheOS(abrir); }, 0); } // veio da Visão Executiva
         renderKpisManutencao(rows);
         aplicarBadgeManutencao(rows);
         if (avisarVencidas) avisarOSVencidas(rows);
@@ -4038,7 +4182,7 @@
     var pDisp = gmPct(disp.disponivel, disp.total), pCk = gmPct(ckFez, ckEsp);
     var aConferir = GM.conf.filter(function(c){ return c.status === "a_conferir"; }).length;
     document.getElementById("gm-kpis").innerHTML = [
-      { num: pDisp == null ? "—" : pDisp + "%", label: "Disponíveis agora (" + gmNum(disp.disponivel) + " de " + gmNum(disp.total) + ")", cls: pDisp == null ? "neutral" : pDisp >= 90 ? "good" : pDisp >= 80 ? "warn" : "crit" },
+      { num: pDisp == null ? "—" : pDisp + "%", label: "Disponíveis agora (" + gmNum(disp.disponivel) + " de " + gmNum(disp.total) + ")", cls: Regras.faixaDisponibilidade(pDisp) },
       { num: gmNum(disp.indisponivel), label: "Indisponíveis agora", cls: disp.indisponivel ? "warn" : "good" },
       { num: pCk == null ? "—" : pCk + "%", label: "Checklist de retirada no período (" + gmNum(ckFez) + " de " + gmNum(ckEsp) + ")", cls: pCk == null ? "neutral" : pCk >= 90 ? "good" : pCk >= 70 ? "warn" : "crit" },
       { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good" },
@@ -4511,7 +4655,7 @@
       else cb.disabled = false;
     });
     if (papel === "admin") hint.textContent = "Admin vê e opera todos os módulos e acessa esta tela.";
-    else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada. Diretoria: marque Visão Executiva e também os módulos que ela poderá abrir pelos indicadores (Cadastro da Frota, Financeiro, Multas, Carros Elétricos).";
+    else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada. Diretoria: marque Visão Executiva e também os módulos que ela poderá abrir pelos indicadores — Manutenções (com todos os hubs: disponibilidade, preventivas e carros parados vêm daí), Cadastro da Frota, Financeiro, Multas e Carros Elétricos.";
     else hint.textContent = "Quem opera um módulo também vê. Visão Executiva é só para Visualizador (Diretoria). Auxiliar de frota: papel Operador, Checklist em \"Opera\" e matrícula preenchida (libera a Inspeção técnica no formulário do checklist).";
     acAjustarHubs();
   }
