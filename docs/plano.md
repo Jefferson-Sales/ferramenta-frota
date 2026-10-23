@@ -31,7 +31,8 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - [x] **B1** Permissão "Visão Executiva" (módulo `executivo`, só Visualizador; Admin vê) e tela base com filtros de período e hub; primeiro item do menu (23/10/2026). Edge Function `usuarios` com a trava; `Regras.podeVerExecutivo` com 7 testes. **Publicada em 23/10/2026** (função `usuarios` versão 3 + push).
 - [x] **B2/B3 + C1 Operação** (23/10/2026): drill-down `exIr` e RPCs com RLS/hub; quadrante de Operação completo.
 - [x] **C2 Carros Elétricos** (23/10/2026): `exec_eletricos` (`sql/2026-10-23-c2-exec-eletricos.sql`, 7 testes, 93 no banco); KM rodado, Custo total (aluguel pela NF de locação — contrato só como "previsto" depois da última NF —, recargas e manutenção, com composição), Saídas "Sem dados" (D4), custo por km só quando km e recargas cobrem o mesmo período (`Regras.coberturaCustoKm`), KM por hub. **Achado:** recargas são lançadas à mão e pararam em 06/10/2026; telemetria de km só desde 12/10/2026 — custo por km de outubro fica bloqueado com o motivo na tela.
-- [ ] C3 Multas, C4 Financeiro, D; A3 e A4 no fim.
+- [x] **C4 Financeiro** (23/10/2026): `exec_financeiro` (`sql/2026-10-23-c4-exec-financeiro.sql`, 3 testes, 96 no banco) + `Regras.resumoFinanceiro` (16 testes, 92 na tela). Competência; mês fechado a partir do dia 05 do mês seguinte; mês atual × média dos 3 últimos fechados; projeção = realizado fechado + média × meses restantes; gastos por linha de conta do período (traço de orçado pronto para a D1). Tela Financeiro ganhou filtros de linha de conta e competência (destino do clique). Em 23/10/2026: jan–set R$ 10,59 mi, projeção 2026 ≈ R$ 14,48 mi. **Atenção:** setembro conta como fechado (regra do dia 05) mas tem só 73 notas contra ~150 nos meses anteriores — se as notas de setembro ainda estiverem chegando, a média e a projeção ficam baixas.
+- [ ] C3 Multas, D; A3 e A4 no fim.
 
 ## O que encontrei antes de planejar
 

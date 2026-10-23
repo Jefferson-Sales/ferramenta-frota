@@ -128,7 +128,46 @@
     return motivos;
   }
 
+  // ---------- Financeiro (Visão Executiva) — decisões do Jefferson, 23/10/2026 ----------
+  // Mês = competência (mes_referencia da nota), em texto "AAAA-MM".
+  // Um mês está FECHADO a partir do dia 05 do mês seguinte (tempo para as notas atrasadas).
+  function somaMeses(mes, n) {
+    var t = Number(mes.slice(0, 4)) * 12 + Number(mes.slice(5, 7)) - 1 + n;
+    var m = t % 12 + 1;
+    return Math.floor(t / 12) + "-" + (m < 10 ? "0" : "") + m;
+  }
+  function mesFechado(mes, hoje) {
+    return hoje >= somaMeses(mes, 1) + "-05";
+  }
+  function ultimoMesFechado(hoje) {
+    return somaMeses(hoje.slice(0, 7), Number(hoje.slice(8, 10)) >= 5 ? -1 : -2);
+  }
+  // valores = { "AAAA-MM": total do mês }. Devolve:
+  //   ultimoFechado, media3 (média dos 3 últimos meses fechados), mesAtual + lancadoAtual + pctMediaAtual,
+  //   realizadoAno (só meses fechados do ano corrente), mesesFechadosAno, mesesRestantes (12 − fechados),
+  //   projecao = realizadoAno + media3 × mesesRestantes.
+  function resumoFinanceiro(valores, hoje) {
+    var v = function(m){ return Number(valores[m]) || 0; };
+    var ult = ultimoMesFechado(hoje), ano = hoje.slice(0, 4), atual = hoje.slice(0, 7);
+    var media3 = (v(ult) + v(somaMeses(ult, -1)) + v(somaMeses(ult, -2))) / 3;
+    var realizado = 0, fechados = 0;
+    if (ult.slice(0, 4) === ano) {
+      for (var m = ano + "-01"; m <= ult; m = somaMeses(m, 1)) { realizado += v(m); fechados++; }
+    }
+    var restantes = 12 - fechados;
+    return {
+      ultimoFechado: ult, media3: media3, mesAtual: atual, lancadoAtual: v(atual),
+      pctMediaAtual: media3 ? Math.round(v(atual) / media3 * 100) : null,
+      realizadoAno: realizado, mesesFechadosAno: fechados, mesesRestantes: restantes,
+      projecao: realizado + media3 * restantes
+    };
+  }
+
   global.Regras = {
+    somaMeses: somaMeses,
+    mesFechado: mesFechado,
+    ultimoMesFechado: ultimoMesFechado,
+    resumoFinanceiro: resumoFinanceiro,
     periodoDatas: periodoDatas,
     coberturaCustoKm: coberturaCustoKm,
     faixaDisponibilidade: faixaDisponibilidade,

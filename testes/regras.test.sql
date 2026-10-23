@@ -31,6 +31,7 @@ declare
   vh uuid; osh uuid; osf uuid; tr uuid;
   hub3 uuid; vi1 uuid; vi2 uuid; osi uuid; j jsonb;
   hub4 uuid; c_el uuid; ve1 uuid; ve2 uuid; vcb uuid;
+  cat_t uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -452,6 +453,25 @@ begin
   casos := casos || text 'aluguel: fev sem NF (antes da última) = 0; mar = NF; abr = contrato previsto'; obtidos := obtidos || x; esperados := esperados || text '1 / 1 / 5800 / true';
   j := frota.exec_eletricos('2031-03-01', '2031-03-31', hub4) -> 'aluguel';
   casos := casos || text 'aluguel com filtro de hub: NF não tem hub, fica o contrato do hub'; obtidos := obtidos || ((j->>'meses_nf') || ' / ' || (j->>'periodo')); esperados := esperados || text '0 / 6000';
+
+  -- ============================================ 13. VISÃO EXECUTIVA — FINANCEIRO (exec_financeiro)
+  -- notas em 2032 (sem dado real nesse ano): competência é o mes_referencia, não o vencimento
+  insert into frota.categorias_custo (nome) values ('TESTE Categoria') returning id into cat_t;
+  insert into frota.notas_fiscais (fornecedor_id, categoria_id, hub_id, mes_referencia, data_vencimento, valor) values
+    (forn, cat_t, hub4, '2032-05-01', '2032-06-10', 100),   -- competência maio, vence em junho
+    (forn, cat_t, hub4, '2032-05-01', '2032-05-20', 50),
+    (forn, cat_t, null, '2032-06-01', '2032-06-10', 30),    -- sem hub
+    (forn, cat_t, hub4, '2032-04-01', '2032-04-10', 999);   -- antes de p_desde
+  j := frota.exec_financeiro('2032-05-01');
+  select string_agg((e->>'mes') || '=' || (e->>'valor') || ' (' || (e->>'qtd') || ')', ', ' order by e->>'mes') into x
+    from jsonb_array_elements(j->'linhas') e where e->>'categoria_id' = cat_t::text;
+  casos := casos || text 'exec_financeiro: soma por mês de competência a partir de p_desde'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text '2032-05=150 (2), 2032-06=30 (1)';
+  j := frota.exec_financeiro('2032-05-01', hub4);
+  select string_agg((e->>'mes') || '=' || (e->>'valor'), ', ' order by e->>'mes') into x
+    from jsonb_array_elements(j->'linhas') e where e->>'categoria_id' = cat_t::text;
+  casos := casos || text 'exec_financeiro: com hub, nota sem hub fica de fora (e é contada em sem_hub)'; obtidos := obtidos || (coalesce(x, 'nada') || ' / sem_hub>=1: ' || ((j->>'sem_hub')::int >= 1)::text); esperados := esperados || text '2032-05=150 / sem_hub>=1: true';
+  select (e->>'orcado_mensal') is null into x from jsonb_array_elements(frota.exec_financeiro('2032-05-01')->'categorias') e where e->>'id' = cat_t::text;
+  casos := casos || text 'exec_financeiro: devolve as categorias (orçado vazio até a D1)'; obtidos := obtidos || x; esperados := esperados || text 'true';
   perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado

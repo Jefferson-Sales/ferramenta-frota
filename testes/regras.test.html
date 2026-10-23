@@ -153,6 +153,28 @@
   igual("situação de 23/10/2026 (os dois motivos)", R.coberturaCustoKm("2026-10-01", "2026-10-23", "2026-10-12", "2026-10-06").join(" | "), "telemetria de km só desde 12/10/2026 | recargas lançadas só até 06/10/2026");
   igual("sem telemetria e sem recarga",           R.coberturaCustoKm("2026-10-01", "2026-10-23", null, null).join(" | "), "sem telemetria de km | nenhuma recarga lançada");
 
+  grupo("Financeiro — mês fechado (dia 05 do mês seguinte) e projeção do ano");
+  igual("somar meses atravessa o ano",             R.somaMeses("2026-11", 3), "2027-02");
+  igual("subtrair meses atravessa o ano",          R.somaMeses("2026-01", -2), "2025-11");
+  igual("setembro fechado em 05/10",               R.mesFechado("2026-09", "2026-10-05"), true);
+  igual("setembro ainda aberto em 04/10",          R.mesFechado("2026-09", "2026-10-04"), false);
+  igual("dezembro fecha em 05/01 do ano seguinte", R.mesFechado("2026-12", "2027-01-05"), true);
+  igual("último fechado em 23/10 = setembro",      R.ultimoMesFechado("2026-10-23"), "2026-09");
+  igual("último fechado em 04/10 = agosto",        R.ultimoMesFechado("2026-10-04"), "2026-08");
+  igual("último fechado em 03/01/2027 = nov/2026", R.ultimoMesFechado("2027-01-03"), "2026-11");
+  var VAL = { "2026-01":100, "2026-02":100, "2026-03":100, "2026-04":100, "2026-05":100, "2026-06":100, "2026-07":200, "2026-08":300, "2026-09":400, "2026-10":30 };
+  var RES = R.resumoFinanceiro(VAL, "2026-10-23");
+  igual("média dos 3 últimos fechados (jul–set) = 300", RES.media3, 300);
+  igual("realizado do ano só com fechados (jan–set) = 1.500", RES.realizadoAno, 1500);
+  igual("meses restantes = 3 (out, nov, dez)",     RES.mesesRestantes, 3);
+  igual("projeção = 1.500 + 300 × 3 = 2.400",      RES.projecao, 2400);
+  igual("mês atual: lançado 30 = 10% da média",    RES.lancadoAtual + " / " + RES.pctMediaAtual + "%", "30 / 10%");
+  var RES2 = R.resumoFinanceiro(VAL, "2026-10-04");
+  igual("antes do dia 05: setembro entra na projeção pela média", RES2.ultimoFechado + " / " + RES2.mesesRestantes + " / " + RES2.realizadoAno, "2026-08 / 4 / 1100");
+  var RES3 = R.resumoFinanceiro({ "2026-10":90, "2026-11":120, "2026-12":90 }, "2027-01-10");
+  igual("janeiro: nenhum mês fechado no ano; projeção = média (100) × 12", RES3.realizadoAno + " / " + RES3.mesesRestantes + " / " + RES3.projecao, "0 / 12 / 1200");
+  igual("sem histórico: % da média vazio",          R.resumoFinanceiro({}, "2026-10-23").pctMediaAtual, null);
+
   grupo("Disponibilidade da frota — cor");
   igual("90% → verde",          R.faixaDisponibilidade(90), "good");
   igual("89,9% → amarelo",      R.faixaDisponibilidade(89.9), "warn");

@@ -292,6 +292,9 @@
   .osd-trat-texto{ font-size:var(--fs-md); white-space:pre-wrap; overflow-wrap:anywhere; }
   .osd-vazio{ font-size:var(--fs-sm-2); color:var(--muted); }
   .osd-largo{ grid-column:1 / -1; }
+  .fin-filtros{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-3) var(--espaco-5); padding:var(--espaco-4) var(--espaco-7); border-bottom:1px solid var(--line); font-size:var(--fs-sm); color:var(--muted); }
+  .fin-filtros label{ display:flex; align-items:center; gap:var(--espaco-2); }
+  .fin-filtros .btn{ width:auto; }
   /* Visão Executiva: voltar e detalhe dos indisponíveis */
   .ex-voltar{ font:inherit; font-size:var(--fs-sm-2); font-weight:600; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-soft-line); border-radius:var(--raio-botao); padding:var(--espaco-2) var(--espaco-5); margin:0 0 var(--espaco-5); cursor:pointer; }
   .ex-voltar:hover{ border-color:var(--accent); }
@@ -569,10 +572,16 @@
 
       <div class="card">
         <div class="card-head"><h2>Notas fiscais</h2><div class="card-head-actions"><span class="count" id="fin-nf-count"></span><button class="inline-add-trigger" data-open-modal="modal-nota" data-edit="financeiro">+ Nova nota fiscal</button></div></div>
+        <div class="fin-filtros">
+          <label>Linha de conta <select id="fin-f-cat" class="filter-select"><option value="">Todas</option></select></label>
+          <label>Competência <input type="month" id="fin-f-mes" class="filter-select"></label>
+          <button type="button" class="btn qf-mini" id="fin-f-limpar">Limpar filtros</button>
+          <span class="qf-sub" id="fin-f-total"></span>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Fornecedor</th><th>Categoria</th><th>Nº nota</th><th>Vencimento</th><th>Status</th><th class="num">Valor</th></tr></thead>
-            <tbody id="fin-nf-body"><tr><td colspan="6" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr><th>Fornecedor</th><th>Categoria</th><th>Competência</th><th>Nº nota</th><th>Vencimento</th><th>Status</th><th class="num">Valor</th></tr></thead>
+            <tbody id="fin-nf-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1673,6 +1682,11 @@
       document.getElementById("frota-filtro-chip").value = frotaFiltros.chip;
     }
     if (destino.modulo === "manutencao" && destino.os) osAbrirDepois = destino.os;
+    if (destino.modulo === "financeiro"){
+      finFiltros.categoria = f.categoria || ""; finFiltros.mes = f.mes || "";
+      document.getElementById("fin-f-cat").value = finFiltros.categoria;
+      document.getElementById("fin-f-mes").value = finFiltros.mes;
+    }
     if (destino.modulo === "gestao_manutencao" && f.revisao) document.getElementById("gm-rev-filtro").value = f.revisao;
     document.getElementById("modal-ex-indisp").hidden = true;
     showPanel(destino.modulo);
@@ -1703,7 +1717,69 @@
     visiveis.forEach(function(q){ if (EX_PRONTOS[q.etapa]) EX_PRONTOS[q.etapa](); });
   }
   // quadrantes já construídos (etapa do plano → função que carrega)
-  var EX_PRONTOS = { C1: function(){ exCarregarOperacao(); }, C2: function(){ exCarregarEletricos(); } };
+  var EX_PRONTOS = { C1: function(){ exCarregarOperacao(); }, C2: function(){ exCarregarEletricos(); }, C4: function(){ exCarregarFinanceiro(); } };
+  function exMesTxt(mes){ return EX_MESES[Number(mes.slice(5, 7)) - 1].slice(0, 3).toLowerCase() + "/" + mes.slice(0, 4); } // "2026-09" → "set/2026"
+
+  // ---- C4: quadrante Financeiro (competência; mês fechado a partir do dia 05 do mês seguinte) ----
+  var exFinToken = 0;
+  function exCarregarFinanceiro(){
+    var tok = ++exFinToken, host = document.getElementById("ex-q-financeiro"), hoje = exHoje();
+    var ult = Regras.ultimoMesFechado(hoje), ano = hoje.slice(0, 4);
+    var desde = [ano + "-01", Regras.somaMeses(ult, -2)].sort()[0] + "-01"; // o que vier antes: janeiro ou os 3 meses da média
+    rest("rpc/exec_financeiro", { method: "POST", body: { p_desde: desde, p_hub: EX.hub || null } }).then(function(d){
+      if (tok !== exFinToken || !host.isConnected) return;
+      host.innerHTML = exRenderFinanceiro(d || {}, hoje);
+    }).catch(function(e){
+      if (tok !== exFinToken) return;
+      host.innerHTML = '<div class="ex-vazio"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>';
+    });
+  }
+  function exRenderFinanceiro(d, hoje){
+    var P = PainelExec, linhas = d.linhas || [], cats = d.categorias || [];
+    var porMes = {};
+    linhas.forEach(function(l){ porMes[l.mes] = (porMes[l.mes] || 0) + Number(l.valor); });
+    var r = Regras.resumoFinanceiro(porMes, hoje), ano = hoje.slice(0, 4);
+    // meses do filtro de período
+    var meses = EX.periodo === "mes_anterior" ? [Regras.somaMeses(r.mesAtual, -1)]
+              : EX.periodo === "ano" ? (function(){ var l = [], m = ano + "-01"; for (; m <= r.mesAtual; m = Regras.somaMeses(m, 1)) l.push(m); return l; })()
+              : [r.mesAtual];
+    var abertos = meses.filter(function(m){ return !Regras.mesFechado(m, hoje); });
+    var html = "";
+    html += P.kpis([
+      { rot: "Fechamento de " + exMesTxt(r.mesAtual) + " (lançado até agora)", valor: P.moeda(r.lancadoAtual, true),
+        sub: r.pctMediaAtual == null ? "sem meses fechados para comparar" : r.pctMediaAtual + "% da média dos 3 últimos meses fechados (" + P.moeda(r.media3, true) + ")",
+        estado: { txt: "mês aberto · notas ainda chegando", tipo: "alerta" },
+        ir: { modulo: "financeiro", filtro: { mes: r.mesAtual } } },
+      { rot: "Último mês fechado (" + exMesTxt(r.ultimoFechado) + ")", valor: P.moeda(porMes[r.ultimoFechado] || 0, true),
+        sub: "média dos 3 últimos fechados: " + P.moeda(r.media3, true),
+        ir: { modulo: "financeiro", filtro: { mes: r.ultimoFechado } } },
+      { rot: "Projeção de " + ano, valor: P.moeda(r.projecao, true),
+        sub: "realizado " + (r.mesesFechadosAno ? "jan–" + exMesTxt(r.ultimoFechado).slice(0, 3) + " " + P.moeda(r.realizadoAno, true) : "R$ 0 (nenhum mês fechado)") + " + média × " + r.mesesRestantes + (r.mesesRestantes === 1 ? " mês" : " meses"),
+        dica: "Realizado dos meses fechados do ano + média dos 3 últimos meses fechados × meses que faltam (inclui os meses ainda abertos)." },
+      { rot: "Orçado de " + ano, semDados: "orçado por linha de conta (importação de planilha, etapa D1)" }
+    ]);
+    // gastos por linha de conta no período do filtro (com traço do orçado quando existir)
+    var porCat = {};
+    linhas.forEach(function(l){ if (meses.indexOf(l.mes) > -1){ var k = l.categoria_id || "sem"; porCat[k] = porCat[k] || { id: l.categoria_id, nome: l.categoria, valor: 0, qtd: 0 }; porCat[k].valor += Number(l.valor); porCat[k].qtd += l.qtd; } });
+    var orc = {}; cats.forEach(function(c){ if (c.orcado_mensal != null) orc[c.id] = Number(c.orcado_mensal) * meses.length; });
+    var temOrc = Object.keys(orc).length > 0;
+    var lista = Object.keys(porCat).map(function(k){ return porCat[k]; }).sort(function(a, b){ return b.valor - a.valor; });
+    var titulo = "Gastos por linha de conta — " + (meses.length === 1 ? exMesTxt(meses[0]) : "jan a " + exMesTxt(meses[meses.length - 1]));
+    var filtroMes = meses.length === 1 ? meses[0] : "";
+    html += '<div class="ex-secao"><h3>' + esc(titulo) + '</h3>' + (lista.length ? P.barras({
+      legenda: temOrc ? [{ txt: "Realizado", cls: "s1" }, { txt: "Orçado", cls: "meta" }] : null,
+      itens: lista.slice(0, 8).map(function(c){
+        var o = orc[c.id];
+        return { rot: c.nome, valor: c.valor, meta: o != null ? o : null, txt: P.moeda(c.valor, true), txtAcima: o != null && c.valor > o,
+          dica: c.nome + " · " + P.num(c.qtd) + (c.qtd === 1 ? " nota" : " notas") + " · " + P.moeda(c.valor) + (o != null ? " · orçado " + P.moeda(o) : ""),
+          ir: { modulo: "financeiro", filtro: { categoria: c.id || "", mes: filtroMes } } };
+      }) }) : '<p class="ex-nota">Nenhuma nota lançada no período.</p>') +
+      '<p class="ex-nota">' + (temOrc ? "Traço vertical = orçado; valor em vermelho = acima do orçado. " : "Orçado: sem dados até a importação da planilha (D1). ") +
+      (abertos.length ? (abertos.length === 1 ? exMesTxt(abertos[0]) + " ainda está aberto" : abertos.length + " meses ainda abertos") + " (fecha no dia 05 do mês seguinte): os valores vão subir conforme as notas chegam. " : "") +
+      (lista.length > 8 ? "Mostrando as 8 maiores de " + lista.length + ". " : "") +
+      (d.sem_hub ? P.num(d.sem_hub) + " notas sem hub ficam de fora com o filtro de hub." : "") + '</p></div>';
+    return html;
+  }
   function exHoje(){ return isoParaCampoLocal(new Date().toISOString()).slice(0, 10); } // data de hoje em Brasília
 
   // ---- C2: quadrante de Carros Elétricos ----
@@ -2835,6 +2911,9 @@
 
     rest("categorias_custo?select=id,nome&order=nome").then(function(rows){
       fillSelect("nf-categoria", rows, function(c){ return c.nome; }, "—");
+      var sel = document.getElementById("fin-f-cat");
+      sel.innerHTML = '<option value="">Todas</option>' + rows.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.nome) + '</option>'; }).join("");
+      sel.value = finFiltros.categoria; // filtro pode ter vindo da Visão Executiva antes das opções existirem
     }).catch(function(){});
 
     rest("hubs?select=id,nome&order=nome").then(function(rows){
@@ -2849,10 +2928,34 @@
       renderFornecedores(rows);
     }).catch(function(e){ toast("Erro ao carregar fornecedores: " + e.message, true); });
 
-    rest("notas_fiscais?select=numero_nota,data_vencimento,valor,status,fornecedores(nome),categorias_custo(nome)&order=data_vencimento.desc&limit=200").then(function(rows){
+    carregarNotasFiscais();
+  }
+
+  // Filtros da lista de notas (linha de conta e mês de competência). Sem filtro: 200 mais recentes.
+  var finFiltros = { categoria: "", mes: "" };
+  var FIN_LIMITE_FILTRADO = 1000;
+  function carregarNotasFiscais(){
+    var f = finFiltros, filtrado = !!(f.categoria || f.mes);
+    var q = "notas_fiscais?select=numero_nota,data_vencimento,mes_referencia,valor,status,fornecedores(nome),categorias_custo(nome)" +
+      (f.categoria ? "&categoria_id=eq." + encodeURIComponent(f.categoria) : "") +
+      (f.mes ? "&mes_referencia=gte." + f.mes + "-01&mes_referencia=lt." + Regras.somaMeses(f.mes, 1) + "-01" : "") +
+      "&order=" + (filtrado ? "mes_referencia.desc,valor.desc" : "data_vencimento.desc") + "&limit=" + (filtrado ? FIN_LIMITE_FILTRADO : 200);
+    document.getElementById("fin-f-total").textContent = "";
+    rest(q).then(function(rows){
       renderNotasFiscais(rows);
+      if (filtrado){
+        var soma = rows.reduce(function(s, n){ return s + (Number(n.valor) || 0); }, 0);
+        document.getElementById("fin-f-total").textContent = "Total filtrado: " + money(soma) + (rows.length >= FIN_LIMITE_FILTRADO ? " (mostrando as " + FIN_LIMITE_FILTRADO + " primeiras)" : "");
+      }
     }).catch(function(e){ toast("Erro ao carregar notas fiscais: " + e.message, true); });
   }
+  document.getElementById("fin-f-cat").addEventListener("change", function(ev){ finFiltros.categoria = ev.target.value; carregarNotasFiscais(); });
+  document.getElementById("fin-f-mes").addEventListener("change", function(ev){ finFiltros.mes = ev.target.value; carregarNotasFiscais(); });
+  document.getElementById("fin-f-limpar").addEventListener("click", function(){
+    finFiltros.categoria = ""; finFiltros.mes = "";
+    document.getElementById("fin-f-cat").value = ""; document.getElementById("fin-f-mes").value = "";
+    carregarNotasFiscais();
+  });
 
   function renderFornecedores(rows){
     var body = document.getElementById("fin-forn-body");
@@ -2867,9 +2970,10 @@
   function renderNotasFiscais(rows){
     var body = document.getElementById("fin-nf-body");
     document.getElementById("fin-nf-count").textContent = rows.length + (rows.length === 1 ? " nota" : " notas");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhuma nota fiscal registrada ainda.</td></tr>'; return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="empty-row">' + (finFiltros.categoria || finFiltros.mes ? "Nenhuma nota com esses filtros." : "Nenhuma nota fiscal registrada ainda.") + '</td></tr>'; return; }
     body.innerHTML = rows.map(function(n){
       return "<tr><td>" + esc(n.fornecedores ? n.fornecedores.nome : "—") + "</td><td>" + esc(n.categorias_custo ? n.categorias_custo.nome : "—") +
+        "</td><td>" + (n.mes_referencia ? esc(n.mes_referencia.slice(5, 7) + "/" + n.mes_referencia.slice(0, 4)) : "—") +
         "</td><td>" + esc(n.numero_nota || "—") + "</td><td>" + dateBR(n.data_vencimento) + "</td><td>" +
         pill(STATUS_NF_LABEL[n.status] || n.status, STATUS_NF_PILL[n.status]) + "</td><td class=\"num\">" + money(n.valor) + "</td></tr>";
     }).join("");
