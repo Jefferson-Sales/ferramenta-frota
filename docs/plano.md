@@ -12,13 +12,16 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 - **Prioridade:** A6 e B1 antes; A3 e A4 ficam para o fim.
 - **Diretoria:** papel **Visualizador** + permissão "Visão Executiva" — só consulta, sem editar e sem dados pessoais sensíveis (que continuam só para admin).
 - **Painel de Multas (fase 2):** liberado por este pedido.
+- **Título do sistema:** "Gestão da Frota Beep Saúde", com logo da Beep ou ícone de carro ao lado (23/10/2026). Hoje usa um ícone de carro desenhado no código; trocar pelo logo oficial quando o Jefferson mandar o arquivo (SVG de preferência).
+- **Visual da A6 aprovado** (23/10/2026).
 
 ## Andamento
 
 - [x] **A1** `css/tokens.css` com as cores da Beep, carregado pelos dois HTML (23/10/2026). Também antecipado da A3: cores, cantos de 16px nos cards, 10px nos botões, sombras mais suaves.
 - [x] **A2** Tabelas sem vazamento (23/10/2026).
 - [x] **A5** Menu no celular + `<meta viewport>` que faltava no `index.html` (23/10/2026). Falta testar num celular real depois do push.
-- [x] **A6** Peças da Visão Executiva (23/10/2026, aguardando avaliação do Jefferson): `css/painel-exec.css` + `js/painel-exec.js` (cartão de indicador clicável, "Sem dados", número principal com medidor, barras com meta/orçado, ranking, legenda, dica ao passar o mouse); demonstração com dados fictícios em `testes/painel-exec.demo.html`. Cores de gráfico `--grafico-1/2` validadas para daltonismo e contraste.
+- [x] **Título** "Gestão da Frota Beep Saúde" + ícone de carro no login, menu e barra do celular (23/10/2026).
+- [x] **A6** Peças da Visão Executiva (23/10/2026, aprovada pelo Jefferson): `css/painel-exec.css` + `js/painel-exec.js` (cartão de indicador clicável, "Sem dados", número principal com medidor, barras com meta/orçado, ranking, legenda, dica ao passar o mouse); demonstração com dados fictícios em `testes/painel-exec.demo.html`. Cores de gráfico `--grafico-1/2` validadas para daltonismo e contraste.
 - [ ] B1 (próxima), B2, B3, C, D; A3 e A4 no fim.
 
 ## O que encontrei antes de planejar
@@ -92,6 +95,19 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
 
 **C1. Operação** (dados já existem, exceto utilização)
 - Disponibilidade: disponíveis × indisponíveis (agora e tendência de `frota_status_diario`) → clica: Cadastro da Frota filtrado por status.
+- **Detalhe dos indisponíveis (em manutenção)** — pedido do Jefferson, 23/10/2026. Ao clicar em "indisponíveis", lista por carro com:
+
+  | Campo pedido | De onde vem hoje | O que falta |
+  |---|---|---|
+  | Quando parou | `ordens_servico.data_parou` | — |
+  | Tempo aguardando agendamento | **não existe** | Histórico de mudança de status da OS (tabela nova `os_status_historico`, gravada por gatilho a cada troca de status). Só mede **daqui para frente**: o passado não tem registro. Até lá, mostra "desde a abertura" como aproximação, avisando. |
+  | Tempo aguardando execução do serviço | **não existe** | Mesmo histórico acima (tempo em `aguardando_orcamento`/`aguardando_peca` etc. até `em_execucao`). |
+  | Previsão de retorno | `ordens_servico.previsao_retorno` | — |
+  | Status de liberação | `ordens_servico.status` + `data_liberacao` | Definir com o Jefferson o texto de cada situação (ex.: "Em reparo", "Pronto, aguardando retirada", "Liberado"). |
+  | Serviço executado | parcial: `motivo`, `observacoes`, itens do checklist da OS e peças | Talvez campo próprio "serviço executado" (texto) preenchido ao concluir — confirmar. |
+  | Tratativa com a oficina (observações/histórico do auxiliar) | **não existe** como histórico (`observacoes` é um texto só, sobrescrito) | Tabela nova `os_tratativas` (OS, quem, quando, texto), só acrescenta, ninguém apaga; RLS de Manutenções + hub; quem opera Manutenções/Checklist escreve, Diretoria só lê. |
+
+  Esse detalhe também serve à tela de Manutenções (não só à Diretoria). Migration própria + testes em `regras.test.sql` (tempos por fase).
 - Preventivas em atraso: contagem de vencidas/vencendo (`v_revisoes_status`) → clica: Dash de Manutenção, lista de revisões.
 - Contratos: km excedente por contrato (`v_pool_km_contrato`) → clica no contrato: lista das placas daquele contrato.
 - Utilização: planejado × realizado → **"Sem dados"** até a etapa D1.
@@ -121,7 +137,12 @@ Uma função SQL por quadrante (`exec_operacao`, `exec_financeiro`, `exec_multas
 - **D1.** Orçado por categoria (mensal/anual) e planejamento de picos/rotas realizadas por hub: importação de planilha ou tela de cadastro.
 - **D2.** Multas: ligar `motorista_identificado_id` nas 459 multas antigas (casar o nome do texto com o cadastro, com lista para você conferir antes do UPDATE) e preencher código/motivo da infração.
 - **D3.** Parâmetros de combustão (autonomia km/l, preço do litro, CO₂) por hub.
-- **D4.** Carros Elétricos — **percentual de bateria** e **eventos de saída** virão por integração com a API de telemetria (decisão do Jefferson, 23/10/2026). Falta definir com ele: qual API/endpoint (é a mesma Questar/Exodus do `sync-telemetria-questar` ou outra?), credencial (fica nos segredos da Edge Function, nunca no código), frequência de sincronização e onde gravar (tabela nova com RLS no padrão do projeto). Até a integração existir, o KPI "Saídas no mês" conta os checklists de **Retirada** de carros elétricos (decisão anterior) e o % de bateria vem do que o motorista informa no checklist.
+- **D4.** Carros Elétricos — **percentual de bateria** e **eventos de saída** virão por integração com a API de telemetria (decisão do Jefferson, 23/10/2026). **API confirmada:** a mesma Questar/Exodus do `sync-telemetria-questar`, ação `get_vehicle_trips_extended` (doc: https://exodus-api-doc.app.questar.io/docs/get_vehicle_trips_extended/). Token: segredo `QUESTAR_API_TOKEN`, já no projeto (lido só dentro da Edge Function). Detalhes da documentação:
+  - `POST https://app.questar.io/v2/questar-units/api`, `action.name = "get_vehicle_trips_extended"`; filtro por `vehicle_id` (até 100), `license_number` ou `driver_id`; `from_date`/`to_date` com no máximo **32 dias**; até 2.000 viagens por página (`has_more`); a sessão da paginação vence em ~30 min.
+  - Cada viagem = uma **saída**: `drive_id` (chave para não duplicar), `license_number`, `start_time`/`end_time`, `distance`, `start_mileage`/`total_mileage`, `energy_type`.
+  - **Bateria:** a documentação **não tem campo de bateria**; o mais próximo é `start_fuel_level_percent`/`end_fuel_level_percent`. Primeiro passo: chamar para 1 carro elétrico e conferir se esses campos trazem a carga (%) — se vierem vazios, o % de bateria continua vindo do checklist.
+  - **Dados pessoais e localização:** a resposta traz nome/código do motorista e latitude/longitude de início e fim. Proposta: **não gravar** coordenadas nem endereço (não precisamos para os KPIs) e gravar só o `driver_code` para ligar à matrícula; tabela nova `telemetria_viagens` com RLS (Carros Elétricos + Visão Executiva), sem acesso anônimo.
+  - Sincronização: junto do cron diário das 02:00 (dia anterior), com reprocessamento idempotente por `drive_id`. Até a integração existir, o KPI "Saídas no mês" conta os checklists de **Retirada** de carros elétricos (decisão anterior) e o % de bateria vem do que o motorista informa no checklist.
 
 Comandos que alteram dados reais seguem a regra: mostro o comando exato, com `WHERE` por id, e espero sua aprovação.
 

@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ferramenta da Frota</title>
+<title>Gestão da Frota Beep Saúde</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -22,6 +22,7 @@
   .login-brand .mark{ width:36px; height:36px; border-radius:var(--raio-md-3); background:var(--accent-marca); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-xl); flex:none; }
   .login-brand .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-xl-2); letter-spacing:-0.01em; }
   .login-brand .sub{ font-size:var(--fs-sm); color:var(--muted); margin-top:1px; }
+  .mark .mark-ico{ width:62%; height:62%; display:block; }
   .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:var(--espaco-6); }
   .field label{ font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
   .field input, .field select, .field textarea{
@@ -42,7 +43,7 @@
   .sidebar{ width:208px; flex:none; background:var(--surface); border-right:1px solid var(--line); padding:var(--espaco-8) var(--espaco-5); display:flex; flex-direction:column; gap:var(--espaco-1); position:sticky; top:0; height:100vh; overflow-y:auto; }
   .sidebar .brand{ display:flex; align-items:center; gap:9px; padding:var(--espaco-1) var(--espaco-3) var(--espaco-7); }
   .sidebar .brand .mark{ width:28px; height:28px; border-radius:var(--raio-md-2); background:var(--accent-marca); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-md); flex:none; }
-  .sidebar .brand .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-lg-2); letter-spacing:-0.01em; }
+  .sidebar .brand .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-lg-2); letter-spacing:-0.01em; line-height:1.2; }
   .navbtn{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:none; border-radius:var(--raio-botao); padding:9px var(--espaco-4); font-size:var(--fs-md-2); font-weight:600; color:var(--muted); }
   .navbtn:hover{ background:var(--surface-2); color:var(--ink); }
   .navbtn.active{ background:var(--accent-soft); color:var(--accent); }
@@ -284,10 +285,10 @@
 <div id="view-login">
   <div class="login-card">
     <div class="login-brand">
-      <div class="mark">CF</div>
+      <div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div>
       <div>
-        <div class="name">Ferramenta da Frota</div>
-        <div class="sub">Beep Saúde · gestão de frota</div>
+        <div class="name">Gestão da Frota Beep Saúde</div>
+        <div class="sub">Painel de gestão da frota</div>
       </div>
     </div>
     <div id="login-error" class="login-error" hidden></div>
@@ -311,11 +312,11 @@
   <!-- Barra do topo só no celular/tablet: abre o menu de módulos -->
   <div class="mobile-bar">
     <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
-    <div class="mark">CF</div><div class="name">Ferramenta da Frota</div>
+    <div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="name">Gestão da Frota Beep Saúde</div>
   </div>
   <div class="sidebar-fundo" id="sidebar-fundo"></div>
   <div class="sidebar" id="sidebar">
-    <div class="brand"><div class="mark">CF</div><div class="name">Ferramenta da Frota</div></div>
+    <div class="brand"><div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="name">Gestão da Frota Beep Saúde</div></div>
     <nav id="nav" aria-label="Módulos"></nav>
     <div class="sidebar-foot">
       <div class="user-menu-wrap">
@@ -4504,7 +4505,7 @@
     var url = location.origin + location.pathname.replace(/[^/]*$/, "");
     document.getElementById("ac-cred-url").textContent = url;
     document.getElementById("ac-cred").innerHTML = "E-mail: " + esc(email) + "<br>Senha: " + esc(senha);
-    acCredTexto = "Ferramenta da Frota: " + url + "\nE-mail: " + email + "\nSenha: " + senha;
+    acCredTexto = "Gestão da Frota Beep Saúde: " + url + "\nE-mail: " + email + "\nSenha: " + senha;
     openModal("modal-usuario-criado");
   }
   document.getElementById("ac-copiar").addEventListener("click", function(){
