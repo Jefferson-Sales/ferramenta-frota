@@ -2,6 +2,22 @@
 
 Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 
+## Retomar daqui (fim do dia 23/10/2026)
+
+Já no ar (push `deb4123`): Visão Executiva com Operação (C1), Carros Elétricos (C2) e Financeiro (C4).
+
+Definições registradas hoje (detalhes nas seções abaixo):
+1. **Financeiro (C4) — fechamento dinâmico:** mês fecha no dia 05 do mês seguinte (passa a contar na média), mas nunca é congelado: nota lançada depois com aquela competência soma na hora no realizado, na média dos 3 meses e na projeção do ano.
+2. **Carros Elétricos — backfill da Questar:** script de carga retroativa das viagens/km desde **01/02/2026** até 12/10/2026 (etapa **D4b**).
+3. **Próximo passo:** terminar e publicar o quadrante de **Multas (C3)**. O push do Financeiro já foi feito.
+
+**Multas (C3) — em andamento, ainda NÃO commitado** (as mudanças estão só no computador do Jefferson, na pasta do projeto):
+- Pronto: função `frota.exec_multas(p_ini, p_fim, p_hub)` **já aplicada no banco** (não é usada pela tela ainda, então não muda nada para ninguém) — totais do período por status, hub e motivo; fila atual "aguardando retorno da liderança" (192 hoje); última infração registrada (26/09/2026). O nome do motorista que aparece no começo de 11 descrições ("Motorista (planilha): …") nunca vira motivo. Arquivo `sql/2026-10-23-c3-exec-multas.sql`.
+- Pronto e testado: `Regras.motivoDaDescricao` e `Regras.classificarMotivo` (agrupa os 44 textos de motivo em ~16 categorias: velocidade até 20% / 20–50% / acima de 50%, sinal vermelho, estacionamento, faixa exclusiva, marcha à ré, contramão etc.) — 116 testes da tela passando.
+- Pela metade: filtros na tela de Multas (hub, status, motivo, mês da infração; a lista passa a carregar todas as 459 em vez de 300) — código escrito em `index.html`, ainda **não conferido na tela**.
+- Falta: o quadrante na Visão Executiva (multas e valor no período, fila da liderança, ranking por hub, principais motivos, ranking de motoristas "Sem dados" até D2), o clique levando à tela de Multas filtrada (`exIr`), testes de banco do `exec_multas`, conferir no navegador, atualizar CLAUDE.md e push.
+- Dados de hoje que a tela precisa explicar: as notificações chegam com atraso (nenhuma infração registrada em outubro ainda); grau, pontos, código e motorista vazios nas 459 multas; o alerta "liderança sem retorno" fica zerado porque a data de envio à liderança nunca é preenchida.
+
 ## Decisões do Jefferson (23/10/2026)
 
 - **Cores (Brandbook Beep):** Verde Beep `#00AFAA`; neutras/escuras `#F4F4F4`, `#E5E5E5`, `#1F5E89`; ciano/verde `#03E8DC`, `#04D4CE`, `#008E87`; laranjas `#FBA600`, `#F68300`, `#F36508`.
