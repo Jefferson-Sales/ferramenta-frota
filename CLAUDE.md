@@ -1,4 +1,40 @@
-# Ferramenta da Frota — contexto do projeto
+# Ferramenta da Frota
+
+## Como trabalhar neste projeto (guia Beep adaptado — ler primeiro)
+
+Aplicação real: banco de produção (Supabase) e usuários reais. Este bloco vale acima de tudo o que vem depois; o restante do arquivo é o contexto e o histórico do projeto.
+
+### Como falar com o Jefferson
+- Português do Brasil, simples, sem jargão.
+- Antes de cada mudança: uma frase dizendo o que vai fazer e por quê. Depois: o que mudou.
+- Pedido vago → uma pergunta objetiva por vez. Se já der para começar, comece.
+
+### Segurança
+- Nunca segredo, token ou chave de API em texto puro no código ou no chat (segredos ficam no Vault do Supabase ou nos segredos das Edge Functions; para usar num teste, ler o Vault dentro do próprio SQL).
+- Dado pessoal sensível:
+  - **Senha de abastecimento:** sempre cifrada (AES-256, chave no Vault); só admin revela, e cada revelação fica registrada em `senha_acessos`.
+  - **CPF, RG, CNH e data de nascimento:** hoje em texto comum no banco, com leitura **só para admin** (RLS). A leitura não é registrada (só a revelação da senha). Cifrar esses campos e registrar o acesso é projeto à parte, anotado no backlog — não esquecer.
+  - Dado novo desse tipo: cifrado desde o início, acesso restrito e registrado.
+- O front-end fala direto com o Supabase, de propósito e com segurança: quem controla o acesso é o RLS (`frota.posso_ver`, `tenho_modulo`, `hub_liberado`, `meu_papel`), nunca o código do navegador. **Toda tabela ou view nova precisa de RLS nesse padrão (views com `security_invoker = true`) antes de ir para o ar**, incluindo o filtro por hub onde o módulo tiver hub.
+- Antes de dizer que algo está pronto: testes rodados, conferido no navegador, nenhum segredo ou dado pessoal esquecido em log, print ou commit.
+
+### Estrutura
+- Regras de cálculo puras em `regras.js`, com teste automático para cada regra (`testes/regras.test.html` e `testes/regras.test.sql`).
+- CSS só com os tokens (cores, fontes, raios, espaços) — nunca cor ou tamanho fixo novo.
+
+### Fluxo
+1. Entender o pedido em 1–2 frases.
+2. Plano curto.
+3. Uma etapa por vez, com confirmação.
+4. Testar antes de dizer "pronto".
+5. Publicar (push) só com "sim" explícito.
+- Comando que altera dado real (UPDATE/DELETE/INSERT fora de teste): mostrar o comando exato antes e esperar aprovação, sempre com `WHERE` por id.
+
+### Versionamento
+- Commits pequenos, mensagem em português dizendo o que mudou.
+- Nunca `force push`. Nunca apagar arquivo, dado ou registro sem perguntar (preferir desativar/descartar).
+
+---
 
 ## O que é
 

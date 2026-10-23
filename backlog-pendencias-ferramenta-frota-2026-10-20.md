@@ -18,6 +18,7 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 - [ ] Permitir edição e exclusão em Financeiro (Fornecedores, Notas Fiscais) e em Recargas — hoje só existe criação.
 - [ ] Criar comparação de custo (elétrico vs. combustão) na tela de Carros Elétricos — a descrição do painel promete isso, mas ainda não existe no front-end.
 - [ ] Atualizar o texto "Integração em teste" na tela de telemetria (a sincronização automática já roda em produção).
+- [ ] **Dados pessoais de motoristas (projeto à parte, pedido em 23/10/2026):** cifrar CPF, RG, número da CNH e data de nascimento em `motoristas` e `motoristas_cadastros` (hoje texto comum, leitura só admin) e registrar cada leitura, no mesmo padrão da senha de abastecimento. Atenção: a checagem de CPF duplicado do auto-cadastro e a busca por CPF dependem do texto — planejar antes (ex.: guardar também um HMAC do CPF para comparar).
 - [x] Ajustar cabeçalho fixo/correto nas demais tabelas do sistema (correção já aplicada em Veículos no Cadastro da Frota — estender o mesmo padrão às outras telas).
 
 ---
