@@ -175,6 +175,32 @@
   igual("janeiro: nenhum mês fechado no ano; projeção = média (100) × 12", RES3.realizadoAno + " / " + RES3.mesesRestantes + " / " + RES3.projecao, "0 / 12 / 1200");
   igual("sem histórico: % da média vazio",          R.resumoFinanceiro({}, "2026-10-23").pctMediaAtual, null);
 
+  grupo("Multas — motivo agrupado (textos reais da base)");
+  igual("motivo vem antes do ' | '",                  R.motivoDaDescricao("ESTACIONAR NO PASSEIO | Status original planilha: X"), "ESTACIONAR NO PASSEIO");
+  igual("descrição só com status → sem motivo",       R.motivoDaDescricao("Status original planilha: MOTORISTA NÃO IDENTIFICADO"), "");
+  igual("velocidade até 20% (com acento)",            R.classificarMotivo("TRANSITAR EM VELOCIDADE SUPERIOR A MÁXIMA PERMITIDA EM ATE 20%"), "Velocidade até 20%");
+  igual("velocidade até 20% (sem acento, com sufixo)", R.classificarMotivo("TRANSITAR EM VELOCIDADE SUPERIOR A MAXIMA PERMITIDA EM ATE IDENTIFICAÇÃO DO AGENTE OU AUTORIDADE DE TRÂNSITO"), "Velocidade até 20%");
+  igual("velocidade de 20% a 50%",                    R.classificarMotivo("TRANSITAR EM VELOCIDADE SUPERIOR À MÁXIMA PERMITIDA EM MAIS DE 20% ATE 50%"), "Velocidade de 20% a 50%");
+  igual("velocidade acima de 50%",                    R.classificarMotivo("TRANSITAR EM VELOCIDADE SUPERIOR À MÁXIMA PERMITIDA EM MAIS DE 50%"), "Velocidade acima de 50%");
+  igual("sinal vermelho (variação longa)",            R.classificarMotivo("AVANÇAR O SINAL VERMELHO DO SEMÁFORO EXC HOUVER SINALIZ IDENTIFICAÇÃO DO AGENTE"), "Sinal vermelho");
+  igual("faixa exclusiva de ônibus",                  R.classificarMotivo("TRANSITAR NA FAIXA OU VIA EXCLUSIVA REGULAM P/ TRANSP PÚBL COLETIVO PASSAG (ART. 184, III DO CTB)"), "Faixa exclusiva");
+  igual("estacionamento (rotativo)",                  R.classificarMotivo("ESTACIONAR EM DESACORDO COM A REGULAMENTAÇÃO (ESTACIONAMENTO ROTATIVO)"), "Estacionamento irregular");
+  igual("fora da faixa",                              R.classificarMotivo("DEIXAR DE CONSERVAR O VEÍCULO NA FAIXA A ELE DESTINADA"), "Fora da faixa");
+  igual("marcha à ré",                                R.classificarMotivo("TRANSITAR EM MARCHA À RÉ EM DESACORDO"), "Marcha à ré");
+  igual("conversão à esquerda",                       R.classificarMotivo("EXECUTAR OPERAÇÃO DE CONVERSÃO A ESQUERDA"), "Conversão ou retorno proibido");
+  igual("horário não permitido",                      R.classificarMotivo("TRANSITAR EM LOCAL/HORARIO NAO PERMITIDO"), "Rodízio / horário não permitido");
+  igual("celular",                                    R.classificarMotivo("DIRIGIR VEICULO MANUSEANDO TELEFONE CELULAR"), "Celular ao volante");
+  igual("evasão de pedágio",                          R.classificarMotivo("EVADIR-SE DA COBRANÇA PELO USO DE RODOVIAS/VIAS URBANAS"), "Evasão de pedágio");
+  igual("não identificação do condutor",              R.classificarMotivo("MULTA POR NAO IDENTIFICACAO DO CONDUTOR INFRATOR"), "Não identificação do condutor");
+  igual("nome do motorista no começo → sem motivo (nome nunca vira motivo)", R.motivoDaDescricao("Motorista (planilha): FULANO DE TAL | Status original planilha: X"), "");
+  igual("motivo com nome do motorista no meio", R.motivoDaDescricao("ESTACIONAR NO PASSEIO | Motorista (planilha): FULANO | Status original planilha: X"), "ESTACIONAR NO PASSEIO");
+  igual("marcha ré sem o à", R.classificarMotivo("TRANSITAR EM MARCHA RE, SALVO NA DISTANCIA NECESSARIA"), "Marcha à ré");
+  igual("contramão", R.classificarMotivo("TRANSITAR PELA CONTRAMÃO DE DIREÇÃO"), "Contramão");
+  igual("horário de pico", R.classificarMotivo("TRANSITAR EM LOCAL E HORÁRIO PROIBIDO HORÁRIO DE PICO"), "Rodízio / horário não permitido");
+  igual("faixa da direita exclusiva", R.classificarMotivo("TRANSITAR NA FAIXA/PISTA DA DIREITA REGUL CIRCULAÇÃO EXCLUSIVA DETERM VEÍCULO"), "Faixa exclusiva");
+  igual("texto desconhecido → Outros",                R.classificarMotivo("ALGUMA INFRAÇÃO NOVA"), "Outros");
+  igual("vazio → Sem motivo informado",               R.classificarMotivo(""), "Sem motivo informado");
+
   grupo("Disponibilidade da frota — cor");
   igual("90% → verde",          R.faixaDisponibilidade(90), "good");
   igual("89,9% → amarelo",      R.faixaDisponibilidade(89.9), "warn");

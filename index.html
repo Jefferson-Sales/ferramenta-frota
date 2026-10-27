@@ -556,6 +556,14 @@
 
       <div class="card">
         <div class="card-head"><h2>Multas registradas</h2><div class="card-head-actions"><span class="count" id="multas-count"></span><button class="inline-add-trigger" data-open-modal="modal-multa" data-edit="multas">+ Nova multa</button></div></div>
+        <div class="fin-filtros">
+          <label>Hub <select id="mu-f-hub" class="filter-select"><option value="">Todos</option></select></label>
+          <label>Status <select id="mu-f-status" class="filter-select"><option value="">Todos</option></select></label>
+          <label>Motivo <select id="mu-f-motivo" class="filter-select"><option value="">Todos</option></select></label>
+          <label>Mês da infração <input type="month" id="mu-f-mes" class="filter-select"></label>
+          <button type="button" class="btn qf-mini" id="mu-f-limpar">Limpar filtros</button>
+          <span class="qf-sub" id="mu-f-total"></span>
+        </div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Placa</th><th>Motorista</th><th>Data infração</th><th>Status</th><th>Alerta</th><th>Locadora</th><th>Supervisor</th><th class="num">Valor</th><th class="num">Absorvido empresa</th></tr></thead>
@@ -1682,6 +1690,11 @@
       document.getElementById("frota-filtro-chip").value = frotaFiltros.chip;
     }
     if (destino.modulo === "manutencao" && destino.os) osAbrirDepois = destino.os;
+    if (destino.modulo === "multas"){
+      muFiltros = { hub: f.hub || "", status: f.status || "", motivo: f.motivo || "", mes: f.mes || "", ano: f.ano || "" };
+      muSincronizarCampos();
+      if (multasCache.length) aplicarFiltrosMultas();
+    }
     if (destino.modulo === "financeiro"){
       finFiltros.categoria = f.categoria || ""; finFiltros.mes = f.mes || "";
       document.getElementById("fin-f-cat").value = finFiltros.categoria;
@@ -1717,8 +1730,68 @@
     visiveis.forEach(function(q){ if (EX_PRONTOS[q.etapa]) EX_PRONTOS[q.etapa](); });
   }
   // quadrantes já construídos (etapa do plano → função que carrega)
-  var EX_PRONTOS = { C1: function(){ exCarregarOperacao(); }, C2: function(){ exCarregarEletricos(); }, C4: function(){ exCarregarFinanceiro(); } };
+  var EX_PRONTOS = { C1: function(){ exCarregarOperacao(); }, C2: function(){ exCarregarEletricos(); }, C4: function(){ exCarregarFinanceiro(); }, C3: function(){ exCarregarMultas(); } };
   function exMesTxt(mes){ return EX_MESES[Number(mes.slice(5, 7)) - 1].slice(0, 3).toLowerCase() + "/" + mes.slice(0, 4); } // "2026-09" → "set/2026"
+
+  // ---- C3: quadrante de Multas (pela data da infração; motivo agrupado por Regras.classificarMotivo) ----
+  // Nenhum nome de motorista passa por aqui: exec_multas só devolve o texto do motivo (o trecho
+  // "Motorista (planilha): …" é descartado no banco) e o ranking de motoristas fica "Sem dados" até a D2.
+  var exMuToken = 0;
+  function exCarregarMultas(){
+    var tok = ++exMuToken, host = document.getElementById("ex-q-multas");
+    var per = Regras.periodoDatas(EX.periodo, exHoje());
+    rest("rpc/exec_multas", { method: "POST", body: { p_ini: per.ini, p_fim: per.fim, p_hub: EX.hub || null } }).then(function(d){
+      if (tok !== exMuToken || !host.isConnected) return;
+      host.innerHTML = exRenderMultas(d || {}, per);
+    }).catch(function(e){
+      if (tok !== exMuToken) return;
+      host.innerHTML = '<div class="ex-vazio"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>';
+    });
+  }
+  function exRenderMultas(d, per){
+    var P = PainelExec, total = Number(d.total) || 0;
+    var dataBR = function(s){ return s ? s.split("-").reverse().join("/") : "—"; };
+    // filtro que o clique leva para a tela de Multas: mês (mês atual/anterior) ou ano
+    var fPer = EX.periodo === "ano" ? { ano: per.ini.slice(0, 4) } : { mes: per.ini.slice(0, 7) };
+    var comPer = function(o){ var r = {}; Object.keys(fPer).forEach(function(k){ r[k] = fPer[k]; }); Object.keys(o).forEach(function(k){ r[k] = o[k]; }); return r; };
+    var atraso = d.ultima_infracao && d.ultima_infracao < per.fim;
+    var idf = 0; (d.por_status || []).forEach(function(s){ if (s.status === "infrator_identificado") idf = s.n; });
+    var html = P.kpis([
+      { rot: "Multas no período", valor: P.num(total), sub: P.moeda(Number(d.valor) || 0) + (total ? " · média " + P.moeda((Number(d.valor) || 0) / total) : ""),
+        estado: atraso ? { txt: "⚠ chegam com atraso · última: " + dataBR(d.ultima_infracao), tipo: "alerta" } : null,
+        ir: { modulo: "multas", filtro: comPer({}) } },
+      { rot: "Aguardando retorno da liderança", valor: P.num(d.pendentes_lideranca || 0),
+        sub: "fila atual (todas as datas)" + (d.pendentes_alerta ? " · " + P.num(d.pendentes_alerta) + " com alerta" : ""),
+        estado: d.pendentes_lideranca ? { txt: "⚠ cobrar a liderança", tipo: "alerta" } : { txt: "✓ fila zerada", tipo: "ok" },
+        ir: { modulo: "multas", filtro: { status: "aguardando_retorno_lideranca" } } },
+      { rot: "Infrator identificado", valor: total ? Math.round(idf / total * 100) + "%" : "—",
+        sub: P.num(idf) + " de " + P.num(total) + " multas do período",
+        ir: { modulo: "multas", filtro: comPer({ status: "infrator_identificado" }) } }
+    ]);
+    if (!total){
+      html += '<p class="ex-nota">Nenhuma multa com infração no período.' + (atraso ? " As notificações chegam com atraso; a última registrada é de " + esc(dataBR(d.ultima_infracao)) + "." : "") + '</p>';
+    } else {
+      var hubs = (d.por_hub || []).slice(0, 6);
+      html += '<div class="ex-secao"><h3>Ranking por hub</h3>' + P.barras({ ranking: true, itens: hubs.map(function(h){
+        return { rot: h.hub, valor: h.n, txt: P.num(h.n), dica: h.hub + " · " + P.num(h.n) + (h.n === 1 ? " multa" : " multas") + " · " + P.moeda(Number(h.valor)),
+          ir: { modulo: "multas", filtro: comPer(h.hub_id ? { hub: h.hub_id } : {}) } };
+      }) }) + '</div>';
+      // motivos: agrupa os textos (escritos de vários jeitos) nas categorias de Regras.classificarMotivo
+      var grupos = {};
+      (d.motivos || []).forEach(function(m){
+        var g = Regras.classificarMotivo(m.texto);
+        grupos[g] = grupos[g] || { nome: g, n: 0, valor: 0 };
+        grupos[g].n += m.n; grupos[g].valor += Number(m.valor) || 0;
+      });
+      var mot = Object.keys(grupos).map(function(k){ return grupos[k]; }).sort(function(a, b){ return b.n - a.n || b.valor - a.valor; }).slice(0, 6);
+      html += '<div class="ex-secao"><h3>Principais motivos</h3>' + P.barras({ itens: mot.map(function(m){
+        return { rot: m.nome, valor: m.n, txt: P.num(m.n), dica: m.nome + " · " + P.num(m.n) + (m.n === 1 ? " multa" : " multas") + " · " + P.moeda(m.valor),
+          ir: { modulo: "multas", filtro: comPer({ motivo: m.nome }) } };
+      }) }) + '</div>';
+    }
+    html += '<div class="ex-secao"><h3>Ranking de motoristas</h3>' + P.vazio("Ranking de motoristas", "ligar cada multa ao motorista do cadastro (etapa D2)") + '</div>';
+    return html;
+  }
 
   // ---- C4: quadrante Financeiro (competência; mês fechado a partir do dia 05 do mês seguinte) ----
   var exFinToken = 0;
@@ -2761,16 +2834,55 @@
       fillSelect("mu-motorista", rows, function(mo){ return mo.nome; }, "—");
     }).catch(function(){});
 
-    rest("v_multas_detalhe?select=*&order=data_infracao.desc&limit=300").then(function(rows){
-      multasCache = rows || [];
-      renderMultas(multasCache);
+    rest("hubs?select=id,nome&order=nome").then(function(rows){
+      var sel = document.getElementById("mu-f-hub");
+      sel.innerHTML = '<option value="">Todos</option>' + (rows || []).map(function(h){ return '<option value="' + esc(h.id) + '">' + esc(h.nome) + '</option>'; }).join("");
+      sel.value = muFiltros.hub;
+    }).catch(function(){});
+
+    rest("v_multas_detalhe?select=*&order=data_infracao.desc&limit=5000").then(function(rows){
+      multasCache = (rows || []).map(function(m){ m._motivo = Regras.classificarMotivo(Regras.motivoDaDescricao(m.descricao)); return m; });
+      aplicarFiltrosMultas();
     }).catch(function(e){ toast("Erro ao carregar multas: " + e.message, true); });
+  }
+
+  // Filtros da lista de multas (no navegador; a lista carrega todas). Também é o destino do clique da Visão Executiva.
+  var muFiltros = { hub: "", status: "", motivo: "", mes: "", ano: "" }; // ano: só vem do clique da Visão Executiva (período "ano")
+  (function(){
+    var st = document.getElementById("mu-f-status"), mo = document.getElementById("mu-f-motivo");
+    st.innerHTML = '<option value="">Todos</option>' + Object.keys(STATUS_MULTA_LABEL).map(function(k){ return '<option value="' + k + '">' + esc(STATUS_MULTA_LABEL[k]) + '</option>'; }).join("");
+    mo.innerHTML = '<option value="">Todos</option>' + Regras.MOTIVOS_MULTA.map(function(m){ return '<option>' + esc(m) + '</option>'; }).join("");
+    [["mu-f-hub", "hub"], ["mu-f-status", "status"], ["mu-f-motivo", "motivo"], ["mu-f-mes", "mes"]].forEach(function(p){
+      document.getElementById(p[0]).addEventListener("change", function(ev){ muFiltros[p[1]] = ev.target.value; aplicarFiltrosMultas(); });
+    });
+    document.getElementById("mu-f-limpar").addEventListener("click", function(){
+      muFiltros = { hub: "", status: "", motivo: "", mes: "", ano: "" }; muSincronizarCampos(); aplicarFiltrosMultas();
+    });
+  })();
+  function muSincronizarCampos(){
+    document.getElementById("mu-f-hub").value = muFiltros.hub; document.getElementById("mu-f-status").value = muFiltros.status;
+    document.getElementById("mu-f-motivo").value = muFiltros.motivo; document.getElementById("mu-f-mes").value = muFiltros.mes;
+  }
+  function aplicarFiltrosMultas(){
+    var f = muFiltros;
+    var rows = multasCache.filter(function(m){
+      if (f.hub && m.hub_id !== f.hub) return false;
+      if (f.status && m.status !== f.status) return false;
+      if (f.motivo && m._motivo !== f.motivo) return false;
+      if (f.mes && (!m.data_infracao || isoParaCampoLocal(m.data_infracao).slice(0, 7) !== f.mes)) return false; // mês no horário de Brasília
+      if (f.ano && (!m.data_infracao || isoParaCampoLocal(m.data_infracao).slice(0, 4) !== f.ano)) return false;
+      return true;
+    });
+    renderMultas(rows);
+    var filtrado = f.hub || f.status || f.motivo || f.mes || f.ano;
+    document.getElementById("mu-f-total").textContent = filtrado
+      ? (f.ano ? "Ano " + f.ano + " · " : "") + rows.length + " de " + multasCache.length + " · " + money(rows.reduce(function(s, m){ return s + (Number(m.valor) || 0); }, 0)) : "";
   }
 
   function renderMultas(rows){
     var body = document.getElementById("multas-body");
     document.getElementById("multas-count").textContent = rows.length + (rows.length === 1 ? " multa" : " multas");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="9" class="empty-row">Nenhuma multa registrada ainda.</td></tr>'; return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="9" class="empty-row">' + (multasCache.length ? "Nenhuma multa com esses filtros." : "Nenhuma multa registrada ainda.") + '</td></tr>'; return; }
     body.innerHTML = rows.map(function(m){
       var alerta = m.alerta_lideranca_sem_retorno ? pill("Liderança sem devolver", "crit") :
         (m.dias_sem_retorno_lideranca != null ? pill(m.dias_sem_retorno_lideranca + "d sem retorno", "warn") : "—");

@@ -31,7 +31,7 @@ declare
   vh uuid; osh uuid; osf uuid; tr uuid;
   hub3 uuid; vi1 uuid; vi2 uuid; osi uuid; j jsonb;
   hub4 uuid; c_el uuid; ve1 uuid; ve2 uuid; vcb uuid;
-  cat_t uuid;
+  cat_t uuid; hub5 uuid; vm uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -472,6 +472,25 @@ begin
   casos := casos || text 'exec_financeiro: com hub, nota sem hub fica de fora (e é contada em sem_hub)'; obtidos := obtidos || (coalesce(x, 'nada') || ' / sem_hub>=1: ' || ((j->>'sem_hub')::int >= 1)::text); esperados := esperados || text '2032-05=150 / sem_hub>=1: true';
   select (e->>'orcado_mensal') is null into x from jsonb_array_elements(frota.exec_financeiro('2032-05-01')->'categorias') e where e->>'id' = cat_t::text;
   casos := casos || text 'exec_financeiro: devolve as categorias (orçado vazio até a D1)'; obtidos := obtidos || x; esperados := esperados || text 'true';
+
+  -- ============================================ 14. VISÃO EXECUTIVA — MULTAS (exec_multas)
+  -- data da infração em Brasília; o nome do motorista ("Motorista (planilha): …") nunca vira motivo
+  insert into frota.hubs (nome) values ('TESTE Hub 5') returning id into hub5;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0M01', hub5, 1, 'disponivel') returning id into vm;
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor, status, descricao) values
+    (vm, hub5, '2032-05-03 10:00-03', now(), 130.16, 'infrator_identificado', 'TRANSITAR EM VELOCIDADE SUPERIOR A MÁXIMA PERMITIDA EM ATE 20% | Motorista (planilha): FULANO TESTE | Status original planilha: X'),
+    (vm, hub5, '2032-05-31 23:30-03', now(), 195.23, 'aguardando_retorno_lideranca', 'Motorista (planilha): FULANO TESTE | Status original planilha: Y'),
+    (vm, hub5, '2032-06-01 00:30-03', now(), 999, 'aguardando_retorno_lideranca', 'ESTACIONAR NO PASSEIO | Status original planilha: Z');
+  j := frota.exec_multas('2032-05-01', '2032-05-31', hub5);
+  x := (j->>'total') || ' / ' || (j->>'valor') || ' / ' || (j->'por_hub'->0->>'n');
+  casos := casos || text 'exec_multas: período pela data da infração em Brasília (23h30 do dia 31 entra; 00h30 do dia 1º não)'; obtidos := obtidos || x; esperados := esperados || text '2 / 325.39 / 2';
+  select count(*)::text into x from jsonb_array_elements(j->'motivos') e where e->>'texto' ilike '%FULANO%' or e->>'texto' ilike 'motorista%';
+  casos := casos || text 'exec_multas: nome do motorista nunca sai como motivo'; obtidos := obtidos || x; esperados := esperados || text '0';
+  select string_agg(coalesce(nullif(e->>'texto', ''), '(sem motivo)') || '=' || (e->>'n'), ', ' order by e->>'texto') into x from jsonb_array_elements(j->'motivos') e;
+  casos := casos || text 'exec_multas: motivo é o trecho antes do " | "; só nome = sem motivo'; obtidos := obtidos || x; esperados := esperados || text '(sem motivo)=1, TRANSITAR EM VELOCIDADE SUPERIOR A MÁXIMA PERMITIDA EM ATE 20%=1';
+  casos := casos || text 'exec_multas: fila da liderança é a atual (todas as datas, só o hub)'; obtidos := obtidos || (j->>'pendentes_lideranca'); esperados := esperados || text '2';
+  begin j := frota.exec_multas('2032-05-31', '2032-05-01', hub5); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Período inválido%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'exec_multas: período invertido é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado

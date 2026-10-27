@@ -163,7 +163,46 @@
     };
   }
 
+  // ---------- Multas: motivo agrupado ----------
+  // O motivo vem do começo da descrição ("MOTIVO | Status original planilha: …"), escrito de
+  // vários jeitos (com/sem acento, com sufixos). Agrupa em categorias legíveis; a ordem dos testes
+  // importa (ex.: "mais de 20%" antes de "até 20%"). Sem motivo → "Sem motivo informado".
+  var MOTIVOS = [
+    ["Velocidade acima de 50%",            /VELOCIDADE.*(MAIS DE 50|SUPERIOR A 50)/],
+    ["Velocidade de 20% a 50%",            /VELOCIDADE.*MAIS DE 20/],
+    ["Velocidade até 20%",                 /VELOCIDADE/],
+    ["Sinal vermelho",                     /SINAL VERMELHO|SEMAFORO/],
+    ["Faixa exclusiva",                    /FAIXA OU VIA EXCLUSIVA|TRANSP(ORTE)? PUBL|CIRCULACAO EXCLUSIVA/],
+    ["Estacionamento irregular",           /ESTACION|PARAR /],
+    ["Fora da faixa",                      /CONSERVAR O VEICULO NA FAIXA/],
+    ["Marcha à ré",                        /MARCHA (A )?RE( |,|$)/],
+    ["Contramão",                          /CONTRAMAO/],
+    ["Conversão ou retorno proibido",      /CONVERS|RETORNO/],
+    ["Rodízio / horário não permitido",    /RODIZIO|HORARIO NAO PERMITIDO|LOCAL E HORARIO PROIBIDO|HORARIO DE PICO/],
+    ["Celular ao volante",                 /CELULAR|TELEFONE/],
+    ["Evasão de pedágio",                  /EVADIR|PEDAGIO/],
+    ["Cinto de segurança",                 /CINTO/],
+    ["Não identificação do condutor",      /NAO IDENTIFICACAO DO CONDUTOR/]
+  ];
+  function motivoDaDescricao(descricao) {
+    var d = String(descricao || "");
+    // sem " | ", ou começando pelo status ou pelo nome do motorista ("Motorista (planilha): …") = sem motivo.
+    // O nome do motorista nunca vira "motivo" (mesma regra em frota.exec_multas).
+    if (d.indexOf(" | ") === -1) return "";
+    var p = d.split(" | ")[0].trim();
+    return /^(status original|motorista \(planilha\))/i.test(p) ? "" : p;
+  }
+  function classificarMotivo(texto) {
+    var t = String(texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim(); // tira os acentos
+    if (!t) return "Sem motivo informado";
+    for (var i = 0; i < MOTIVOS.length; i++) if (MOTIVOS[i][1].test(t)) return MOTIVOS[i][0];
+    return "Outros";
+  }
+
   global.Regras = {
+    motivoDaDescricao: motivoDaDescricao,
+    classificarMotivo: classificarMotivo,
+    MOTIVOS_MULTA: MOTIVOS.map(function(m){ return m[0]; }).concat(["Outros", "Sem motivo informado"]),
     somaMeses: somaMeses,
     mesFechado: mesFechado,
     ultimoMesFechado: ultimoMesFechado,
