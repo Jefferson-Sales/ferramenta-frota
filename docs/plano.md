@@ -47,13 +47,13 @@ O Jefferson está levantando no Claude Desktop o **mapeamento detalhado das fase
 - **Avarias (Manutenção):** vincular direto à **OS** para puxar orçamento/custo e as fotos da anomalia do checklist (anomalia → OS já existe desde 22/10/2026).
 - **Auto-preenchimento:** ao informar **Placa + Data/Hora + Código CTB**, a ferramenta busca quem era o motorista, o hub e o líder naquele momento e preenche pontuação, gravidade e sugestão de parcelamento.
 
-**O que conferir antes de construir (pontos para o Jefferson):**
-- **Quem estava com o carro:** fontes possíveis — checklist de **Retirada** (matrícula + hora; só desde 21/10/2026 e com a adesão atual baixa), `driver_code` das viagens da Questar (só elétricos; falta ligar código → matrícula) e a escala/rota (Metabase, D5). Para multas antigas não há fonte confiável: a ferramenta **sugere** e a Frota confirma.
-- **Líder do motorista:** hoje o cadastro de motoristas não tem líder — definir de onde vem (RH? planilha?).
-- **Pontuação e gravidade:** precisam de uma tabela de infrações do CTB (código → descrição, gravidade, pontos, valor); a regra de pontos por grau já existe (`Regras.PONTOS_POR_GRAU`).
-- **Parcelamento:** qual a regra (valor mínimo por parcela? limite do desconto em folha?).
-- **Importar os 291 cards** do Pipefy (com a fase atual) ou começar só com os novos.
-- "Motorista já desligado" e "Devolver ao líder": confirmar para qual fase cada um leva.
+**Decisões do Jefferson (27/10/2026):**
+- **Quem estava com o carro:** a ferramenta **sugere** pelo checklist de Retirada (matrícula + hora) ou pela telemetria (`driver_code` da Questar, só elétricos; falta ligar código → matrícula). Sem registro (ou multa anterior a essas fontes), o operador **busca e seleciona o motorista à mão** (lista de `v_motoristas_basico`, sem dados sensíveis).
+- **Líder:** campo de seleção/texto no formulário inicial, **opcional** — não trava o fluxo.
+- **Pontuação e gravidade:** criar uma **tabela de referência do CTB** com as infrações mais comuns (código → descrição, gravidade, pontos, valor). Pontos por gravidade = Leve 3, Média 4, Grave 5, Gravíssima 7 (já é `Regras.PONTOS_POR_GRAU`). "Rodízio municipal" marcado como Custo Beep direto.
+- **Sugestão de parcelamento (regra do Pipefy):** Leve **1x**, Média **até 3x**, Grave/Gravíssima **até 6x**; o operador pode ajustar. Vai para `regras.js` com teste.
+- **Histórico:** **importar os 291 cards** do Pipefy depois que as tabelas estiverem prontas, para manter a série de 2026 completa (com a fase atual de cada card).
+- Ainda a confirmar no desenho: para qual fase levam "Motorista já desligado" e "Devolver ao líder".
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
