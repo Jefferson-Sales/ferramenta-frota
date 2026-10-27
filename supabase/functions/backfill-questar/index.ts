@@ -192,11 +192,26 @@ Deno.serve(async (req) => {
           }
           // dias já gravados pela sincronização diária (fonte questar_api) não são sobrescritos
           const { data: existentes, error: e2 } = await db().from("telemetria_diaria").select("data, fonte")
-            .eq("veiculo_id", v.id).gte("data", de).lte("data", ate);
+            .eq("veiculo_id", v.id).in("data", Object.keys(porDia).length ? Object.keys(porDia) : ["1900-01-01"]);
           if (e2) throw e2;
           const protegidos = new Set((existentes || []).filter((x: any) => x.fonte !== "questar_backfill").map((x: any) => x.data));
-          const linhas = Object.keys(porDia).filter((d) => !protegidos.has(d)).map((d) => ({
-            veiculo_id: v.id, data: d, km_rodado: Math.round(porDia[d].km * 10) / 10, km_hodometro_fim: porDia[d].hod, fonte: "questar_backfill" }));
+          // O dia é recalculado com TODAS as viagens já gravadas daquele carro/dia (não só as desta consulta):
+          // a API filtra por data UTC, então um dia de Brasília pode vir dividido entre duas janelas.
+          const diasTocados = Object.keys(porDia).filter((d) => !protegidos.has(d));
+          const totais: Record<string, { km: number; hod: number | null }> = {};
+          for (let i = 0; i < diasTocados.length; i += 100) {
+            const { data: vg, error: e4 } = await db().from("telemetria_viagens").select("dia, distancia_km, hodometro_fim")
+              .eq("veiculo_id", v.id).in("dia", diasTocados.slice(i, i + 100));
+            if (e4) throw e4;
+            for (const x of (vg || []) as any[]) {
+              const t = totais[x.dia] || (totais[x.dia] = { km: 0, hod: null });
+              t.km += Number(x.distancia_km) || 0;
+              if (x.hodometro_fim != null && (t.hod == null || Number(x.hodometro_fim) > t.hod)) t.hod = Number(x.hodometro_fim);
+            }
+          }
+          const linhas = diasTocados.map((d) => ({
+            veiculo_id: v.id, data: d, km_rodado: Math.round((totais[d] ? totais[d].km : porDia[d].km) * 10) / 10,
+            km_hodometro_fim: totais[d] ? totais[d].hod : porDia[d].hod, fonte: "questar_backfill" }));
           if (linhas.length) {
             const { error: e3 } = await db().from("telemetria_diaria").upsert(linhas, { onConflict: "veiculo_id,data" });
             if (e3) throw e3;
