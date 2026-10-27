@@ -185,6 +185,12 @@
   .pill.urgente{ background:var(--critical); color:var(--texto-sobre-cor); }
   .kpi-card.clickable{ cursor:pointer; }
   .kpi-card.clickable:hover{ border-color:var(--line-strong); }
+  button.kpi-card{ font:inherit; color:inherit; text-align:left; width:100%; transition:border-color .15s ease, box-shadow .15s ease; }
+  button.kpi-card.clickable:hover{ border-color:var(--accent-soft-line); box-shadow:var(--shadow); }
+  button.kpi-card:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  /* bloco de destino de um clique nos cards do Dash: contorno por ~2 s */
+  .card.gm-destaque{ box-shadow:0 0 0 3px var(--accent-soft-line), var(--shadow); transition:box-shadow .3s ease; }
+  @media (prefers-reduced-motion:reduce){ button.kpi-card, .card.gm-destaque{ transition:none; } }
   .kpi-card.sel{ outline:2px solid var(--accent); outline-offset:-1px; }
   .kpi-card.neutral .kpi-num{ color:var(--muted); }
   /* Gestão de Manutenção */
@@ -1673,8 +1679,16 @@
     }).catch(function(){});
     PainelExec.ligar(document.getElementById("ex-grade"), exIr);
     PainelExec.ligar(document.getElementById("ex-indisp-body"), exIr);
-    document.getElementById("ex-voltar").addEventListener("click", function(){ showPanel("executivo"); });
   }
+
+  // Botão "‹ Voltar" no topo: aparece quando a pessoa chegou a uma tela por um clique de painel
+  // (Visão Executiva ou Dash de Manutenção) e leva de volta para lá.
+  var origemDrill = { painel: "executivo", texto: "‹ Voltar à Visão Executiva" };
+  function mostrarVoltar(){
+    var b = document.getElementById("ex-voltar");
+    b.textContent = origemDrill.texto; b.dataset.painel = origemDrill.painel; b.hidden = false;
+  }
+  document.getElementById("ex-voltar").addEventListener("click", function(){ showPanel(this.dataset.painel || "executivo"); });
 
   // Drill-down: leva à tela de trabalho já filtrada. destino = { modulo, filtro?, os?, indisponiveis? }
   var osAbrirDepois = null; // OS para abrir quando a lista de Manutenções terminar de carregar
@@ -1703,12 +1717,12 @@
     if (destino.modulo === "gestao_manutencao" && f.revisao) document.getElementById("gm-rev-filtro").value = f.revisao;
     document.getElementById("modal-ex-indisp").hidden = true;
     showPanel(destino.modulo);
-    document.getElementById("ex-voltar").hidden = false;
+    mostrarVoltar();
     if (destino.modulo === "gestao_manutencao" && f.revisao){
       setTimeout(function(){ var c = document.getElementById("gm-rev-body"); if (c) c.closest(".card").scrollIntoView({ block: "start" }); }, 600);
     } else window.scrollTo(0, 0);
   }
-  function loadExecutivo(){ exIniciar(); renderExecutivo(); }
+  function loadExecutivo(){ origemDrill = { painel: "executivo", texto: "‹ Voltar à Visão Executiva" }; exIniciar(); renderExecutivo(); }
   function renderExecutivo(){
     var selP = document.getElementById("ex-periodo"), selH = document.getElementById("ex-hub");
     var pTxt = selP.options[selP.selectedIndex] ? selP.options[selP.selectedIndex].text : "";
@@ -1976,11 +1990,12 @@
   }
 
   // ---- detalhe dos carros indisponíveis (clique na disponibilidade) ----
-  function exAbrirIndisponiveis(){
+  function exAbrirIndisponiveis(hub){
+    if (hub === undefined) hub = EX.hub; // da Visão Executiva usa o filtro dela; do Dash, o hub do Dash
     var body = document.getElementById("ex-indisp-body");
     body.innerHTML = '<p class="ex-nota">Carregando…</p>';
     openModal("modal-ex-indisp");
-    rest("rpc/exec_indisponiveis", { method: "POST", body: { p_hub: EX.hub || null } }).then(function(rows){
+    rest("rpc/exec_indisponiveis", { method: "POST", body: { p_hub: hub || null } }).then(function(rows){
       exRenderIndisponiveis(rows || []);
     }).catch(function(e){ body.innerHTML = '<div class="ex-vazio"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>'; });
   }
@@ -3244,7 +3259,11 @@
       (r[0] || []).forEach(function(i){ QF.cat[i.codigo] = i; QF.grupos[i.grupo] = i.grupo_nome; });
       QF.hubs = {};
       var opts = '<option value="">Todos os hubs</option>' + (r[1] || []).map(function(h){ QF.hubs[h.id] = h.nome; return '<option value="' + h.id + '">' + esc(h.nome) + '</option>'; }).join("");
-      ["qf-hub", "qf-an-hub", "qd-hub"].forEach(function(id){ var s = document.getElementById(id), v = s.value; s.innerHTML = opts; s.value = v; });
+      ["qf-hub", "qf-an-hub", "qd-hub"].forEach(function(id){
+        var s = document.getElementById(id), v = (id === "qf-an-hub" && qfAnHubDepois !== null) ? qfAnHubDepois : s.value;
+        s.innerHTML = opts; s.value = v;
+      });
+      qfAnHubDepois = null;
     }).catch(function(e){ QF.base = null; throw e; });
     return QF.base;
   }
@@ -4471,14 +4490,14 @@
     var pDisp = gmPct(disp.disponivel, disp.total), pCk = gmPct(ckFez, ckEsp);
     var aConferir = GM.conf.filter(function(c){ return c.status === "a_conferir"; }).length;
     document.getElementById("gm-kpis").innerHTML = [
-      { num: pDisp == null ? "—" : pDisp + "%", label: "Disponíveis agora (" + gmNum(disp.disponivel) + " de " + gmNum(disp.total) + ")", cls: Regras.faixaDisponibilidade(pDisp) },
-      { num: gmNum(disp.indisponivel), label: "Indisponíveis agora", cls: disp.indisponivel ? "warn" : "good" },
-      { num: pCk == null ? "—" : pCk + "%", label: "Checklist de retirada no período (" + gmNum(ckFez) + " de " + gmNum(ckEsp) + ")", cls: pCk == null ? "neutral" : pCk >= 90 ? "good" : pCk >= 70 ? "warn" : "crit" },
-      { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good" },
-      { num: gmNum(rv.vencidas), label: "Revisões vencidas", cls: rv.vencidas ? "crit" : "good" },
-      { num: gmNum(rv.vencendo), label: "Revisões vencendo (até 1.000 km)", cls: rv.vencendo ? "warn" : "good" },
-      { num: gmNum(aConferir), label: "Revisões a conferir", cls: aConferir ? "warn" : "good" }
-    ].map(function(k){ return '<div class="kpi-card ' + k.cls + '"><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></div>"; }).join("");
+      { num: pDisp == null ? "—" : pDisp + "%", label: "Disponíveis agora (" + gmNum(disp.disponivel) + " de " + gmNum(disp.total) + ")", cls: Regras.faixaDisponibilidade(pDisp), ir: "disp", dica: "Ver a disponibilidade por hub" },
+      { num: gmNum(disp.indisponivel), label: "Indisponíveis agora", cls: disp.indisponivel ? "warn" : "good", ir: "indisp", dica: "Ver os carros parados, com OS, prazos e tratativas" },
+      { num: pCk == null ? "—" : pCk + "%", label: "Checklist de retirada no período (" + gmNum(ckFez) + " de " + gmNum(ckEsp) + ")", cls: pCk == null ? "neutral" : pCk >= 90 ? "good" : pCk >= 70 ? "warn" : "crit", ir: "checklist", dica: "Ver o checklist de retirada por dia" },
+      { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good", ir: "anomalias", dica: "Abrir a lista de anomalias abertas (Qualidade da Frota)" },
+      { num: gmNum(rv.vencidas), label: "Revisões vencidas", cls: rv.vencidas ? "crit" : "good", ir: "vencida", dica: "Ver só as revisões vencidas" },
+      { num: gmNum(rv.vencendo), label: "Revisões vencendo (até 1.000 km)", cls: rv.vencendo ? "warn" : "good", ir: "vencendo", dica: "Ver só as revisões vencendo" },
+      { num: gmNum(aConferir), label: "Revisões a conferir", cls: aConferir ? "warn" : "good", ir: "conferir", dica: "Ver a lista \"a conferir\"" }
+    ].map(function(k){ return '<button type="button" class="kpi-card clickable ' + k.cls + '" data-gm-ir="' + k.ir + '" title="' + esc(k.dica) + '"><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></button>"; }).join("");
 
     var hubs = disp.por_hub || [];
     document.getElementById("gm-disp-count").textContent = hubs.length + (hubs.length === 1 ? " hub" : " hubs");
@@ -4573,6 +4592,34 @@
   document.getElementById("gm-hub").addEventListener("change", loadGestaoManutencao);
   document.getElementById("gm-rev-filtro").addEventListener("change", renderGmRevisoes);
   document.getElementById("gm-conf-filtro").addEventListener("change", renderGmConferir);
+
+  // Cards do topo do Dash: cada um leva ao bloco correspondente (rola e destaca, aplicando o filtro quando houver).
+  function gmDestacar(idDentroDoCard){
+    var card = document.getElementById(idDentroDoCard).closest(".card");
+    card.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    card.classList.remove("gm-destaque"); void card.offsetWidth; card.classList.add("gm-destaque");
+    setTimeout(function(){ card.classList.remove("gm-destaque"); }, 2200);
+  }
+  var qfAnHubDepois = null; // hub do Dash para o filtro de anomalias, aplicado quando a lista de hubs carregar
+  document.getElementById("gm-kpis").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-gm-ir]"); if (!b) return;
+    var ir = b.dataset.gmIr, hub = document.getElementById("gm-hub").value;
+    origemDrill = { painel: "gestao_manutencao", texto: "‹ Voltar ao Dash de Manutenção" };
+    if (ir === "disp") gmDestacar("gm-disp-hubs");
+    else if (ir === "indisp") exAbrirIndisponiveis(hub);
+    else if (ir === "checklist") gmDestacar("gm-checklist");
+    else if (ir === "vencida" || ir === "vencendo"){ document.getElementById("gm-rev-filtro").value = ir; renderGmRevisoes(); gmDestacar("gm-rev-body"); }
+    else if (ir === "conferir"){ document.getElementById("gm-conf-filtro").value = "a_conferir"; renderGmConferir(); gmDestacar("gm-conf-body"); }
+    else if (ir === "anomalias"){
+      qfAnHubDepois = hub;
+      document.getElementById("qf-sev").value = "";
+      var selH = document.getElementById("qf-an-hub"); selH.value = hub; // se as opções já existem
+      if (selH.options.length > 1) qfAnHubDepois = null;
+      showPanel("qualidade"); qfTrocarTela("geral"); mostrarVoltar();
+      if (QF.anom && QF.anom.length) renderQfAnomalias();
+      setTimeout(function(){ gmDestacar("qf-anom-body"); }, 300);
+    }
+  });
   document.getElementById("gm-conf-body").addEventListener("click", function(ev){
     var b = ev.target.closest("[data-gm-feita],[data-gm-naofeita]"); if (!b) return;
     var feita = b.hasAttribute("data-gm-feita"), id = b.dataset.gmFeita || b.dataset.gmNaofeita;
