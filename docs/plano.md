@@ -30,6 +30,31 @@ O Jefferson está levantando no Claude Desktop o **mapeamento detalhado das fase
 - **Avarias:** ainda não existe na ferramenta — desenhar a partir do mapeamento (provável ligação com as anomalias do checklist e com as OS de sinistro).
 - Não começar antes de receber o mapeamento. Dados pessoais (CPF, CNH) seguem só admin.
 
+### Mapeamento do Pipefy recebido (27/10/2026, levantamento do Jefferson no Claude Desktop)
+
+**Não são dois pipes:** Multas e Avarias rodam num único pipe, **"[Frota] Descontos em folha de colaborador"** (291 cards). O campo **"Ocorrência para desconto"** diz o tipo: **Multa** ou **Manutenção** (= avaria/dano). Na ferramenta, o desenho natural é **uma esteira só de "descontos"** com tipo multa/avaria, reaproveitando `multas` para as multas e ligando avarias às OS — decidir no desenho técnico.
+
+**Fases (viram os status):**
+1. **Enviado ao líder** — o motorista concorda? *Sim* / *Não* (contestou) / *Motorista já desligado*.
+2. **Avaliação do Time de Frota** — só se houve contestação; a contestação é válida? *Sim* / *Não*.
+3. **Conferência Frota** — *Sim, enviar ao DP* / *Devolver ao líder* / *Não cobrar (Custo Beep)*.
+4. **Encaminhado para o DP** — validação documental do desconto.
+5. **Finais:** *Confirmado pelo DP* (cobrança do motorista), *Custo Beep*, *Rejeitadas*, *Cobrança errada*.
+
+**Regras de negócio:**
+- **Divisão financeira:** *Confirmado pelo DP* = **Repasse Motorista**; *Custo Beep* = **absorvido pela empresa**; *Rejeitadas* e *Cobrança errada* **não contam como custo** (nem para a Beep nem para o motorista). Vai para `paga_por`/`valor_absorvido_empresa` (hoje vazios) e para o quadrante de Multas da Visão Executiva.
+- **Rodízio municipal:** na lista de motivos do CTB, "RODÍZIO MUNICIPAL" já nasce como **Custo Beep** (não vai ao líder nem ao DP).
+- **Avarias (Manutenção):** vincular direto à **OS** para puxar orçamento/custo e as fotos da anomalia do checklist (anomalia → OS já existe desde 22/10/2026).
+- **Auto-preenchimento:** ao informar **Placa + Data/Hora + Código CTB**, a ferramenta busca quem era o motorista, o hub e o líder naquele momento e preenche pontuação, gravidade e sugestão de parcelamento.
+
+**O que conferir antes de construir (pontos para o Jefferson):**
+- **Quem estava com o carro:** fontes possíveis — checklist de **Retirada** (matrícula + hora; só desde 21/10/2026 e com a adesão atual baixa), `driver_code` das viagens da Questar (só elétricos; falta ligar código → matrícula) e a escala/rota (Metabase, D5). Para multas antigas não há fonte confiável: a ferramenta **sugere** e a Frota confirma.
+- **Líder do motorista:** hoje o cadastro de motoristas não tem líder — definir de onde vem (RH? planilha?).
+- **Pontuação e gravidade:** precisam de uma tabela de infrações do CTB (código → descrição, gravidade, pontos, valor); a regra de pontos por grau já existe (`Regras.PONTOS_POR_GRAU`).
+- **Parcelamento:** qual a regra (valor mínimo por parcela? limite do desconto em folha?).
+- **Importar os 291 cards** do Pipefy (com a fase atual) ou começar só com os novos.
+- "Motorista já desligado" e "Devolver ao líder": confirmar para qual fase cada um leva.
+
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
 Usar esta evolução para calibrar qualquer cálculo histórico de frota, disponibilidade, custo e km por hub dos elétricos (não supor 60 carros desde o início do ano):
