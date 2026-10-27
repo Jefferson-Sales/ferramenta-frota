@@ -31,7 +31,7 @@ declare
   vh uuid; osh uuid; osf uuid; tr uuid;
   hub3 uuid; vi1 uuid; vi2 uuid; osi uuid; j jsonb;
   hub4 uuid; c_el uuid; ve1 uuid; ve2 uuid; vcb uuid;
-  cat_t uuid; hub5 uuid; vm uuid;
+  cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
 begin
@@ -491,6 +491,34 @@ begin
   casos := casos || text 'exec_multas: fila da liderança é a atual (todas as datas, só o hub)'; obtidos := obtidos || (j->>'pendentes_lideranca'); esperados := esperados || text '2';
   begin j := frota.exec_multas('2032-05-31', '2032-05-01', hub5); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Período inválido%' then 'recusou' else sqlerrm end; end;
   casos := casos || text 'exec_multas: período invertido é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 15. DASH — EXCEL ANALÍTICO DO CHECKLIST DE RETIRADA (checklist_retirada_analitico)
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  insert into frota.hubs (nome) values ('TESTE Hub 6') returning id into hub6;
+  insert into frota.hubs (nome) values ('TESTE Hub 7') returning id into hub7;
+  insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0N01', hub6, 1, 'disponivel', 'KWID') returning id into vr1;
+  insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0N02', hub6, 1, 'disponivel', 'KWID') returning id into vr2;
+  insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0N03', hub6, 1, 'disponivel', 'KWID') returning id into vr3;
+  insert into frota.veiculos (placa, hub_id, km_atual, status, modelo) values ('ZZT0N04', hub7, 1, 'disponivel', 'KWID') returning id into vr4;
+  insert into frota.checklist_frota_esperada_dias (dia, qtd) values ('2032-07-01', 3), ('2032-07-02', 1);
+  insert into frota.checklist_frota_esperada (dia, veiculo_id, hub_id, status_no_dia) values
+    ('2032-07-01', vr1, hub6, 'disponivel'), ('2032-07-01', vr2, hub6, 'disponivel'), ('2032-07-01', vr4, hub7, 'disponivel'),
+    ('2032-07-02', vr1, hub6, 'disponivel');
+  -- vr1 fez às 08:15 e de novo às 09:00 (vale a primeira); vr3 fez mas não estava na lista; vr2 só devolução; vr1 no dia 2 às 23:50 (ainda dia 2 em Brasília)
+  insert into frota.checklists (veiculo_id, tipo, km, colaborador_matricula, status, enviado_em) values
+    (vr1, 'retirada', 1, '0000', 'enviado', '2032-07-01 08:15-03'), (vr1, 'retirada', 1, '0000', 'enviado', '2032-07-01 09:00-03'),
+    (vr3, 'retirada', 1, '0000', 'enviado', '2032-07-01 10:00-03'), (vr2, 'devolucao', 1, '0000', 'enviado', '2032-07-01 11:00-03'),
+    (vr1, 'retirada', 1, '0000', 'enviado', '2032-07-02 23:50-03');
+  select string_agg(a.dia || ' ' || a.placa || ' ' || case when a.realizado then 'Realizado ' || to_char(a.retirada_em at time zone 'America/Sao_Paulo', 'HH24:MI') else 'Não realizado' end, ' | ' order by a.dia, a.placa) into x
+    from frota.checklist_retirada_analitico('2032-07-01', '2032-07-02', hub6) a;
+  casos := casos || text 'analítico: 1 linha por carro esperado/dia; primeira retirada; devolução não conta; fora da lista não entra'; obtidos := obtidos || x;
+  esperados := esperados || text '2032-07-01 ZZT0N01 Realizado 08:15 | 2032-07-01 ZZT0N02 Não realizado | 2032-07-02 ZZT0N01 Realizado 23:50';
+  select count(*)::text into x from frota.checklist_retirada_analitico('2032-07-01', '2032-07-01');
+  casos := casos || text 'analítico: sem filtro de hub traz os dois hubs'; obtidos := obtidos || x; esperados := esperados || text '3';
+  select (select count(*) from frota.checklist_retirada_analitico('2032-07-01', '2032-07-01', hub6)) || '/' || (select count(*) filter (where realizado) from frota.checklist_retirada_analitico('2032-07-01', '2032-07-01', hub6))
+      || ' = ' || (select count(*) filter (where na_lista) || '/' || count(*) filter (where na_lista and fez) from frota.checklist_visao_diaria('2032-07-01') v where v.hub_id = hub6) into x;
+  casos := casos || text 'analítico: totais iguais aos da Visão diária (mesma regra do Dash)'; obtidos := obtidos || x; esperados := esperados || text '2/1 = 2/1';
   perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado

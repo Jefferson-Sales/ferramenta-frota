@@ -652,7 +652,7 @@
         </div>
         <div class="card">
           <div class="card-head"><h2>Checklist de retirada por dia</h2>
-            <div class="card-head-actions"><button type="button" class="btn qf-mini" id="gm-xls-checklist">⬇ Excel</button></div></div>
+            <div class="card-head-actions"><button type="button" class="btn qf-mini" id="gm-xls-checklist" title="Uma linha por carro esperado em cada dia do período: realizado ou não e a hora da retirada">⬇ Excel</button></div></div>
           <div class="gm-barras" id="gm-checklist"></div>
           <p class="gm-nota">Mesma regra da Visão diária: carros disponíveis no começo do dia que fizeram a Retirada.</p>
         </div>
@@ -4652,21 +4652,39 @@
     var nome = hub ? gmHub(hub).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") : "todos-hubs";
     return tipo + "_" + isoParaCampoLocal(new Date().toISOString()).slice(0, 10) + "_" + nome + ".xlsx";
   }
-  function gmBaixar(btn, aba, arquivo, linhas){
+  // linhas = 1ª aba; extras (opcional) = [{ aba, linhas }] para abas a mais na mesma planilha.
+  function gmBaixar(btn, aba, arquivo, linhas, extras){
     var txt = btn.textContent; btn.disabled = true; btn.textContent = "Gerando…";
     carregarXlsx().then(function(X){
-      var ws = X.utils.aoa_to_sheet(linhas);
-      ws["!cols"] = linhas[0].map(function(h){ return { wch: Math.max(12, h.length + 2) }; });
-      ws["!autofilter"] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: linhas.length - 1, c: linhas[0].length - 1 } }) };
-      var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, aba); X.writeFile(wb, arquivo);
+      var wb = X.utils.book_new();
+      [{ aba: aba, linhas: linhas }].concat(extras || []).forEach(function(f){
+        var ws = X.utils.aoa_to_sheet(f.linhas);
+        ws["!cols"] = f.linhas[0].map(function(h){ return { wch: Math.max(12, h.length + 2) }; });
+        ws["!autofilter"] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: f.linhas.length - 1, c: f.linhas[0].length - 1 } }) };
+        X.utils.book_append_sheet(wb, ws, f.aba);
+      });
+      X.writeFile(wb, arquivo);
     }).catch(function(e){ toast("Não foi possível gerar o Excel: " + e.message, true); })
       .finally(function(){ btn.textContent = txt; btn.disabled = false; });
   }
+  // Excel analítico: uma linha por veículo esperado (disponível no começo do dia) em cada dia do período do Dash,
+  // com Realizado / Não realizado e a hora da Retirada — para cobrar os desvios. 2ª aba: o resumo por dia da tela.
   document.getElementById("gm-xls-checklist").addEventListener("click", function(){
-    var ck = (GM.dados && GM.dados.checklist_dias) || [];
-    gmBaixar(this, "Checklist por dia", gmNomeArquivo("checklist_por_dia"), [["Data", "Deveriam fazer", "Fizeram", "Não fizeram", "% cumprimento"]].concat(ck.map(function(c){
-      return [xlsData(c.dia), c.esperados, c.fizeram, c.esperados - c.fizeram, c.esperados ? Math.round(1000 * c.fizeram / c.esperados) / 10 : ""];
-    })));
+    var btn = this, ck = (GM.dados && GM.dados.checklist_dias) || [];
+    if (!ck.length){ toast("Sem dias com frota esperada no período.", true); return; }
+    var hub = document.getElementById("gm-hub").value || null;
+    var ini = ck[0].dia, fim = ck[ck.length - 1].dia; // os mesmos dias das barras
+    var txt = btn.textContent; btn.disabled = true; btn.textContent = "Buscando…";
+    rest("rpc/checklist_retirada_analitico", { method: "POST", body: { p_ini: ini, p_fim: fim, p_hub: hub } }).then(function(rows){
+      btn.textContent = txt; btn.disabled = false;
+      var analitico = [["Data", "Hub", "Placa", "Modelo", "Status do checklist", "Hora do checklist"]].concat((rows || []).map(function(r){
+        return [xlsData(r.dia), r.hub || "", r.placa, r.modelo || "", r.realizado ? "Realizado" : "Não realizado", r.retirada_em ? xlsHora(r.retirada_em) : ""];
+      }));
+      var resumo = [["Data", "Deveriam fazer", "Fizeram", "Não fizeram", "% cumprimento"]].concat(ck.map(function(c){
+        return [xlsData(c.dia), c.esperados, c.fizeram, c.esperados - c.fizeram, c.esperados ? Math.round(1000 * c.fizeram / c.esperados) / 10 : ""];
+      }));
+      gmBaixar(btn, "Por veículo", gmNomeArquivo("checklist_retirada_por_veiculo"), analitico, [{ aba: "Resumo por dia", linhas: resumo }]);
+    }).catch(function(e){ btn.textContent = txt; btn.disabled = false; toast("Não foi possível buscar os checklists: " + e.message, true); });
   });
   document.getElementById("gm-xls-rev").addEventListener("click", function(){
     gmBaixar(this, "Revisões", gmNomeArquivo("revisoes_vencidas_vencendo"), [["Placa", "Modelo", "Hub", "Situação", "Último marco feito", "Data da última revisão", "Próximo marco", "Km atual", "Fonte do km", "Km faltando (negativo = passou)", "Marcos a conferir", "OS preventiva aberta"]]
