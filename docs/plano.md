@@ -2,7 +2,18 @@
 
 Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 
-## Retomar daqui (fim do dia 23/10/2026)
+## Retomar daqui (fim do dia 27/10/2026)
+
+**Próxima sessão começa pela Etapa 1 da esteira de descontos** (proposta aprovada pelo Jefferson em 27/10/2026, seção "Proposta do banco — esteira de descontos" abaixo):
+- tabela `ctb_infracoes` (com RLS; códigos e valores conferidos pelo Jefferson antes de valer) e regra de parcelamento sugerido (`Regras.parcelasSugeridas` + teste, mesma regra no banco);
+- estrutura da tabela `descontos` (fases, campos de cada fase, histórico imutável) — com testes de banco antes de ir para o ar.
+
+**Primeira coisa a conferir:** a sincronização das 02:00 de 28/10 (primeira execução automática da versão corrigida, D4c): rodou sem erro? O dia 27/10 fechou com km = soma das viagens? (`cron.job_run_details` + comparar `telemetria_diaria` × `telemetria_viagens`).
+
+Feito em 27/10/2026 (tudo publicado; push até `08a41fa`, depois só commits do plano): Multas C3 na Visão Executiva, cards clicáveis do Dash, Excel analítico do checklist, backfill da Questar (D4b, 13.621 viagens), correção da sincronização diária (D4c) com reprocessamento de 12/10–27/10, as 3 levas dos elétricos e o mapeamento/decisões da esteira de Multas e Avarias.
+
+## Retomada anterior (fim do dia 23/10/2026 — concluída)
+
 
 Já no ar (push `deb4123`): Visão Executiva com Operação (C1), Carros Elétricos (C2) e Financeiro (C4).
 
@@ -68,7 +79,9 @@ Ideia central: **`multas` continua sendo a multa** (recebimento e identificaçã
 3. **`descontos_historico`**: cada troca de fase (de → para, quem, quando, observação). Imutável, como o histórico da OS.
 4. **Anexos** (termo assinado, documentos): bucket privado `descontos-anexos`, acesso só de quem opera Multas e de admin (o termo tem nome e assinatura do colaborador).
 5. **`sugerir_motorista(placa, data_hora)`**: procura a Retirada aberta naquele momento (checklist) e, nos elétricos, o `driver_code` da viagem (falta ligar o código à matrícula). Devolve só id + nome; sem resultado, o operador escolhe à mão.
-6. **Parcelamento:** `Regras.parcelasSugeridas` — Leve 1x, Média até 3x, Grave/Gravíssima até 6x; ajustável.
+6. **Parcelamento sugerido (sempre ajustável, teto de 6x):** `Regras.parcelasSugeridas`.
+   - **Multa, pela gravidade:** Leve 1x, Média até 3x, Grave/Gravíssima até 6x.
+   - **Avaria, pelo valor** (decisão do Jefferson, 27/10/2026): até R$ 300,00 → 1x; acima de R$ 300,00 até R$ 600,00 → até 3x; acima de R$ 600,00 → até 6x. (Centavos entre 300 e 301 contam como a faixa de 3x.)
 7. **Acesso:** mesmo módulo de Multas (ver = `posso_ver('multas')`, mexer = quem opera Multas). Multas não tem filtro de hub hoje.
 8. Visão Executiva: Repasse Motorista × Custo Beep por mês e por hub, sem nomes.
 
