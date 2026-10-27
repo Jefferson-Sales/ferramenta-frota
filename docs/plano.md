@@ -53,7 +53,26 @@ O Jefferson está levantando no Claude Desktop o **mapeamento detalhado das fase
 - **Pontuação e gravidade:** criar uma **tabela de referência do CTB** com as infrações mais comuns (código → descrição, gravidade, pontos, valor). Pontos por gravidade = Leve 3, Média 4, Grave 5, Gravíssima 7 (já é `Regras.PONTOS_POR_GRAU`). "Rodízio municipal" marcado como Custo Beep direto.
 - **Sugestão de parcelamento (regra do Pipefy):** Leve **1x**, Média **até 3x**, Grave/Gravíssima **até 6x**; o operador pode ajustar. Vai para `regras.js` com teste.
 - **Histórico:** **importar os 291 cards** do Pipefy depois que as tabelas estiverem prontas, para manter a série de 2026 completa (com a fase atual de cada card).
-- Ainda a confirmar no desenho: para qual fase levam "Motorista já desligado" e "Devolver ao líder".
+- **Motorista já desligado** (decisão de 27/10/2026): o DP não consegue descontar em folha regular → vai para a fila **"Análise RH / Custo Beep"**. Se houver retenção rescisória, segue para o DP; se não houver, baixa direto como **Custo Beep** com o motivo **"Motorista desligado"**.
+- **Devolver ao líder** (decisão de 27/10/2026): volta para a fase 1 ("Enviado ao líder") e exige **"Observações da Frota"** com o motivo (documento ilegível, falta de anexo, termo sem assinatura…).
+
+### Proposta do banco — esteira de descontos (27/10/2026, aguardando aprovação)
+
+Ideia central: **`multas` continua sendo a multa** (recebimento e identificação do condutor junto à locadora); a **cobrança** (o pipe "Descontos em folha") vira uma tabela nova, que serve para multa **e** avaria.
+
+1. **`ctb_infracoes`** (referência): código de enquadramento + desdobramento, descrição, gravidade (`grau_infracao`), pontos (pela gravidade), valor, `custo_beep_padrao` (rodízio municipal = sim), ativo. Leitura para quem vê Multas; escrita só admin. Carga inicial: infrações mais comuns, **conferidas pelo Jefferson** antes de valer (códigos e valores não entram "de memória").
+2. **`descontos`** (a esteira): tipo `multa`/`avaria`; `multa_id` (multa) ou `os_id` + `anomalia_id` (avaria, puxa orçamento/custo e fotos); veículo, hub, data/hora da ocorrência; motorista (`motorista_id`) + **sugestão** (`motorista_sugerido_id`, `origem_sugestao` checklist/telemetria/manual); líder (texto opcional); valor, parcelas sugeridas e parcelas escolhidas; **fase**; respostas de cada fase (motorista concorda: sim/não/desligado; contestação válida; decisão da conferência; retenção rescisória); `observacoes_frota`; `motivo_custo_beep`; `pipefy_card_id` (importação, único).
+   - **Fases:** `enviado_lider` → `avaliacao_frota` (só com contestação) → `conferencia_frota` → `encaminhado_dp` → finais `confirmado_dp`, `custo_beep`, `rejeitada`, `cobranca_errada`; mais `analise_rh` (desligado).
+   - **Resultado financeiro** (calculado, não digitado): `confirmado_dp` = Repasse Motorista; `custo_beep` = absorvido pela Beep; `rejeitada`/`cobranca_errada` = sem custo.
+   - As trocas de fase passam por uma função que só aceita os caminhos da árvore e exige os campos de cada passo (ex.: devolver ao líder sem observação é recusado). A mesma regra fica em `regras.js`, com teste dos dois lados.
+3. **`descontos_historico`**: cada troca de fase (de → para, quem, quando, observação). Imutável, como o histórico da OS.
+4. **Anexos** (termo assinado, documentos): bucket privado `descontos-anexos`, acesso só de quem opera Multas e de admin (o termo tem nome e assinatura do colaborador).
+5. **`sugerir_motorista(placa, data_hora)`**: procura a Retirada aberta naquele momento (checklist) e, nos elétricos, o `driver_code` da viagem (falta ligar o código à matrícula). Devolve só id + nome; sem resultado, o operador escolhe à mão.
+6. **Parcelamento:** `Regras.parcelasSugeridas` — Leve 1x, Média até 3x, Grave/Gravíssima até 6x; ajustável.
+7. **Acesso:** mesmo módulo de Multas (ver = `posso_ver('multas')`, mexer = quem opera Multas). Multas não tem filtro de hub hoje.
+8. Visão Executiva: Repasse Motorista × Custo Beep por mês e por hub, sem nomes.
+
+**Etapas sugeridas:** E1 tabela CTB + parcelamento (com testes) → E2 `descontos` + fases + histórico (com testes) → E3 sugestão de motorista → E4 tela → E5 importação dos 291 cards → E6 Visão Executiva.
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
