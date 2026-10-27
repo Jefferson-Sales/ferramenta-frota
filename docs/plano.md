@@ -18,6 +18,18 @@ Definições registradas hoje (detalhes nas seções abaixo):
 - Falta: o quadrante na Visão Executiva (multas e valor no período, fila da liderança, ranking por hub, principais motivos, ranking de motoristas "Sem dados" até D2), o clique levando à tela de Multas filtrada (`exIr`), testes de banco do `exec_multas`, conferir no navegador, atualizar CLAUDE.md e push.
 - Dados de hoje que a tela precisa explicar: as notificações chegam com atraso (nenhuma infração registrada em outubro ainda); grau, pontos, código e motorista vazios nas 459 multas; o alerta "liderança sem retorno" fica zerado porque a data de envio à liderança nunca é preenchida.
 
+## Próximo passo — Multas e Avarias: esteira operacional (anotado em 27/10/2026)
+
+Publicado em 27/10/2026 (push `dc8cc52`): quadrante de Multas (C3, Visão Executiva completa), cards clicáveis do Dash de Manutenção e Excel analítico do checklist de retirada.
+
+O Jefferson está levantando no Claude Desktop o **mapeamento detalhado das fases e campos dos pipes de Multas e de Avarias do Pipefy**. Com esse mapeamento em mãos, o próximo passo é alinhar a esteira operacional na ferramenta:
+- **Status:** as fases do Pipefy viram os status da multa/avaria (hoje `multas.status` tem recebida_email, enviada_lideranca, aguardando_retorno_lideranca, infrator_identificado, infrator_nao_identificado, enviada_locadora etc. — conferir um a um contra o mapeamento).
+- **Indicação de infrator:** ligar a multa ao motorista do cadastro (`motorista_identificado_id`; é também a etapa D2, que destrava o ranking de motoristas).
+- **Envio para o DP** (desconto em folha): registrar quando e por quem foi enviado.
+- **Divisão do valor: Repasse Motorista × Custo Beep** (hoje existem `valor_absorvido_empresa` e `paga_por`, vazios nas 459 multas).
+- **Avarias:** ainda não existe na ferramenta — desenhar a partir do mapeamento (provável ligação com as anomalias do checklist e com as OS de sinistro).
+- Não começar antes de receber o mapeamento. Dados pessoais (CPF, CNH) seguem só admin.
+
 ## Decisões do Jefferson (23/10/2026)
 
 - **Cores (Brandbook Beep):** Verde Beep `#00AFAA`; neutras/escuras `#F4F4F4`, `#E5E5E5`, `#1F5E89`; ciano/verde `#03E8DC`, `#04D4CE`, `#008E87`; laranjas `#FBA600`, `#F68300`, `#F36508`.
