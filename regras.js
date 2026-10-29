@@ -199,7 +199,30 @@
     return "Outros";
   }
 
+  // ---------- Descontos em folha (multas e avarias) — decisões do Jefferson, 27/10/2026 ----------
+  // Sugestão de parcelas; o operador pode ajustar de 1 até PARCELAS_MAX.
+  //   multa, pela gravidade: leve 1x; média até 3x; grave/gravíssima até 6x.
+  //   avaria, pelo valor: até R$ 300,00 → 1x; acima de R$ 300,00 até R$ 600,00 → 3x; acima de R$ 600,00 → 6x.
+  // Sem gravidade (multa) ou sem valor (avaria) → null (sem sugestão; o operador escolhe).
+  var PARCELAS_MAX = 6;
+  var PARCELAS_POR_GRAU = { leve: 1, media: 3, grave: 6, gravissima: 6 };
+  function parcelasSugeridas(tipo, grau, valor) {
+    if (tipo === "multa") return PARCELAS_POR_GRAU[grau] || null;
+    if (tipo === "avaria") {
+      if (valor == null || valor === "" || isNaN(Number(valor)) || Number(valor) <= 0) return null;
+      var centavos = Math.round(Number(valor) * 100);
+      return centavos <= 30000 ? 1 : centavos <= 60000 ? 3 : 6;
+    }
+    return null;
+  }
+  function parcelasValidas(n) {
+    return Number.isInteger(n) && n >= 1 && n <= PARCELAS_MAX;
+  }
+
   global.Regras = {
+    PARCELAS_MAX: PARCELAS_MAX,
+    parcelasSugeridas: parcelasSugeridas,
+    parcelasValidas: parcelasValidas,
     motivoDaDescricao: motivoDaDescricao,
     classificarMotivo: classificarMotivo,
     MOTIVOS_MULTA: MOTIVOS.map(function(m){ return m[0]; }).concat(["Outros", "Sem motivo informado"]),

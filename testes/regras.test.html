@@ -212,6 +212,31 @@
   igual("4 opções, na ordem", Object.keys(R.STATUS_LIBERACAO).join(","), "aguardando_orcamento,em_reparo,pronto_retirada,liberado");
   igual("texto de pronto_retirada", R.STATUS_LIBERACAO.pronto_retirada, "Pronto, aguardando retirada");
 
+  grupo("Descontos — parcelas sugeridas (multa pela gravidade, avaria pelo valor)");
+  igual("multa leve → 1x",                 R.parcelasSugeridas("multa", "leve"), 1);
+  igual("multa média → 3x",                R.parcelasSugeridas("multa", "media"), 3);
+  igual("multa grave → 6x",                R.parcelasSugeridas("multa", "grave"), 6);
+  igual("multa gravíssima → 6x",           R.parcelasSugeridas("multa", "gravissima"), 6);
+  igual("multa sem gravidade → sem sugestão", R.parcelasSugeridas("multa", null), null);
+  igual("multa ignora o valor",            R.parcelasSugeridas("multa", "leve", 5000), 1);
+  igual("avaria R$ 150 → 1x",              R.parcelasSugeridas("avaria", null, 150), 1);
+  igual("avaria R$ 300,00 → 1x (limite)",  R.parcelasSugeridas("avaria", null, 300), 1);
+  igual("avaria R$ 300,01 → 3x",           R.parcelasSugeridas("avaria", null, 300.01), 3);
+  igual("avaria R$ 300,50 → 3x",           R.parcelasSugeridas("avaria", null, 300.5), 3);
+  igual("avaria R$ 600,00 → 3x (limite)",  R.parcelasSugeridas("avaria", null, 600), 3);
+  igual("avaria R$ 600,01 → 6x",           R.parcelasSugeridas("avaria", null, 600.01), 6);
+  igual("avaria R$ 5.000 → 6x (teto)",     R.parcelasSugeridas("avaria", null, 5000), 6);
+  igual("avaria valor em texto '450' → 3x", R.parcelasSugeridas("avaria", null, "450"), 3);
+  igual("avaria sem valor → sem sugestão",  R.parcelasSugeridas("avaria", null, null), null);
+  igual("avaria valor zero → sem sugestão", R.parcelasSugeridas("avaria", null, 0), null);
+  igual("avaria ignora a gravidade",       R.parcelasSugeridas("avaria", "gravissima", 100), 1);
+  igual("tipo desconhecido → sem sugestão", R.parcelasSugeridas("outro", "leve", 100), null);
+  igual("ajuste manual: 1 vale",           R.parcelasValidas(1), true);
+  igual("ajuste manual: 6 vale (teto)",    R.parcelasValidas(6), true);
+  igual("ajuste manual: 7 não vale",       R.parcelasValidas(7), false);
+  igual("ajuste manual: 0 não vale",       R.parcelasValidas(0), false);
+  igual("ajuste manual: 2,5 não vale",     R.parcelasValidas(2.5), false);
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){

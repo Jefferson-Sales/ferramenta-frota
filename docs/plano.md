@@ -87,6 +87,46 @@ Ideia central: **`multas` continua sendo a multa** (recebimento e identificaçã
 
 **Etapas sugeridas:** E1 tabela CTB + parcelamento (com testes) → E2 `descontos` + fases + histórico (com testes) → E3 sugestão de motorista → E4 tela → E5 importação dos 291 cards → E6 Visão Executiva.
 
+### Etapa 1 — desenho detalhado (29/10/2026, aguardando validação)
+
+**Já feito:** `Regras.parcelasSugeridas(tipo, grau, valor)` + `Regras.parcelasValidas(n)` (1 a 6) em `regras.js`, com 23 testes (139 no total). A mesma regra vai para o banco (`frota.parcelas_sugeridas`) com teste em `regras.test.sql`.
+
+**`frota.ctb_infracoes`** (referência): `codigo` (texto, chave — enquadramento + desdobramento, ex. "745-50"), `descricao`, `grau` (`grau_infracao`), `pontos` (calculado pela gravidade: 3/4/5/7), `valor`, `custo_beep_automatico` (rodízio = sim), `conferido` (só vale para sugestão depois que o Jefferson conferir), `ativo`. RLS: lê quem vê Multas; grava só admin. `multas` ganha `ctb_codigo` (opcional) — as 459 antigas continuam como estão.
+
+**`frota.descontos_folha`** (a esteira):
+- tipo `multa`/`avaria`; `multa_id` (único — uma cobrança por multa) ou `os_id` + `anomalia_id` (avaria; OS opcional para não travar a importação do Pipefy);
+- `veiculo_id`, `hub_id` (**hub no momento da ocorrência**, guardado — para o custo por hub não mudar se o carro trocar de hub), `ocorrida_em`, `ctb_codigo`, `grau`;
+- `motorista_id`, `motorista_sugerido_id`, `origem_sugestao` (checklist/telemetria/manual/importacao), `lider_nome` (opcional);
+- `valor` (> 0), `parcelas_sugeridas`, `parcelas` (1–6);
+- `fase` + respostas: `motorista_concorda` (sim/nao/desligado), `contestacao_motivo`, `contestacao_valida`, `retencao_rescisoria`, `observacoes_frota`, `motivo_custo_beep`, `motivo_dp`;
+- `resultado` calculado pela fase: Repasse Motorista / Custo Beep / Sem custo / (em andamento);
+- `pipefy_card_id` (único), quem criou, datas.
+
+**Caminhos permitidos** (gatilho no banco recusa qualquer outro e confere os campos de cada passo):
+
+| De | Para | Exige |
+|---|---|---|
+| (criação) | Enviado ao líder | — ; se o CTB for Custo Beep automático (rodízio) → nasce em **Custo Beep**, motivo "Rodízio municipal" |
+| Enviado ao líder | Conferência Frota | motorista concorda = sim |
+| Enviado ao líder | Avaliação da Frota | concorda = não + motivo da contestação |
+| Enviado ao líder | Análise RH / Custo Beep | concorda = motorista desligado |
+| Avaliação da Frota | Conferência Frota | contestação **não** válida |
+| Avaliação da Frota | **? (a decidir)** | contestação válida |
+| Conferência Frota | Encaminhado ao DP | — |
+| Conferência Frota | Enviado ao líder | Observações da Frota (≥ 5 letras) |
+| Conferência Frota | Custo Beep | motivo do Custo Beep |
+| Análise RH | Encaminhado ao DP | com retenção rescisória |
+| Análise RH | Custo Beep | sem retenção → motivo "Motorista desligado" automático |
+| Encaminhado ao DP | Confirmado pelo DP / Rejeitada / Cobrança errada | Rejeitada e Cobrança errada exigem motivo |
+
+Fases finais não mudam mais (só admin reabre, com motivo — fica no histórico).
+
+**`frota.descontos_historico`**: cada troca de fase (de → para, observação, quem, quando), gravada por gatilho; **imutável** (mesmo padrão do histórico da OS).
+
+**Acesso:** igual a Multas — vê quem tem `posso_ver('multas')`; cria/move quem opera Multas e admin; ninguém apaga (usa Rejeitada/Cobrança errada). Sem filtro de hub (Multas não tem).
+
+**Fica para as próximas etapas:** anexos (bucket privado), sugestão de motorista (E3), tela (E4), importação do Pipefy (E5), Visão Executiva (E6).
+
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
 Usar esta evolução para calibrar qualquer cálculo histórico de frota, disponibilidade, custo e km por hub dos elétricos (não supor 60 carros desde o início do ano):
