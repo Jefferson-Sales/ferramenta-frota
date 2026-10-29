@@ -215,6 +215,13 @@
     }
     return null;
   }
+  // Valor considerado (decisão do Jefferson, 29/10/2026): o "com desconto" quando preenchido; senão, o bruto.
+  // Mesma regra do banco (gatilho descontos_folha_a_valor). Vazio, zero ou texto inválido conta como não preenchido.
+  function valorConsiderado(bruto, comDesconto) {
+    var n = function(v){ if (v == null || v === "") return null; var x = Number(v); return isNaN(x) || x <= 0 ? null : Math.round(x * 100) / 100; };
+    var d = n(comDesconto), b = n(bruto);
+    return d != null ? d : b;
+  }
   function parcelasValidas(n) {
     return Number.isInteger(n) && n >= 1 && n <= PARCELAS_MAX;
   }
@@ -251,6 +258,7 @@
     destinoContabil: destinoContabil,
     parcelasSugeridas: parcelasSugeridas,
     parcelasValidas: parcelasValidas,
+    valorConsiderado: valorConsiderado,
     motivoDaDescricao: motivoDaDescricao,
     classificarMotivo: classificarMotivo,
     MOTIVOS_MULTA: MOTIVOS.map(function(m){ return m[0]; }).concat(["Outros", "Sem motivo informado"]),

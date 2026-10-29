@@ -237,6 +237,16 @@
   igual("ajuste manual: 0 não vale",       R.parcelasValidas(0), false);
   igual("ajuste manual: 2,5 não vale",     R.parcelasValidas(2.5), false);
 
+  grupo("Valor considerado (bruto × com desconto)");
+  igual("só bruto → bruto",                  R.valorConsiderado(195.23, null), 195.23);
+  igual("com desconto preenchido → ele",     R.valorConsiderado(195.23, 156.18), 156.18);
+  igual("com desconto vazio (\"\") → bruto", R.valorConsiderado(195.23, ""), 195.23);
+  igual("com desconto zero → bruto",         R.valorConsiderado(195.23, 0), 195.23);
+  igual("texto do campo (\"130.16\") vale",  R.valorConsiderado("130.16", ""), 130.16);
+  igual("só com desconto → ele",             R.valorConsiderado(null, 104.13), 104.13);
+  igual("nada preenchido → null",            R.valorConsiderado("", ""), null);
+  igual("arredonda em centavos",             R.valorConsiderado(100.005, null), 100.01);
+
   grupo("Descontos — fases e destino do valor");
   igual("9 fases, na ordem do banco",      R.DESCONTO_FASES.map(function(f){ return f.chave; }).join(","),
         "enviado_lider,avaliacao_frota,conferencia_frota,analise_rh,encaminhado_dp,rejeitada_dp,confirmado_dp,custo_beep,cobranca_errada");

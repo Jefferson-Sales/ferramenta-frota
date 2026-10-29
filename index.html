@@ -322,6 +322,17 @@
   .dsc-kpis .dsc-kpi-final{ background:var(--surface-2); }
   .dsc-motivo{ min-width:180px; max-width:280px; }
   .dsc-nowrap{ white-space:nowrap; }
+  .dn-origem{ margin:0 0 var(--espaco-6); }
+  .dsc-link{ background:none; border:none; padding:0; cursor:pointer; }
+  .dn-os-acao{ display:flex; align-items:center; flex-wrap:wrap; gap:var(--espaco-4); margin-top:var(--espaco-6); }
+  .dn-os-acao .btn{ width:auto; }
+  .dn-sug{ border:1px solid var(--line); border-radius:var(--raio-xl); padding:var(--espaco-4) var(--espaco-5); margin-bottom:var(--espaco-3); display:flex; align-items:center; justify-content:space-between; gap:var(--espaco-4); flex-wrap:wrap; }
+  .dn-sug.escolhido{ border-color:var(--accent); background:var(--accent-soft); }
+  .dn-sug .nome{ font-weight:600; }
+  .dn-sug .btn{ width:auto; }
+  .dn-mot-acoes{ display:flex; flex-wrap:wrap; gap:var(--espaco-3); align-items:center; margin-top:var(--espaco-2); }
+  .dn-mot-acoes .btn{ width:auto; }
+  .dn-aviso{ color:var(--warning); }
   .dsc-hist .det{ flex-basis:100%; color:var(--muted); font-size:var(--fs-sm); padding-left:calc(112px + var(--espaco-4)); }
   @media (max-width:560px){ .dsc-hist .det{ padding-left:0; } .detail-grid.dsc-resumo{ grid-template-columns:1fr; } }
   .osd-hist li{ display:flex; flex-wrap:wrap; gap:var(--espaco-1) var(--espaco-4); padding:var(--espaco-2) 0; border-bottom:1px solid var(--line); }
@@ -586,7 +597,7 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Placa</th><th>Motorista</th><th>Data infração</th><th>Status</th><th>Alerta</th><th>Locadora</th><th>Supervisor</th><th class="num">Valor</th><th class="num">Absorvido empresa</th></tr></thead>
+            <thead><tr><th>Placa</th><th>Motorista</th><th>Data infração</th><th>Status</th><th>Alerta</th><th>Locadora</th><th>Supervisor</th><th class="num">Valor</th><th>Desconto</th></tr></thead>
             <tbody id="multas-body"><tr><td colspan="9" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
@@ -1253,6 +1264,39 @@
   </div>
 </div>
 
+<div class="modal-overlay modal-stacked" id="modal-desconto-novo" hidden>
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-head"><h3 id="dn-titulo">Abrir desconto</h3><button class="modal-close" data-close-modal>×</button></div>
+    <form id="dn-form" autocomplete="off">
+      <div class="ac-hint dn-origem" id="dn-origem"></div>
+      <div class="form-grid">
+        <div class="field"><label for="dn-quando">Data e hora da ocorrência</label><input id="dn-quando" type="datetime-local" required></div>
+        <div class="field" id="dn-anomalia-wrap" hidden><label for="dn-anomalia">Anomalia do checklist (opcional)</label><select id="dn-anomalia"><option value="">—</option></select><div class="ac-hint">Ajuste a data e a hora para quando o dano aconteceu: a sugestão mostra quem estava com o carro nesse horário.</div></div>
+
+        <div class="field span2 section-sub" id="dn-ctb-titulo">Infração (CTB)</div>
+        <div class="field span2" id="dn-ctb-wrap"><label for="dn-ctb">Infração da tabela do CTB</label><input id="dn-ctb" list="ctb-lista" placeholder="Digite o código ou parte do texto"><div class="ac-hint" id="dn-ctb-info"></div></div>
+        <div class="field" id="dn-grau-wrap"><label for="dn-grau">Gravidade</label>
+          <select id="dn-grau"><option value="">—</option><option value="leve">Leve</option><option value="media">Média</option><option value="grave">Grave</option><option value="gravissima">Gravíssima</option></select></div>
+        <div class="field" id="dn-pontos-wrap"><label for="dn-pontos">Pontos na CNH</label><input id="dn-pontos" readonly tabindex="-1"></div>
+        <div class="field span2"><label for="dn-desc" id="dn-desc-rotulo">Observação (opcional)</label><textarea id="dn-desc" rows="2" maxlength="2000"></textarea></div>
+
+        <div class="field span2 section-sub">Condutor</div>
+        <div class="field span2"><div id="dn-motorista-card"></div><input type="hidden" id="dn-motorista"></div>
+
+        <div class="field span2 section-sub">Valores e parcelas</div>
+        <div class="field"><label for="dn-bruto">Valor bruto (R$)</label><input id="dn-bruto" type="number" step="0.01" min="0.01"></div>
+        <div class="field"><label for="dn-comdesc">Valor com desconto (R$) — opcional</label><input id="dn-comdesc" type="number" step="0.01" min="0.01"></div>
+        <div class="field span2 ac-hint" id="dn-valor-info"></div>
+        <div class="field"><label for="dn-parcelas">Parcelas</label><select id="dn-parcelas"><option value="">Escolha…</option><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option></select><div class="ac-hint" id="dn-parcelas-info"></div></div>
+        <div class="field"><label for="dn-lider">Líder / supervisor (opcional)</label><input id="dn-lider" maxlength="120"></div>
+      </div>
+      <div class="ac-hint">O desconto começa em <b>Enviado ao líder</b> na data de hoje. Rodízio (infração conferida como Custo Beep automático) já nasce como Custo Beep.</div>
+      <div class="field-err" id="dn-err" hidden></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="dn-salvar" style="width:auto">Abrir desconto</button></div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-desconto" hidden>
   <div class="modal" style="max-width:680px;">
     <div class="modal-head"><h3 id="dsc-titulo">Desconto</h3><button class="modal-close" data-close-modal>×</button></div>
@@ -1265,6 +1309,10 @@
     <div class="modal-head"><h3 id="osd-titulo">OS</h3><button class="modal-close" data-close-modal>×</button></div>
 
     <div class="detail-grid" id="osd-resumo"></div>
+    <div class="dn-os-acao" id="osd-avaria" hidden>
+      <button type="button" class="btn" id="osd-cobrar-avaria">Cobrar avaria do motorista</button>
+      <span class="qf-sub" id="osd-avaria-info"></span>
+    </div>
 
     <div class="detail-section">
       <h4>Anomalias do checklist ligadas</h4>
@@ -1354,6 +1402,9 @@
   </div>
 </div>
 
+<datalist id="ctb-lista"></datalist>
+<datalist id="dn-mot-lista"></datalist>
+
 <div class="modal-overlay" id="modal-multa" hidden>
   <div class="modal" style="max-width:680px;">
     <div class="modal-head"><h3 id="modal-multa-titulo">Nova multa</h3><button class="modal-close" data-close-modal>×</button></div>
@@ -1366,6 +1417,7 @@
         <div class="field span2 section-sub">Identificação da multa</div>
         <div class="field"><label for="mu-numero">Número da notificação</label><input id="mu-numero"></div>
         <div class="field"><label for="mu-auto">Auto de infração (AIT)</label><input id="mu-auto"></div>
+        <div class="field span2"><label for="mu-ctb">Infração (tabela do CTB)</label><input id="mu-ctb" list="ctb-lista" placeholder="Digite o código ou parte do texto" autocomplete="off"><input type="hidden" id="mu-ctb-codigo"><div class="ac-hint" id="mu-ctb-info">Ao escolher, preenche gravidade, pontos e o motivo.</div></div>
         <div class="field"><label for="mu-codigo">Código de enquadramento</label><input id="mu-codigo"></div>
         <div class="field"><label for="mu-grau">Grau da infração</label>
           <select id="mu-grau">
@@ -1380,11 +1432,9 @@
         <div class="field span2"><label for="mu-desc">Motivo da multa</label><textarea id="mu-desc" rows="2"></textarea></div>
 
         <div class="field span2 section-sub">Valores</div>
-        <div class="field"><label for="mu-valor-bruto">Valor bruto (R$)</label><input id="mu-valor-bruto" type="number" step="0.01"></div>
-        <div class="field"><label for="mu-valor-desconto">Valor com desconto (R$)</label><input id="mu-valor-desconto" type="number" step="0.01"></div>
-        <div class="field"><label for="mu-valor">Valor considerado (R$)</label><input id="mu-valor" type="number" step="0.01" required></div>
-        <div class="field"><label for="mu-absorvido">Valor absorvido pela empresa (R$)</label><input id="mu-absorvido" type="number" step="0.01"></div>
-        <div class="field"><label for="mu-paga-por">Paga por</label><input id="mu-paga-por" placeholder="Ex.: motorista, empresa…"></div>
+        <div class="field"><label for="mu-valor-bruto">Valor bruto (R$)</label><input id="mu-valor-bruto" type="number" step="0.01" min="0.01"></div>
+        <div class="field"><label for="mu-valor-desconto">Valor com desconto (R$) — opcional</label><input id="mu-valor-desconto" type="number" step="0.01" min="0.01"></div>
+        <div class="field span2 ac-hint" id="mu-valor-info"></div>
 
         <div class="field span2 section-sub">Datas e prazos</div>
         <div class="field"><label for="mu-data-infracao">Data da infração</label><input id="mu-data-infracao" type="datetime-local" required></div>
@@ -2899,6 +2949,11 @@
       sel.value = muFiltros.hub;
     }).catch(function(){});
 
+    carregarCTB().catch(function(){});
+    rest("descontos_folha?select=id,multa_id,fase&multa_id=not.is.null").then(function(rows){
+      MU_DESC = {}; (rows || []).forEach(function(d){ MU_DESC[d.multa_id] = d; });
+      if (multasCache.length) aplicarFiltrosMultas();
+    }).catch(function(){});
     rest("v_multas_detalhe?select=*&order=data_infracao.desc&limit=5000").then(function(rows){
       multasCache = (rows || []).map(function(m){ m._motivo = Regras.classificarMotivo(Regras.motivoDaDescricao(m.descricao)); return m; });
       aplicarFiltrosMultas();
@@ -2949,11 +3004,15 @@
         "<td>" + esc(m.placa || "—") + "</td><td>" + esc(m.motorista_nome || "—") + "</td><td>" + dateBR(m.data_infracao) + "</td><td>" +
         pill(STATUS_MULTA_LABEL[m.status] || m.status, STATUS_MULTA_PILL[m.status]) + "</td><td>" + alerta + "</td><td>" +
         esc(m.locadora || "—") + "</td><td>" + esc(m.supervisor_responsavel || "—") + "</td><td class=\"num\">" +
-        money(m.valor) + "</td><td class=\"num\">" + money(m.valor_absorvido_empresa) + "</td></tr>";
+        money(m.valor) + "</td><td>" + muCelulaDesconto(m) + "</td></tr>";
     }).join("");
   }
 
   document.getElementById("multas-body").addEventListener("click", function(ev){
+    var bEnv = ev.target.closest("[data-dsc-multa]");
+    if (bEnv){ abrirNovoDescontoMulta(bEnv.dataset.dscMulta); return; }
+    var bVer = ev.target.closest("[data-ver-desconto]");
+    if (bVer){ verDesconto(bVer.dataset.verDesconto); return; }
     var tr = ev.target.closest(".os-row");
     if (!tr || !canEdit("multas")) return;
     abrirEdicaoMulta(tr.dataset.multaId);
@@ -2989,6 +3048,7 @@
     rest("descontos_folha?select=*,veiculos(placa),hubs(nome),multas(descricao,numero_multa,auto_infracao),ctb_infracoes(descricao,pontos)&order=criado_em.desc&limit=5000").then(function(rows){
       DSC.lista = rows || [];
       aplicarFiltrosDescontos();
+      if (DSC.abrirDepois){ var alvo = DSC.abrirDepois; DSC.abrirDepois = null; abrirDesconto(alvo); }
     }).catch(function(e){
       document.getElementById("dsc-body").innerHTML = '<tr><td colspan="8" class="empty-row" style="color:var(--critical)">Erro ao carregar: ' + esc(e.message) + '</td></tr>';
     });
@@ -3113,7 +3173,7 @@
         item(d.tipo === "multa" ? "Infração (CTB)" : "Avaria", infracao) +
         item("Ocorrência", esc(d.ocorrida_em ? dateTimeBR(d.ocorrida_em) : "—")) +
         item("Hub (na ocorrência)", esc(d.hubs ? d.hubs.nome : "—")) +
-        item("Valor", money(d.valor)) +
+        item("Valor", money(d.valor) + (d.valor_com_desconto != null && d.valor_bruto != null ? ' <span class="qf-sub">(com desconto; bruto ' + esc(money(d.valor_bruto)) + ')</span>' : "")) +
         item("Parcelas", esc(d.parcelas) + "x" + (d.parcelas_sugeridas ? ' <span class="qf-sub">(sugerido ' + esc(d.parcelas_sugeridas) + 'x)</span>' : "")) +
         item("Motorista cobrado", d.motorista_id ? esc(dscNomeMotorista(d.motorista_id)) : '<span class="qf-sub">A definir</span>') +
         item("Motorista sugerido", sug) +
@@ -3170,6 +3230,307 @@
     });
   }
 
+  // ---------------- Tabela do CTB (referência; no banco, só a linha conferida completa a gravidade sozinha) ----------------
+  var CTB = { porCodigo: {}, carregado: null };
+  function ctbRotulo(c){ return c.codigo + " — " + c.descricao; }
+  function carregarCTB(){
+    if (CTB.carregado) return CTB.carregado;
+    CTB.carregado = rest("ctb_infracoes?select=codigo,descricao,grau,pontos,valor,custo_beep_automatico,conferido&ativo=eq.true&order=codigo").then(function(rows){
+      CTB.porCodigo = {};
+      (rows || []).forEach(function(c){ CTB.porCodigo[c.codigo] = c; });
+      document.getElementById("ctb-lista").innerHTML = (rows || []).map(function(c){ return '<option value="' + esc(ctbRotulo(c)) + '"></option>'; }).join("");
+      return CTB.porCodigo;
+    }).catch(function(e){ CTB.carregado = null; throw e; });
+    return CTB.carregado;
+  }
+  // aceita o texto da lista ("745-50 — Transitar…") ou só o código digitado
+  function ctbDoTexto(t){
+    t = String(t || "").trim(); if (!t) return null;
+    return CTB.porCodigo[t.split(" — ")[0].trim().toUpperCase()] || null;
+  }
+  function ctbInfoHtml(c){
+    if (!c) return "";
+    return '<b>' + esc(c.descricao) + '</b><br>' + esc((DSC_GRAU[c.grau] || c.grau) + " · " + c.pontos + " pontos na CNH" + (c.valor ? " · valor de referência " + money(c.valor) : "")) +
+      (c.custo_beep_automatico ? " · <b>Custo Beep automático</b>" : "") +
+      (c.conferido ? "" : '<br><span class="dn-aviso">Infração ainda não conferida' + (/^PROV-/.test(c.codigo) ? " (código provisório)" : "") + ': confira gravidade e valor.</span>');
+  }
+
+  // ---------------- formulário de Multas: CTB e valor considerado ----------------
+  var MU_CTB_DICA = "Ao escolher, preenche gravidade, pontos e o motivo.";
+  function muAtualizarValorInfo(){
+    var b = document.getElementById("mu-valor-bruto").value, d = document.getElementById("mu-valor-desconto").value;
+    var v = Regras.valorConsiderado(b, d);
+    document.getElementById("mu-valor-info").innerHTML = v != null
+      ? "Valor considerado (o que soma nos totais): <b>" + esc(money(v)) + "</b> — " + (Regras.valorConsiderado(null, d) != null ? "com desconto" : "valor bruto")
+      : "Informe o valor bruto da multa (o valor com desconto é opcional).";
+  }
+  ["mu-valor-bruto", "mu-valor-desconto"].forEach(function(id){ document.getElementById(id).addEventListener("input", muAtualizarValorInfo); });
+  function muPreencherCTB(cod){
+    document.getElementById("mu-ctb-codigo").value = cod || "";
+    document.getElementById("mu-ctb").value = cod || "";
+    document.getElementById("mu-ctb-info").textContent = MU_CTB_DICA;
+    if (!cod) return;
+    carregarCTB().then(function(){
+      var c = CTB.porCodigo[cod];
+      if (c){ document.getElementById("mu-ctb").value = ctbRotulo(c); document.getElementById("mu-ctb-info").innerHTML = ctbInfoHtml(c); }
+    }).catch(function(){});
+  }
+  document.getElementById("mu-ctb").addEventListener("change", function(){
+    var campo = this;
+    carregarCTB().then(function(){
+      var c = ctbDoTexto(campo.value);
+      document.getElementById("mu-ctb-codigo").value = c ? c.codigo : "";
+      document.getElementById("mu-ctb-info").innerHTML = c ? ctbInfoHtml(c)
+        : (campo.value.trim() ? '<span class="dn-aviso">Infração não encontrada na tabela — escolha uma da lista.</span>' : esc(MU_CTB_DICA));
+      if (!c) return;
+      campo.value = ctbRotulo(c);
+      document.getElementById("mu-grau").value = c.grau;
+      document.getElementById("mu-pontos").value = c.pontos;
+      if (!/^PROV-/.test(c.codigo)) document.getElementById("mu-codigo").value = c.codigo;
+      var desc = document.getElementById("mu-desc");
+      if (!desc.value.trim()) desc.value = c.descricao;
+      var bruto = document.getElementById("mu-valor-bruto");
+      if (!bruto.value && c.valor) bruto.value = c.valor;
+      muAtualizarValorInfo();
+    }).catch(function(e){ toast("Não foi possível carregar a tabela do CTB: " + e.message, true); });
+  });
+
+  // coluna "Desconto" da lista de multas
+  var MU_DESC = {};
+  function muCelulaDesconto(m){
+    var d = MU_DESC[m.id];
+    if (d) return '<button type="button" class="dsc-link" data-ver-desconto="' + esc(d.id) + '" title="Ver o desconto">' + dscFasePill(d.fase) + '</button>';
+    return canEdit("multas") ? '<button type="button" class="btn qf-mini" data-dsc-multa="' + esc(m.id) + '">Enviar para desconto</button>' : '<span class="qf-sub">—</span>';
+  }
+  function verDesconto(id){ DSC.abrirDepois = id; muTrocarTela("descontos"); }
+
+  // ---------------- Abrir desconto (multa ou avaria) — Etapa 4b ----------------
+  var DN = { ctx: null, parcManual: false, sugestoes: [], carregandoSug: false, buscaAberta: false, motoristas: null, listaMot: [], anomalias: [] };
+  function dnMotRotulo(r){ return r.nome + (r.matricula ? " — matrícula " + r.matricula : "") + (r.ativo === false ? " (inativo)" : ""); }
+  function dnMotoristas(){
+    if (!DN.motoristas) DN.motoristas = rest("v_motoristas_basico?select=id,nome,matricula,ativo&order=nome").then(function(rows){
+      DN.listaMot = rows || [];
+      DN.listaMot.forEach(function(r){ DSC.motoristas[r.id] = r.nome; });
+      document.getElementById("dn-mot-lista").innerHTML = DN.listaMot.map(function(r){ return '<option value="' + esc(dnMotRotulo(r)) + '"></option>'; }).join("");
+      return DN.listaMot;
+    }).catch(function(e){ DN.motoristas = null; throw e; });
+    return DN.motoristas;
+  }
+
+  function abrirNovoDescontoMulta(multaId){
+    var m = multasCache.filter(function(x){ return x.id === multaId; })[0];
+    if (!m) return;
+    dnAbrir({ tipo: "multa", multa: m, veiculo_id: m.veiculo_id, quando: m.data_infracao, ctb: m.ctb_codigo, grau: m.grau_infracao,
+      bruto: m.valor_bruto != null ? m.valor_bruto : (m.valor_desconto != null ? null : m.valor), comdesc: m.valor_desconto,
+      lider: m.supervisor_responsavel || m.lideranca_responsavel || "", motorista: m.motorista_identificado_id || "",
+      origem: "Multa " + (m.placa || "") + (m.auto_infracao ? " · AIT " + m.auto_infracao : "") + " · infração em " + dateTimeBR(m.data_infracao) + (m.hub ? " · " + m.hub : "") });
+  }
+  function abrirNovoDescontoOS(o){
+    var placa = (o.veiculos || {}).placa || "";
+    dnAbrir({ tipo: "avaria", os: o, veiculo_id: o.veiculo_id, quando: o.data_parou || null, bruto: o.valor_total, comdesc: null, lider: "", motorista: "",
+      origem: "OS de " + (o.tipo || "manutenção") + " · " + placa + (o.data_parou ? " · parou em " + dateBR(o.data_parou) : "") + (o.valor_total ? " · valor da OS " + money(o.valor_total) : "") +
+        ". O desconto fica ligado à OS (orçamento, anexos e fotos da anomalia continuam nela)." });
+    var sel = document.getElementById("dn-anomalia");
+    sel.innerHTML = '<option value="">—</option>'; DN.anomalias = [];
+    Promise.all([qfGarantirBase().catch(function(){}),
+      rest("checklist_anomalias?os_id=eq." + o.id + "&nova=eq.true&select=id,item_codigo,subtipo,descricao,severidade,created_at&order=created_at")]).then(function(r){
+      if (!DN.ctx || DN.ctx.os !== o) return;
+      DN.anomalias = r[1] || [];
+      sel.innerHTML = '<option value="">' + (DN.anomalias.length ? "—" : "Nenhuma anomalia ligada a esta OS") + '</option>' + DN.anomalias.map(function(a){
+        return '<option value="' + esc(a.id) + '">' + esc(qfItem(a) + (a.descricao ? " — " + a.descricao : "") + " · " + dateTimeBR(a.created_at)) + '</option>';
+      }).join("");
+      if (DN.anomalias.length === 1){ sel.value = DN.anomalias[0].id; dnAoEscolherAnomalia(); }
+    }).catch(function(){});
+  }
+
+  function dnAbrir(ctx){
+    DN.ctx = ctx; DN.parcManual = false; DN.sugestoes = []; DN.buscaAberta = false;
+    var multa = ctx.tipo === "multa";
+    document.getElementById("dn-form").reset();
+    setErr("dn-err", "");
+    document.getElementById("dn-titulo").textContent = multa ? "Enviar multa para desconto" : "Cobrar avaria do motorista";
+    document.getElementById("dn-origem").textContent = ctx.origem;
+    ["dn-ctb-titulo", "dn-ctb-wrap", "dn-grau-wrap", "dn-pontos-wrap"].forEach(function(id){ document.getElementById(id).hidden = !multa; });
+    document.getElementById("dn-anomalia-wrap").hidden = multa;
+    document.getElementById("dn-desc-rotulo").textContent = multa ? "Observação (opcional)" : "Descrição da avaria";
+    document.getElementById("dn-quando").value = isoParaCampoLocal(ctx.quando || new Date().toISOString());
+    document.getElementById("dn-bruto").value = ctx.bruto != null ? ctx.bruto : "";
+    document.getElementById("dn-comdesc").value = ctx.comdesc != null ? ctx.comdesc : "";
+    document.getElementById("dn-lider").value = ctx.lider || "";
+    document.getElementById("dn-grau").value = ctx.grau || "";
+    document.getElementById("dn-motorista").value = ctx.motorista || "";
+    document.getElementById("dn-ctb-info").textContent = "Ao escolher, preenche a descrição oficial, a gravidade e os pontos.";
+    if (multa) carregarCTB().then(function(){
+      var c = ctx.ctb ? CTB.porCodigo[ctx.ctb] : null;
+      if (c && DN.ctx === ctx){ document.getElementById("dn-ctb").value = ctbRotulo(c); dnAplicarCTB(c, false); }
+    }).catch(function(){});
+    dnAtualizarPontos(); dnAtualizarValor();
+    dnMotoristas().then(dnRenderMotorista).catch(function(){});
+    dnBuscarSugestao();
+    openModal("modal-desconto-novo");
+  }
+
+  function dnAplicarCTB(c, preencherValor){
+    document.getElementById("dn-ctb-info").innerHTML = ctbInfoHtml(c);
+    document.getElementById("dn-grau").value = c.grau;
+    var bruto = document.getElementById("dn-bruto");
+    if (preencherValor && !bruto.value && c.valor) bruto.value = c.valor;
+    dnAtualizarPontos(); dnAtualizarValor();
+  }
+  function dnAtualizarPontos(){
+    var g = document.getElementById("dn-grau").value;
+    document.getElementById("dn-pontos").value = g && Regras.PONTOS_POR_GRAU[g] != null ? Regras.PONTOS_POR_GRAU[g] : "";
+    dnSugerirParcelas();
+  }
+  function dnValor(){ return Regras.valorConsiderado(document.getElementById("dn-bruto").value, document.getElementById("dn-comdesc").value); }
+  function dnAtualizarValor(){
+    var v = dnValor(), d = document.getElementById("dn-comdesc").value;
+    document.getElementById("dn-valor-info").innerHTML = v != null
+      ? "Valor da cobrança: <b>" + esc(money(v)) + "</b> — " + (Regras.valorConsiderado(null, d) != null ? "com desconto" : "valor bruto")
+      : "Informe o valor bruto (o valor com desconto é opcional).";
+    dnSugerirParcelas();
+  }
+  function dnSugerirParcelas(){
+    if (!DN.ctx) return;
+    var multa = DN.ctx.tipo === "multa", g = document.getElementById("dn-grau").value;
+    var sug = Regras.parcelasSugeridas(DN.ctx.tipo, g, dnValor());
+    var sel = document.getElementById("dn-parcelas");
+    if (sug && !DN.parcManual) sel.value = String(sug);
+    document.getElementById("dn-parcelas-info").textContent = sug
+      ? "Sugerido: " + sug + "x (" + (multa ? "pela gravidade" : "pelo valor") + "). Pode ajustar de 1 a 6x."
+      : (multa ? "Sem sugestão: informe a gravidade." : "Sem sugestão: informe o valor.");
+  }
+
+  function dnBuscarSugestao(){
+    var q = document.getElementById("dn-quando").value, ctx = DN.ctx;
+    if (!q || !ctx) return;
+    DN.carregandoSug = true; dnRenderMotorista();
+    rest("rpc/sugerir_motorista", { method: "POST", body: { p_veiculo: ctx.veiculo_id, p_quando: new Date(q).toISOString() } }).then(function(rows){
+      if (DN.ctx !== ctx) return;
+      DN.sugestoes = rows || [];
+      DN.sugestoes.forEach(function(s){ DSC.motoristas[s.motorista_id] = s.nome; });
+    }).catch(function(){ if (DN.ctx === ctx) DN.sugestoes = []; }).then(function(){
+      if (DN.ctx !== ctx) return;
+      DN.carregandoSug = false; dnRenderMotorista();
+    });
+  }
+
+  function dnRenderMotorista(){
+    var host = document.getElementById("dn-motorista-card");
+    var escolhido = document.getElementById("dn-motorista").value;
+    var html = "";
+    if (DN.carregandoSug) html += '<div class="qf-sub">Procurando quem estava com o carro nesse horário…</div>';
+    else if (DN.sugestoes.length){
+      html += DN.sugestoes.map(function(s){
+        var on = escolhido === s.motorista_id;
+        return '<div class="dn-sug' + (on ? " escolhido" : "") + '"><div><div class="nome">' + esc(s.nome) + (s.matricula ? ' <span class="qf-sub">matrícula ' + esc(s.matricula) + '</span>' : '') + '</div>' +
+          '<div class="qf-sub">' + pill(s.confianca === "alta" ? "Confiança alta" : "Confiança média", s.confianca === "alta" ? "good" : "warn") + " " + esc(s.detalhe) + '</div>' +
+          '<div class="qf-sub">' + esc(s.origem === "telemetria" ? "Viagem da Questar" : "Retirada") + " " + esc(dateTimeBR(s.retirada_em)) +
+            (s.devolvida_em ? " → " + esc(s.origem === "telemetria" ? "fim " : "devolvida ") + esc(dateTimeBR(s.devolvida_em)) : "") + '</div></div>' +
+          (on ? pill("Escolhido", "good") : '<button type="button" class="btn qf-mini" data-dn-usar="' + esc(s.motorista_id) + '">Usar este</button>') + '</div>';
+      }).join("");
+      if (DN.sugestoes.length > 1) html += '<div class="ac-hint dn-aviso">Há mais de uma pessoa apontada para esse horário — confira antes de escolher.</div>';
+    } else html += '<div class="qf-sub">Nenhum checklist de Retirada cobre esse horário. Escolha o motorista à mão ou deixe para depois.</div>';
+    var temNaLista = DN.sugestoes.some(function(s){ return s.motorista_id === escolhido; });
+    if (escolhido && !temNaLista) html += '<div class="dn-sug escolhido"><div><div class="nome">' + esc(DSC.motoristas[escolhido] || "Motorista do cadastro") + '</div><div class="qf-sub">Escolhido à mão</div></div>' + pill("Escolhido", "good") + '</div>';
+    html += '<div class="dn-mot-acoes">' +
+      (DN.buscaAberta ? '<input id="dn-mot-busca" list="dn-mot-lista" class="filter-select" placeholder="Nome ou matrícula">' : '<button type="button" class="btn qf-mini" data-dn-outro>Escolher outro</button>') +
+      (escolhido ? '<button type="button" class="btn qf-mini" data-dn-limpar>Deixar para depois</button>' : '') + '</div>' +
+      '<div class="ac-hint">A sugestão não cobra ninguém sozinha: o motorista só fica indicado se você escolher. Dá para abrir sem motorista e definir depois.</div>';
+    host.innerHTML = html;
+    if (DN.buscaAberta){ var inp = document.getElementById("dn-mot-busca"); inp.focus(); inp.addEventListener("change", dnEscolherDaBusca); }
+  }
+  function dnEscolherDaBusca(){
+    var t = this.value.trim(); if (!t) return;
+    var r = DN.listaMot.filter(function(x){ return dnMotRotulo(x) === t; })[0]
+         || DN.listaMot.filter(function(x){ return x.matricula && x.matricula === t; })[0];
+    if (!r){ toast("Escolha um nome da lista.", true); return; }
+    document.getElementById("dn-motorista").value = r.id; DN.buscaAberta = false; dnRenderMotorista();
+  }
+  document.getElementById("dn-motorista-card").addEventListener("click", function(ev){
+    var b;
+    if ((b = ev.target.closest("[data-dn-usar]"))){ document.getElementById("dn-motorista").value = b.dataset.dnUsar; DN.buscaAberta = false; dnRenderMotorista(); }
+    else if (ev.target.closest("[data-dn-outro]")){ DN.buscaAberta = true; dnMotoristas().catch(function(){}); dnRenderMotorista(); }
+    else if (ev.target.closest("[data-dn-limpar]")){ document.getElementById("dn-motorista").value = ""; dnRenderMotorista(); }
+  });
+  function dnAoEscolherAnomalia(){
+    var a = DN.anomalias.filter(function(x){ return x.id === document.getElementById("dn-anomalia").value; })[0];
+    if (!a) return;
+    if (a.created_at) document.getElementById("dn-quando").value = isoParaCampoLocal(a.created_at);
+    var desc = document.getElementById("dn-desc");
+    if (!desc.value.trim()) desc.value = qfItem(a) + (a.descricao ? ": " + a.descricao : "");
+    dnBuscarSugestao();
+  }
+  document.getElementById("dn-anomalia").addEventListener("change", dnAoEscolherAnomalia);
+  document.getElementById("dn-quando").addEventListener("change", dnBuscarSugestao);
+  document.getElementById("dn-grau").addEventListener("change", dnAtualizarPontos);
+  ["dn-bruto", "dn-comdesc"].forEach(function(id){ document.getElementById(id).addEventListener("input", dnAtualizarValor); });
+  document.getElementById("dn-parcelas").addEventListener("change", function(){ DN.parcManual = true; });
+  document.getElementById("dn-ctb").addEventListener("change", function(){
+    var campo = this;
+    carregarCTB().then(function(){
+      var c = ctbDoTexto(campo.value);
+      if (c){ campo.value = ctbRotulo(c); dnAplicarCTB(c, true); }
+      else document.getElementById("dn-ctb-info").innerHTML = campo.value.trim() ? '<span class="dn-aviso">Infração não encontrada na tabela — escolha uma da lista.</span>' : "Ao escolher, preenche a descrição oficial, a gravidade e os pontos.";
+    }).catch(function(){});
+  });
+
+  document.getElementById("dn-form").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setErr("dn-err", "");
+    var c = DN.ctx; if (!c) return;
+    var multa = c.tipo === "multa";
+    var quando = document.getElementById("dn-quando").value;
+    if (!quando){ setErr("dn-err", "Informe a data e a hora da ocorrência."); return; }
+    var bruto = document.getElementById("dn-bruto").value, comd = document.getElementById("dn-comdesc").value;
+    if (dnValor() == null){ setErr("dn-err", "Informe o valor bruto."); return; }
+    if (bruto && comd && Number(comd) > Number(bruto)){ setErr("dn-err", "O valor com desconto não pode ser maior que o bruto."); return; }
+    var parc = parseInt(document.getElementById("dn-parcelas").value, 10);
+    if (!Regras.parcelasValidas(parc)){ setErr("dn-err", "Escolha o número de parcelas (de 1 a 6)."); return; }
+    var desc = document.getElementById("dn-desc").value.trim();
+    var body = {
+      tipo: c.tipo, veiculo_id: c.veiculo_id, ocorrida_em: new Date(quando).toISOString(),
+      valor_bruto: Number(bruto) > 0 ? Number(bruto) : null, valor_com_desconto: Number(comd) > 0 ? Number(comd) : null, parcelas: parc,
+      motorista_id: document.getElementById("dn-motorista").value || null,
+      lider_nome: document.getElementById("dn-lider").value.trim() || null, descricao: desc || null
+    };
+    if (multa){
+      var txt = document.getElementById("dn-ctb").value.trim(), cc = null;
+      if (txt){ cc = ctbDoTexto(txt); if (!cc){ setErr("dn-err", "Escolha a infração da lista do CTB (ou deixe em branco)."); return; } }
+      body.multa_id = c.multa.id; body.ctb_codigo = cc ? cc.codigo : null; body.grau = document.getElementById("dn-grau").value || null;
+    } else {
+      if (desc.length < 5){ setErr("dn-err", "Descreva a avaria (pelo menos 5 letras)."); return; }
+      body.os_id = c.os.id; body.anomalia_id = document.getElementById("dn-anomalia").value || null;
+    }
+    var btn = document.getElementById("dn-salvar"); btn.disabled = true;
+    rest("descontos_folha", { method: "POST", body: body }).then(function(rows){
+      var d = rows && rows[0], f = d ? Regras.faseDesconto(d.fase) : null;
+      toast("Desconto aberto" + (f ? " em " + f.nome : "") + ".");
+      document.getElementById("modal-desconto-novo").hidden = true;
+      DN.ctx = null;
+      if (multa){ DSC.abrirDepois = d ? d.id : null; loadMultas(); muTrocarTela("descontos"); }
+      else atualizarAvariaOS(c.os.id);
+    }).catch(function(e){
+      var msg = e.message || "";
+      if (/multa_id/.test(msg) && /duplicate|unique/i.test(msg)) msg = "Esta multa já tem um desconto aberto.";
+      else if (/valor_com_desconto_menor/.test(msg)) msg = "O valor com desconto não pode ser maior que o bruto.";
+      setErr("dn-err", msg);
+    }).then(function(){ btn.disabled = false; });
+  });
+
+  // botão "Cobrar avaria do motorista" no detalhe da OS (só quem opera Multas, ou admin)
+  function atualizarAvariaOS(osId){
+    var info = document.getElementById("osd-avaria-info");
+    info.textContent = "";
+    rest("descontos_folha?os_id=eq." + osId + "&select=id,fase").then(function(rows){
+      if (!osdAtual || osdAtual.id !== osId) return;
+      rows = rows || [];
+      info.innerHTML = rows.length ? (rows.length === 1 ? "Já existe 1 cobrança desta OS: " : "Já existem " + rows.length + " cobranças desta OS: ") +
+        rows.map(function(d){ return dscFasePill(d.fase); }).join(" ") : "Nenhuma cobrança de avaria aberta para esta OS.";
+    }).catch(function(){});
+  }
+  document.getElementById("osd-cobrar-avaria").addEventListener("click", function(){ if (osdAtual) abrirNovoDescontoOS(osdAtual); });
+
   function toDatetimeLocal(v){
     if (!v) return "";
     var d = new Date(v);
@@ -3189,11 +3550,11 @@
     document.getElementById("mu-grau").value = m.grau_infracao || "";
     document.getElementById("mu-pontos").value = m.pontos_cnh != null ? m.pontos_cnh : "";
     document.getElementById("mu-desc").value = m.descricao || "";
-    document.getElementById("mu-valor-bruto").value = m.valor_bruto != null ? m.valor_bruto : "";
+    // multas antigas só têm o "valor considerado": ele entra como bruto (a não ser que já exista um valor com desconto)
+    document.getElementById("mu-valor-bruto").value = m.valor_bruto != null ? m.valor_bruto : (m.valor_desconto != null ? "" : (m.valor != null ? m.valor : ""));
     document.getElementById("mu-valor-desconto").value = m.valor_desconto != null ? m.valor_desconto : "";
-    document.getElementById("mu-valor").value = m.valor != null ? m.valor : "";
-    document.getElementById("mu-absorvido").value = m.valor_absorvido_empresa != null ? m.valor_absorvido_empresa : "";
-    document.getElementById("mu-paga-por").value = m.paga_por || "";
+    muAtualizarValorInfo();
+    muPreencherCTB(m.ctb_codigo);
     document.getElementById("mu-data-infracao").value = toDatetimeLocal(m.data_infracao);
     document.getElementById("mu-data-recebimento").value = toDatetimeLocal(m.data_recebimento_email);
     document.getElementById("mu-data-pipe").value = m.data_pipe || "";
@@ -3229,11 +3590,11 @@
     var dataInfracao = document.getElementById("mu-data-infracao").value;
     var dataRecebimento = document.getElementById("mu-data-recebimento").value;
     if (!dataInfracao || !dataRecebimento){ setErr("mu-err", "Informe as datas obrigatórias."); return; }
-    var valor = parseFloat(document.getElementById("mu-valor").value);
-    if (!valor){ setErr("mu-err", "Informe o valor da multa."); return; }
-    var absorvido = document.getElementById("mu-absorvido").value;
     var valorBruto = document.getElementById("mu-valor-bruto").value;
     var valorDesconto = document.getElementById("mu-valor-desconto").value;
+    var valor = Regras.valorConsiderado(valorBruto, valorDesconto); // com desconto, se houver; senão o bruto
+    if (!valor){ setErr("mu-err", "Informe o valor bruto da multa."); return; }
+    if (valorBruto && valorDesconto && parseFloat(valorDesconto) > parseFloat(valorBruto)){ setErr("mu-err", "O valor com desconto não pode ser maior que o bruto."); return; }
     var pontos = document.getElementById("mu-pontos").value;
     var dataEnvioLideranca = document.getElementById("mu-data-envio-lideranca").value;
     var dataRetornoLideranca = document.getElementById("mu-data-retorno-lideranca").value;
@@ -3256,8 +3617,7 @@
       data_limite_indicacao: document.getElementById("mu-data-limite-indicacao").value || null,
       status: document.getElementById("mu-status").value,
       prazo_resposta_locadora: document.getElementById("mu-prazo").value || null,
-      paga_por: document.getElementById("mu-paga-por").value.trim() || null,
-      valor_absorvido_empresa: absorvido ? parseFloat(absorvido) : null,
+      ctb_codigo: document.getElementById("mu-ctb-codigo").value || null,
       descricao: document.getElementById("mu-desc").value.trim() || null,
       motorista_identificado_id: document.getElementById("mu-motorista").value || null,
       supervisor_responsavel: document.getElementById("mu-supervisor").value.trim() || null,
@@ -3927,6 +4287,15 @@
       limparFormOficina();
       oficinaAbertaPelaOS = false;
       document.getElementById("modal-oficina").classList.remove("modal-stacked");
+    } else if (modalId === "modal-multa"){
+      document.querySelector('[data-form="multa"]').reset();
+      document.getElementById("mu-id").value = "";
+      document.getElementById("modal-multa-titulo").textContent = "Nova multa";
+      document.getElementById("mu-btn-salvar").textContent = "Salvar multa";
+      setErr("mu-err", "");
+      muPreencherCTB("");
+      muAtualizarValorInfo();
+      carregarCTB().catch(function(){});
     } else if (modalId === "modal-contrato"){
       document.querySelector('[data-form="contrato"]').reset();
       document.getElementById("co-id").value = "";
@@ -4231,6 +4600,9 @@
     carregarAnexosOS(osId);
     carregarChecklistOS(osId);
     carregarAnomaliasOS(osId);
+    var av = document.getElementById("osd-avaria");
+    av.hidden = !canEdit("multas");
+    if (!av.hidden) atualizarAvariaOS(osId);
     openModal("modal-os-detalhe");
   }
 

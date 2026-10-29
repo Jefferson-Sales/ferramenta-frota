@@ -34,6 +34,7 @@ declare
   hub8 uuid; vd1 uuid; vd2 uuid; mot1 uuid; mot2 uuid; mul1 uuid; mul2 uuid; mul3 uuid; mul4 uuid; mul5 uuid;
   osd uuid; ckd uuid; and1 uuid; u_mul uuid; u_mvis uuid; dsc uuid; dsc2 uuid; dsc3 uuid; dsc4 uuid; dsc5 uuid;
   ms1 uuid; ms2 uuid; ms3 uuid; vs1 uuid; vs2 uuid; vs3 uuid; vs4 uuid; mus1 uuid; mus2 uuid; dss1 uuid; dss2 uuid;
+  dsv1 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -745,6 +746,20 @@ begin
   execute 'set local role authenticated';
   begin perform * from frota.sugerir_motorista(vs1, '2032-09-10 10:00-03'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
   casos := casos || text 'sugestão: operador sem Multas não consulta'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 18. VALOR DO DESCONTO: BRUTO + COM DESCONTO (Etapa 4b)
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mul, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.descontos_folha (tipo, os_id, valor_bruto, valor_com_desconto) values ('avaria', osd, 700, 500) returning id into dsv1;
+  select valor || ' / ' || parcelas_sugeridas into x from frota.descontos_folha where id = dsv1;
+  casos := casos || text 'valor: com desconto preenchido vale ele (R$ 500 → 3x)'; obtidos := obtidos || x; esperados := esperados || text '500.00 / 3';
+  update frota.descontos_folha set valor_com_desconto = null where id = dsv1;
+  select valor || ' / ' || parcelas_sugeridas into x from frota.descontos_folha where id = dsv1;
+  casos := casos || text 'valor: sem desconto vale o bruto (R$ 700 → sugestão 6x)'; obtidos := obtidos || x; esperados := esperados || text '700.00 / 6';
+  begin insert into frota.descontos_folha (tipo, os_id, valor_bruto, valor_com_desconto) values ('avaria', osd, 300, 400); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'valor: com desconto maior que o bruto é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 
