@@ -31,6 +31,8 @@ declare
   vh uuid; osh uuid; osf uuid; tr uuid;
   hub3 uuid; vi1 uuid; vi2 uuid; osi uuid; j jsonb;
   hub4 uuid; c_el uuid; ve1 uuid; ve2 uuid; vcb uuid;
+  hub8 uuid; vd1 uuid; vd2 uuid; mot1 uuid; mot2 uuid; mul1 uuid; mul2 uuid; mul3 uuid; mul4 uuid; mul5 uuid;
+  osd uuid; ckd uuid; and1 uuid; u_mul uuid; u_mvis uuid; dsc uuid; dsc2 uuid; dsc3 uuid; dsc4 uuid; dsc5 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -520,6 +522,150 @@ begin
       || ' = ' || (select count(*) filter (where na_lista) || '/' || count(*) filter (where na_lista and fez) from frota.checklist_visao_diaria('2032-07-01') v where v.hub_id = hub6) into x;
   casos := casos || text 'analítico: totais iguais aos da Visão diária (mesma regra do Dash)'; obtidos := obtidos || x; esperados := esperados || text '2/1 = 2/1';
   perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 16. DESCONTOS EM FOLHA (multas e avarias — Etapa 1)
+  -- parcelas sugeridas no banco = Regras.parcelasSugeridas
+  select string_agg(coalesce(frota.parcelas_sugeridas(t, g::frota.grau_infracao, v)::text, '-'), ',' order by n) into x
+    from (values (1, 'multa', 'leve', null::numeric), (2, 'multa', 'media', null), (3, 'multa', 'grave', null), (4, 'multa', 'gravissima', null),
+                 (5, 'multa', null, null), (6, 'avaria', null, 300), (7, 'avaria', null, 300.01), (8, 'avaria', null, 600),
+                 (9, 'avaria', null, 600.01), (10, 'avaria', null, 0), (11, 'avaria', null, null), (12, 'outro', 'leve', 100)) p(n, t, g, v);
+  casos := casos || text 'parcelas_sugeridas: multa pela gravidade; avaria até 300 = 1x, até 600 = 3x, acima = 6x'; obtidos := obtidos || x; esperados := esperados || text '1,3,6,6,-,1,3,3,6,-,-,-';
+  select string_agg(distinct grau || '=' || pontos, ', ') into x from frota.ctb_infracoes;
+  casos := casos || text 'CTB: pontos calculados pela gravidade'; obtidos := obtidos || x; esperados := esperados || text 'grave=5, gravissima=7, media=4';
+
+  insert into frota.hubs (nome) values ('TESTE Hub 8') returning id into hub8;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0Q01', hub8, 1, 'disponivel') returning id into vd1;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0Q02', hub8, 1, 'disponivel') returning id into vd2;
+  insert into frota.motoristas (nome, matricula, ativo) values ('TESTE Motorista Um', '99991', true) returning id into mot1;
+  insert into frota.motoristas (nome, matricula, ativo) values ('TESTE Motorista Dois', '99992', true) returning id into mot2;
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor, ctb_codigo) values (vd1, hub8, '2032-08-01 10:00-03', now(), 130.16, '745-50') returning id into mul1;
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor, ctb_codigo) values (vd1, hub8, '2032-08-02 10:00-03', now(), 130.16, 'PROV-03') returning id into mul2;
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor, ctb_codigo) values (vd1, hub8, '2032-08-03 10:00-03', now(), 130.16, 'PROV-05') returning id into mul3;
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor) values (vd1, hub8, '2032-08-04 10:00-03', now(), 195.23) returning id into mul4;
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor) values (vd1, hub8, '2032-08-05 10:00-03', now(), 88.38) returning id into mul5;
+  -- só linha CONFERIDA do CTB vale para sugestão: confere a de velocidade e a de rodízio (desfeito no fim)
+  update frota.ctb_infracoes set conferido = true where codigo in ('745-50', 'PROV-03');
+  insert into frota.ordens_servico (veiculo_id, tipo, status, valor_total) values (vd2, 'sinistro', 'agendada', 450) returning id into osd;
+  insert into frota.checklists (veiculo_id, tipo, km, colaborador_matricula) values (vd1, 'retirada', 1, '0000') returning id into ckd;
+  insert into frota.checklist_anomalias (checklist_id, veiculo_id, grupo, severidade, nova) values (ckd, vd1, 'TESTE', 'media', true) returning id into and1;
+  u_mul := gen_random_uuid(); u_mvis := gen_random_uuid();
+  insert into auth.users (id, email, aud, role) values
+    (u_mul, 'teste.multas@zzt.invalid', 'authenticated', 'authenticated'), (u_mvis, 'teste.multasvis@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (u_mul, 'TESTE Operador Multas', 'operador', '{multas}', '{multas}'),
+    (u_mvis, 'TESTE Visualizador Multas', 'visualizador', '{multas}', '{}');
+
+  -- operador de Multas, com o RLS valendo
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mul, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.descontos_folha (tipo, multa_id) values ('multa', mul1) returning id into dsc;
+  select fase || ' / ' || (veiculo_id = vd1 and hub_id = hub8)::text || ' / ' || grau || ' / ' || parcelas_sugeridas || ' / ' || parcelas || ' / ' || resultado
+    into x from frota.descontos_folha where id = dsc;
+  casos := casos || text 'desconto: nasce no líder; veículo, hub e gravidade vêm da multa e do CTB conferido; parcelas sugeridas'; obtidos := obtidos || x;
+  esperados := esperados || text 'enviado_lider / true / media / 3 / 3 / em_andamento';
+  begin insert into frota.descontos_folha (tipo, multa_id) values ('multa', mul3); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Informe o número de parcelas%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'desconto: CTB não conferido não sugere gravidade (sem gravidade = informar parcelas)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  insert into frota.descontos_folha (tipo, multa_id) values ('multa', mul2) returning id into dsc2;
+  select d.fase || ' / ' || d.resultado || ' / ' || h.origem into x from frota.descontos_folha d join frota.descontos_historico h on h.desconto_id = d.id where d.id = dsc2;
+  casos := casos || text 'desconto: rodízio (CTB com Custo Beep automático) nasce como Custo Beep'; obtidos := obtidos || x; esperados := esperados || text 'custo_beep / custo_beep / automatico';
+  begin insert into frota.descontos_folha (tipo, multa_id, parcelas, fase) values ('multa', mul4, 1, 'encaminhado_dp'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Desconto novo começa%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'desconto: operador não cria pulando fases'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin insert into frota.descontos_folha (tipo, multa_id, parcelas) values ('multa', mul4, 7); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'desconto: mais de 6 parcelas é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.descontos_folha set fase = 'encaminhado_dp' where id = dsc; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Caminho não permitido%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'fase: caminho fora da árvore (líder → DP) é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.descontos_folha set fase = 'conferencia_frota', motorista_concorda = 'sim' where id = dsc; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'fase: "concorda" sem motorista definido é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set motorista_id = mot1, motorista_concorda = 'nao', contestacao_motivo = 'Não estava com o carro nesse dia', fase = 'avaliacao_frota' where id = dsc;
+  begin update frota.descontos_folha set contestacao_valida = true, fase = 'enviado_lider', observacao_fase = 'Era outro motorista' where id = dsc; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Voltar ao líder%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'contestação válida: voltar ao líder sem trocar o motorista é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set contestacao_valida = true, motorista_id = mot2, fase = 'enviado_lider', observacao_fase = 'Escala mostra o Motorista Dois' where id = dsc;
+  select d.fase || ' / ' || coalesce(d.motorista_concorda::text, 'vazio') || ' / ' || coalesce(d.observacao_fase, 'limpa') || ' / '
+         || ((h.detalhes->>'motorista_anterior_id')::uuid = mot1)::text || ' / ' || h.observacao
+    into x from frota.descontos_folha d join frota.descontos_historico h on h.desconto_id = d.id and h.fase_anterior = 'avaliacao_frota' where d.id = dsc;
+  casos := casos || text 'contestação válida: troca o motorista e volta ao líder; respostas zeradas; histórico guarda o anterior'; obtidos := obtidos || x;
+  esperados := esperados || text 'enviado_lider / vazio / limpa / true / Escala mostra o Motorista Dois';
+  update frota.descontos_folha set motorista_concorda = 'sim', fase = 'conferencia_frota' where id = dsc;
+  begin update frota.descontos_folha set fase = 'enviado_lider' where id = dsc; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Devolver ao líder%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'conferência: devolver ao líder sem Observações da Frota é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set fase = 'enviado_lider', observacao_fase = 'Termo sem assinatura' where id = dsc;
+  update frota.descontos_folha set motorista_concorda = 'sim', fase = 'conferencia_frota' where id = dsc;
+  update frota.descontos_folha set fase = 'encaminhado_dp' where id = dsc;
+  begin update frota.descontos_folha set fase = 'rejeitada_dp' where id = dsc; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'DP: rejeitar sem motivo é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set fase = 'rejeitada_dp', motivo_rejeicao_dp = 'CNH ausente no anexo' where id = dsc;
+  select resultado into x from frota.descontos_folha where id = dsc;
+  casos := casos || text 'DP: Rejeitada não é final (volta para a Frota corrigir)'; obtidos := obtidos || x; esperados := esperados || text 'em_andamento';
+  begin update frota.descontos_folha set fase = 'encaminhado_dp' where id = dsc; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'DP: reenviar sem dizer o que foi corrigido é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set fase = 'encaminhado_dp', observacao_fase = 'CNH anexada' where id = dsc;
+  update frota.descontos_folha set fase = 'confirmado_dp' where id = dsc;
+  select resultado into x from frota.descontos_folha where id = dsc;
+  casos := casos || text 'DP: Confirmado = Repasse Motorista'; obtidos := obtidos || x; esperados := esperados || text 'repasse_motorista';
+  begin update frota.descontos_folha set lider_nome = 'TESTE' where id = dsc; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Desconto finalizado%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'final: operador não mexe em desconto finalizado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select string_agg(coalesce(fase_anterior::text, 'novo') || '>' || fase_nova, ' ' order by mudou_em, id) into x from frota.descontos_historico where desconto_id = dsc;
+  casos := casos || text 'histórico: cada passo registrado, na ordem'; obtidos := obtidos || x;
+  esperados := esperados || text 'novo>enviado_lider enviado_lider>avaliacao_frota avaliacao_frota>enviado_lider enviado_lider>conferencia_frota conferencia_frota>enviado_lider enviado_lider>conferencia_frota conferencia_frota>encaminhado_dp encaminhado_dp>rejeitada_dp rejeitada_dp>encaminhado_dp encaminhado_dp>confirmado_dp';
+  select count(*) filter (where mudou_por = u_mul and mudou_por_nome = 'TESTE Operador Multas')::text || '/' || count(*)::text into x from frota.descontos_historico where desconto_id = dsc;
+  casos := casos || text 'histórico: quem mudou vem do login'; obtidos := obtidos || x; esperados := esperados || text '10/10';
+
+  -- motorista desligado: Análise RH → sem retenção = Custo Beep "Motorista desligado"
+  insert into frota.descontos_folha (tipo, multa_id, parcelas, motorista_id) values ('multa', mul4, 2, mot1) returning id into dsc3;
+  update frota.descontos_folha set motorista_concorda = 'desligado', fase = 'analise_rh' where id = dsc3;
+  update frota.descontos_folha set retencao_rescisoria = false, fase = 'custo_beep' where id = dsc3;
+  select fase || ' / ' || motivo_custo_beep || ' / ' || resultado into x from frota.descontos_folha where id = dsc3;
+  casos := casos || text 'desligado: sem retenção rescisória vira Custo Beep "Motorista desligado"'; obtidos := obtidos || x; esperados := esperados || text 'custo_beep / Motorista desligado / custo_beep';
+  -- cobrança errada (pela Frota, de qualquer fase em andamento)
+  insert into frota.descontos_folha (tipo, multa_id, parcelas) values ('multa', mul5, 1) returning id into dsc4;
+  begin update frota.descontos_folha set fase = 'cobranca_errada' where id = dsc4; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'cobrança errada: sem motivo é recusada'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set fase = 'cobranca_errada', motivo_cobranca_errada = 'Multa duplicada da locadora' where id = dsc4;
+  select resultado into x from frota.descontos_folha where id = dsc4;
+  casos := casos || text 'cobrança errada: final sem custo'; obtidos := obtidos || x; esperados := esperados || text 'sem_custo';
+  -- avaria ligada à OS
+  insert into frota.descontos_folha (tipo, os_id) values ('avaria', osd) returning id into dsc5;
+  select (veiculo_id = vd2)::text || ' / ' || valor || ' / ' || parcelas_sugeridas into x from frota.descontos_folha where id = dsc5;
+  casos := casos || text 'avaria: veículo e valor vêm da OS; R$ 450 sugere 3x'; obtidos := obtidos || x; esperados := esperados || text 'true / 450.00 / 3';
+  begin insert into frota.descontos_folha (tipo, os_id, anomalia_id) values ('avaria', osd, and1); x := 'aceitou'; exception when others then x := case when sqlerrm like 'A anomalia é de outro veículo%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'avaria: anomalia de outro carro é recusada'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin insert into frota.descontos_folha (tipo, os_id, ctb_codigo) values ('avaria', osd, '745-50'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'avaria: não leva código do CTB'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.descontos_folha where id = dsc4; get diagnostics x = row_count; x := case when x = '0' then 'recusou' else 'aceitou' end; exception when others then x := 'recusou'; end;
+  casos := casos || text 'ninguém apaga desconto (operador)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+
+  -- admin reabre um final com motivo
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin update frota.descontos_folha set fase = 'enviado_lider' where id = dsc4; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Reabrir exige%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'admin: reabrir sem motivo é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set fase = 'enviado_lider', observacao_fase = 'Locadora confirmou que não era duplicada' where id = dsc4;
+  select d.fase || ' / ' || coalesce(d.motivo_cobranca_errada, 'limpo') || ' / ' || h.origem into x
+    from frota.descontos_folha d join frota.descontos_historico h on h.desconto_id = d.id and h.fase_anterior = 'cobranca_errada' where d.id = dsc4;
+  casos := casos || text 'admin: reabre com motivo (fica no histórico como reabertura)'; obtidos := obtidos || x; esperados := esperados || text 'enviado_lider / limpo / reabertura';
+  execute 'reset role';
+
+  -- quem só vê Multas lê e não mexe; quem não tem Multas não vê nada
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text || ' / ' || (select count(*) from frota.descontos_historico where desconto_id = dsc)::text into x from frota.descontos_folha where id in (dsc, dsc2, dsc3, dsc4, dsc5);
+  casos := casos || text 'visualizador de Multas lê descontos e histórico'; obtidos := obtidos || x; esperados := esperados || text '5 / 10';
+  begin insert into frota.descontos_folha (tipo, multa_id, parcelas) values ('multa', mul3, 1); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'visualizador de Multas não cria desconto'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.ctb_infracoes set valor = 1 where codigo = '745-50'; get diagnostics x = row_count; x := case when x = '0' then 'recusou' else 'aceitou' end; exception when others then x := 'recusou'; end;
+  casos := casos || text 'CTB: só admin altera'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text || ' / ' || (select count(*) from frota.descontos_historico)::text || ' / ' || (select count(*) from frota.ctb_infracoes)::text into x from frota.descontos_folha;
+  casos := casos || text 'sem o módulo Multas: não vê descontos, histórico nem CTB'; obtidos := obtidos || x; esperados := esperados || text '0 / 0 / 0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  begin delete from frota.descontos_historico where desconto_id = dsc; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Registro de histórico não pode%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'histórico de descontos: ninguém apaga (nem o dono do banco)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.descontos_folha where id = dsc4; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Desconto não pode ser apagado%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'desconto: nem o dono do banco apaga (usa Cobrança errada)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop

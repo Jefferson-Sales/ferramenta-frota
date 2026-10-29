@@ -2,13 +2,19 @@
 
 Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 
-## Retomar daqui (fim do dia 27/10/2026)
+## Retomar daqui (29/10/2026)
 
-**Próxima sessão começa pela Etapa 1 da esteira de descontos** (proposta aprovada pelo Jefferson em 27/10/2026, seção "Proposta do banco — esteira de descontos" abaixo):
-- tabela `ctb_infracoes` (com RLS; códigos e valores conferidos pelo Jefferson antes de valer) e regra de parcelamento sugerido (`Regras.parcelasSugeridas` + teste, mesma regra no banco);
-- estrutura da tabela `descontos` (fases, campos de cada fase, histórico imutável) — com testes de banco antes de ir para o ar.
+**Etapa 1 da esteira de descontos: no banco e testada** (aprovada pelo Jefferson em 29/10/2026). Criados `ctb_infracoes` (16 linhas a conferir), `multas.ctb_codigo`, `parcelas_sugeridas`, `descontos_folha` (fases e caminhos no gatilho), `descontos_historico` (imutável) e o bucket `descontos-anexos`. Testes de banco: 138 ok (34 novos). Nada aparece na tela ainda. Migration `sql/2026-10-29-e1-descontos-folha.sql`.
 
-**Primeira coisa a conferir:** a sincronização das 02:00 de 28/10 (primeira execução automática da versão corrigida, D4c): rodou sem erro? O dia 27/10 fechou com km = soma das viagens? (`cron.job_run_details` + comparar `telemetria_diaria` × `telemetria_viagens`).
+**Próximos passos:**
+1. **Jefferson:** conferir a lista do CTB (códigos `PROV-nn`, gravidade e valor) — ou mandar a exportação do Pipefy para carregar a lista completa (vem junto com a E5). Enquanto nenhuma linha estiver conferida, a gravidade não é preenchida sozinha e o rodízio não vira Custo Beep automático.
+2. **E3** sugestão de motorista (checklist de Retirada aberta / `driver_code` da Questar).
+3. **E4** tela da esteira em Multas (com anexos no bucket).
+4. **E5** importação dos 291 cards; **E6** Visão Executiva (Repasse × Custo Beep).
+
+Também em 29/10/2026: rotina das 02:00 de 28/10 e 29/10 conferida (0 divergência, hodômetro por dia, dia de Brasília) e `km_atual` do TUP4J22 corrigido de 0 para 660,4 (última leitura da Questar, 17/09; aprovado pelo Jefferson).
+
+## Retomada anterior (fim do dia 27/10/2026 — concluída)
 
 Feito em 27/10/2026 (tudo publicado; push até `08a41fa`, depois só commits do plano): Multas C3 na Visão Executiva, cards clicáveis do Dash, Excel analítico do checklist, backfill da Questar (D4b, 13.621 viagens), correção da sincronização diária (D4c) com reprocessamento de 12/10–27/10, as 3 levas dos elétricos e o mapeamento/decisões da esteira de Multas e Avarias.
 
@@ -87,7 +93,13 @@ Ideia central: **`multas` continua sendo a multa** (recebimento e identificaçã
 
 **Etapas sugeridas:** E1 tabela CTB + parcelamento (com testes) → E2 `descontos` + fases + histórico (com testes) → E3 sugestão de motorista → E4 tela → E5 importação dos 291 cards → E6 Visão Executiva.
 
-### Etapa 1 — desenho detalhado (29/10/2026, aguardando validação)
+### Etapa 1 — desenho detalhado (29/10/2026, **aprovado e aplicado no banco em 29/10/2026**)
+
+**Decisões do Jefferson (29/10/2026) que fecharam o desenho:**
+- **Contestação válida:** se a empresa absorve → Custo Beep (com motivo); se provou que o infrator era outro colaborador → a Frota troca o motorista e o card volta para "Enviado ao líder" (o banco exige a troca e a observação).
+- **Rejeitada (pelo DP):** falha documental (termo ilegível, CNH ausente, perda de prazo de folha) — **não é final**: volta para a Frota corrigir e reenviar ao DP (exige dizer o que foi corrigido). Incluído também Rejeitada → Custo Beep (com motivo), para o caso de a Frota decidir absorver — **a confirmar com o Jefferson**.
+- **Cobrança errada (pela Frota):** cancelamento definitivo (multa duplicada, cobrança indevida da locadora, erro no AIT), de qualquer fase em andamento, com motivo; final sem custo.
+- **CTB:** carga inicial com os enquadramentos mais frequentes, todos com `conferido = false`; a lista completa vem com a importação dos 291 cards.
 
 **Já feito:** `Regras.parcelasSugeridas(tipo, grau, valor)` + `Regras.parcelasValidas(n)` (1 a 6) em `regras.js`, com 23 testes (139 no total). A mesma regra vai para o banco (`frota.parcelas_sugeridas`) com teste em `regras.test.sql`.
 
@@ -111,13 +123,18 @@ Ideia central: **`multas` continua sendo a multa** (recebimento e identificaçã
 | Enviado ao líder | Avaliação da Frota | concorda = não + motivo da contestação |
 | Enviado ao líder | Análise RH / Custo Beep | concorda = motorista desligado |
 | Avaliação da Frota | Conferência Frota | contestação **não** válida |
-| Avaliação da Frota | **? (a decidir)** | contestação válida |
+| Avaliação da Frota | Custo Beep | contestação válida + motivo |
+| Avaliação da Frota | Enviado ao líder | contestação válida + **motorista trocado** + observação |
 | Conferência Frota | Encaminhado ao DP | — |
 | Conferência Frota | Enviado ao líder | Observações da Frota (≥ 5 letras) |
 | Conferência Frota | Custo Beep | motivo do Custo Beep |
 | Análise RH | Encaminhado ao DP | com retenção rescisória |
 | Análise RH | Custo Beep | sem retenção → motivo "Motorista desligado" automático |
-| Encaminhado ao DP | Confirmado pelo DP / Rejeitada / Cobrança errada | Rejeitada e Cobrança errada exigem motivo |
+| Encaminhado ao DP | Confirmado pelo DP | — |
+| Encaminhado ao DP | Rejeitada pelo DP (não final) | motivo |
+| Rejeitada pelo DP | Encaminhado ao DP | o que foi corrigido |
+| Rejeitada pelo DP | Custo Beep | motivo (a confirmar) |
+| qualquer fase em andamento | Cobrança errada | motivo |
 
 Fases finais não mudam mais (só admin reabre, com motivo — fica no histórico).
 
@@ -125,7 +142,7 @@ Fases finais não mudam mais (só admin reabre, com motivo — fica no históric
 
 **Acesso:** igual a Multas — vê quem tem `posso_ver('multas')`; cria/move quem opera Multas e admin; ninguém apaga (usa Rejeitada/Cobrança errada). Sem filtro de hub (Multas não tem).
 
-**Fica para as próximas etapas:** anexos (bucket privado), sugestão de motorista (E3), tela (E4), importação do Pipefy (E5), Visão Executiva (E6).
+**Fica para as próximas etapas:** tabela de anexos e envio pela tela (o bucket privado `descontos-anexos` já existe), sugestão de motorista (E3), tela (E4), importação do Pipefy (E5), Visão Executiva (E6).
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
