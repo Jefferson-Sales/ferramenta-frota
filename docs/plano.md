@@ -8,7 +8,7 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 
 **Próximos passos:**
 1. **Jefferson:** conferir a lista do CTB (códigos `PROV-nn`, gravidade e valor) — ou mandar a exportação do Pipefy para carregar a lista completa (vem junto com a E5). Enquanto nenhuma linha estiver conferida, a gravidade não é preenchida sozinha e o rodízio não vira Custo Beep automático.
-2. **E3** sugestão de motorista — proposta escrita (seção "Etapa 3" abaixo), aguardando validação do Jefferson.
+2. **E3** sugestão de motorista — **feita em 29/10/2026** (função + gatilho + 16 testes).
 3. **E4** tela da esteira em Multas (com anexos no bucket).
 4. **E5** importação dos 291 cards; **E6** Visão Executiva (Repasse × Custo Beep).
 
@@ -151,13 +151,17 @@ Fases finais não mudam mais (só admin reabre, com motivo — fica no históric
 - **Ordem:** Etapa 3 (sugestão de motorista) e depois Etapa 4 (tela).
 
 **Calibração da tela (Etapa 4):**
-- Não mostrar os campos antigos "Valor considerado" e "Valor absorvido pela empresa" (colunas `valor_desconto`/`valor_absorvido_empresa` de `multas`, vazias). A coluna fica no banco (nada se apaga sem perguntar); só some da tela. O destino do valor sai da fase.
+- Não mostrar os campos antigos "Valor considerado" e "Valor absorvido pela empresa". **Correção (29/10/2026):** "Valor considerado" é a coluna principal `multas.valor` (a que soma na Visão Executiva) — ela fica; o que sai é o campo separado na tela (ver pergunta na Etapa 4). "Valor absorvido pela empresa" (`valor_absorvido_empresa`) e "Paga por" (`paga_por`) somem da tela; as colunas ficam no banco (nada se apaga sem perguntar). O destino do valor sai da fase.
 - Abertura simples: a data de cadastro é a data de envio ao líder (Fase 1) — o banco já faz isso (`criado_em` = início da fase "Enviado ao líder").
 - Líder/supervisor totalmente opcional.
 - Ao escolher a infração do CTB: preencher a descrição oficial, a gravidade e os pontos na CNH.
 - Destino contábil claro na tela: **Confirmado pelo DP = Cobrança do motorista** × **Custo Beep = Empresa** (Cobrança errada = sem custo).
 
-### Etapa 3 — sugestão de motorista (proposta de 29/10/2026, aguardando validação)
+### Etapa 3 — sugestão de motorista (**aprovada e aplicada no banco em 29/10/2026**)
+
+**Feito:** `frota.sugerir_motorista(veiculo, data_hora, usar_telemetria = false)` (só admin ou quem opera Multas; devolve id, nome, matrícula, origem, confiança, horários e um texto — sem CPF/CNH) e o gatilho `descontos_folha_sugestao`, que na criação preenche só `motorista_sugerido_id` quando há um único motorista apontado. `motoristas.questar_driver_code` (vazio) liga o código da Questar ao motorista quando houver identificação nos carros (o Jefferson confirmou em 29/10/2026 que hoje não há crachá/RFID). Fonte viva = checklist de Retirada; multas antigas e os 291 cards = Pipefy (E5) ou escolha manual. 16 testes de banco. Migration `sql/2026-10-29-e3-sugerir-motorista.sql`.
+
+**Proposta original:**
 
 **O que os dados mostram hoje (29/10/2026):**
 - **Telemetria Questar:** o código do motorista (`driver_code`) está **vazio nas 19.280 viagens**. A Questar não sabe quem dirigia — a identificação de motorista (cartão/chaveiro ou app) não está ativa nos carros. Sem isso, a telemetria não sugere ninguém.
@@ -171,6 +175,22 @@ Fases finais não mudam mais (só admin reabre, com motivo — fica no históric
    - Se as duas fontes discordarem: mostra as duas e não escolhe sozinha.
 2. Na criação do desconto, o banco preenche `motorista_sugerido_id` + `origem_sugestao`; o **motorista confirmado continua vazio até alguém confirmar** na tela (sugestão nunca vira cobrança sozinha).
 3. Testes de banco com dados fictícios: Retirada cobrindo o horário, Retirada já devolvida, devolução atrasada, duas Retiradas no dia, matrícula de auxiliar, operador sem Multas recusado, nenhum dado pessoal no retorno.
+
+### Etapa 4 — tela da esteira de descontos (proposta de 29/10/2026, aguardando validação)
+
+**Onde:** dentro de Multas, uma aba nova **"Descontos em folha"** ao lado de "Multas registradas" (mesmo acesso de Multas). Avarias entram na mesma aba (tipo Avaria).
+
+**Partes (uma por vez, cada uma conferida no navegador antes da próxima):**
+- **E4a — lista e detalhe (só leitura):** contadores por fase no topo (clicáveis = filtro), filtros de tipo/hub/fase/mês, lista com placa, tipo, motivo, valor, parcelas, fase, há quanto tempo na fase e o **destino do valor** em etiqueta: *Cobrança do motorista* (Confirmado pelo DP), *Custo Beep (empresa)*, *Sem custo* (Cobrança errada), *Em andamento*. Detalhe com a linha do tempo do histórico.
+- **E4b — abrir desconto:** botão "Enviar para desconto" na multa e "Cobrar avaria" no detalhe da OS, além do "+ Novo desconto". Formulário curto: placa + data/hora + infração do CTB (busca por código ou texto; ao escolher, preenche descrição oficial, gravidade e pontos), valor, parcelas (já com a sugestão, ajustável 1–6), líder opcional, e o cartão de **motorista sugerido** ("Sugerido: Nome — Retirada 08:15, devolvida 18:02 · confiança alta" com **Usar este** / **Escolher outro**; a lista vem de `v_motoristas_basico`). A data de cadastro é a data de envio ao líder.
+- **E4c — andar na esteira:** no detalhe, só os botões permitidos na fase atual (os mesmos caminhos do banco), cada um pedindo o campo obrigatório daquele passo (motivo da contestação, Observações da Frota, motivo do Custo Beep, motivo da rejeição do DP, o que foi corrigido…). O banco continua sendo a trava final.
+- **E4d — anexos:** enviar e ver termo assinado/documentos (PDF ou foto, até 10 MB) no bucket `descontos-anexos`, com link que vale 5 minutos.
+- **Regras na tela:** `Regras.DESCONTO_FASES` (nomes), `Regras.destinoContabil(fase)` e `Regras.proximosPassos(fase)`, com teste.
+- **Formulário de Multas:** sai "Valor absorvido pela empresa" e "Paga por"; entra a infração do CTB (preenche código, gravidade, pontos e motivo).
+
+**Perguntas ao Jefferson antes de começar:**
+1. **Valor da multa:** hoje o formulário tem "Valor bruto", "Valor com desconto" e "Valor considerado" (o que soma nos totais). Proposta: deixar só **Valor bruto** e **Valor com desconto (opcional)**, e o valor considerado passa a ser automático (com desconto se houver, senão o bruto). Ou prefere um campo único "Valor da multa"?
+2. **Formato da lista:** lista com contadores por fase (funciona bem no celular) ou quadro em colunas tipo Pipefy (melhor no computador, ruim no celular)?
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 

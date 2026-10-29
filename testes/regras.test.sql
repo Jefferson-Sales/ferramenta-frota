@@ -33,6 +33,7 @@ declare
   hub4 uuid; c_el uuid; ve1 uuid; ve2 uuid; vcb uuid;
   hub8 uuid; vd1 uuid; vd2 uuid; mot1 uuid; mot2 uuid; mul1 uuid; mul2 uuid; mul3 uuid; mul4 uuid; mul5 uuid;
   osd uuid; ckd uuid; and1 uuid; u_mul uuid; u_mvis uuid; dsc uuid; dsc2 uuid; dsc3 uuid; dsc4 uuid; dsc5 uuid;
+  ms1 uuid; ms2 uuid; ms3 uuid; vs1 uuid; vs2 uuid; vs3 uuid; vs4 uuid; mus1 uuid; mus2 uuid; dss1 uuid; dss2 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -666,6 +667,86 @@ begin
   casos := casos || text 'histórico de descontos: ninguém apaga (nem o dono do banco)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   begin delete from frota.descontos_folha where id = dsc4; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Desconto não pode ser apagado%' then 'recusou' else sqlerrm end; end;
   casos := casos || text 'desconto: nem o dono do banco apaga (usa Cobrança errada)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+
+  -- ============================================ 17. SUGESTÃO DE MOTORISTA (sugerir_motorista — Etapa 3)
+  -- 3 motoristas fictícios (matrículas 99993–99995) e um auxiliar (matrícula 99996, fora do cadastro de motoristas)
+  insert into frota.motoristas (nome, matricula, ativo, cpf, cnh) values ('TESTE Sugestao Um', '99993', true, '00000000191', '00000000000') returning id into ms1;
+  insert into frota.motoristas (nome, matricula, ativo) values ('TESTE Sugestao Dois', '99994', true) returning id into ms2;
+  insert into frota.motoristas (nome, matricula, ativo, questar_driver_code) values ('TESTE Sugestao Tres', '99995', true, 'ZZTDRV3') returning id into ms3;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0S01', hub8, 1, 'disponivel') returning id into vs1;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0S02', hub8, 1, 'disponivel') returning id into vs2;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0S03', hub8, 1, 'disponivel') returning id into vs3;
+  insert into frota.veiculos (placa, hub_id, km_atual, status) values ('ZZT0S04', hub8, 1, 'disponivel') returning id into vs4;
+  -- vs1: Um retira 08:00 e devolve 18:00 (dia 10)
+  insert into frota.checklists (veiculo_id, tipo, km, colaborador_matricula, status, enviado_em, fechada_em, fechada_como) values
+    (vs1, 'retirada', 1, '99993', 'enviado', '2032-09-10 08:00-03', '2032-09-10 18:00-03', 'devolucao');
+  -- vs2: Um retira 08:00 (dia 11), Dois refaz a retirada às 12:00 (fecha a do Um) e devolve 18:00
+  insert into frota.checklists (veiculo_id, tipo, km, colaborador_matricula, status, enviado_em, fechada_em, fechada_como) values
+    (vs2, 'retirada', 1, '99993', 'enviado', '2032-09-11 08:00-03', '2032-09-11 12:00-03', 'nova_retirada_mesmo_carro'),
+    (vs2, 'retirada', 1, '99994', 'enviado', '2032-09-11 12:00-03', '2032-09-11 18:00-03', 'devolucao');
+  -- vs3: Dois retira no dia 12 e nunca devolve; vs4: auxiliar retira; vs4 dia 14: Um retira, fechada pelo painel
+  insert into frota.checklists (veiculo_id, tipo, km, colaborador_matricula, status, enviado_em) values
+    (vs3, 'retirada', 1, '99994', 'enviado', '2032-09-12 08:00-03'),
+    (vs4, 'retirada', 1, '99996', 'enviado', '2032-09-13 08:00-03');
+  insert into frota.checklists (veiculo_id, tipo, km, colaborador_matricula, status, enviado_em, fechada_em, fechada_como) values
+    (vs4, 'retirada', 1, '99993', 'enviado', '2032-09-14 08:00-03', '2032-09-15 10:00-03', 'painel');
+  update frota.checklists set fechada_em = '2032-09-14 07:00-03', fechada_como = 'painel' where veiculo_id = vs4 and colaborador_matricula = '99996';
+  -- viagem da Questar no vs1 com o código do Tres (dia 10, 09:00–11:00)
+  insert into frota.telemetria_viagens (drive_id, veiculo_id, dia, inicio, fim, driver_code, fonte) values
+    (-990001, vs1, '2032-09-10', '2032-09-10 09:00-03', '2032-09-10 11:00-03', 'ZZTDRV3', 'teste');
+
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mul, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select string_agg(s.nome || ' / ' || s.origem || ' / ' || s.confianca, ' | ') into x from frota.sugerir_motorista(vs1, '2032-09-10 10:00-03') s;
+  casos := casos || text 'sugestão: retirada e devolução cobrem o horário → confiança alta'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text 'TESTE Sugestao Um / checklist / alta';
+  select count(*)::text into x from frota.sugerir_motorista(vs1, '2032-09-10 19:00-03');
+  casos := casos || text 'sugestão: depois da devolução não sugere ninguém'; obtidos := obtidos || x; esperados := esperados || text '0';
+  select count(*)::text into x from frota.sugerir_motorista(vs1, '2032-09-10 07:59-03');
+  casos := casos || text 'sugestão: antes da retirada não sugere ninguém'; obtidos := obtidos || x; esperados := esperados || text '0';
+  select string_agg(s.nome, ' | ') into x from frota.sugerir_motorista(vs2, '2032-09-11 13:00-03') s;
+  casos := casos || text 'sugestão: duas retiradas no dia → quem estava com o carro no horário'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text 'TESTE Sugestao Dois';
+  select string_agg(s.nome, ' | ') into x from frota.sugerir_motorista(vs2, '2032-09-11 11:59-03') s;
+  casos := casos || text 'sugestão: antes da troca, o primeiro motorista'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text 'TESTE Sugestao Um';
+  select string_agg(s.confianca || ' / ' || s.detalhe, ' | ') into x from frota.sugerir_motorista(vs3, '2032-09-12 20:00-03') s;
+  casos := casos || text 'sugestão: retirada aberta há 12 h → alta'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text 'alta / Retirada ainda aberta';
+  select string_agg(s.confianca, ' | ') into x from frota.sugerir_motorista(vs3, '2032-09-13 09:00-03') s;
+  casos := casos || text 'sugestão: retirada aberta há mais de 24 h (devolução atrasada) → média'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text 'media';
+  select string_agg(s.confianca, ' | ') into x from frota.sugerir_motorista(vs4, '2032-09-14 09:00-03') s;
+  casos := casos || text 'sugestão: retirada fechada pelo painel → média'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text 'media';
+  select count(*)::text into x from frota.sugerir_motorista(vs4, '2032-09-13 09:00-03');
+  casos := casos || text 'sugestão: matrícula de auxiliar (fora do cadastro de motoristas) → sem sugestão'; obtidos := obtidos || x; esperados := esperados || text '0';
+  select string_agg(s.origem || ':' || s.nome, ' | ' order by s.origem) into x from frota.sugerir_motorista(vs1, '2032-09-10 10:00-03') s;
+  casos := casos || text 'telemetria: desligada por padrão'; obtidos := obtidos || x; esperados := esperados || text 'checklist:TESTE Sugestao Um';
+  select string_agg(s.origem || ':' || s.nome, ' | ' order by s.origem) into x from frota.sugerir_motorista(vs1, '2032-09-10 10:00-03', true) s;
+  casos := casos || text 'telemetria ligada: fontes que discordam aparecem as duas'; obtidos := obtidos || x; esperados := esperados || text 'checklist:TESTE Sugestao Um | telemetria:TESTE Sugestao Tres';
+  -- nenhum dado pessoal no retorno (o motorista Um tem CPF e CNH preenchidos)
+  select string_agg(n, ',' order by n) into x
+    from unnest((select proargnames from pg_proc where oid = 'frota.sugerir_motorista(uuid, timestamptz, boolean)'::regprocedure)) n
+   where n ~* '(cpf|cnh|rg|nasc|senha|email|telefone)';
+  select coalesce(x, 'nenhum') || ' / ' || (select count(*) from frota.sugerir_motorista(vs1, '2032-09-10 10:00-03') s where row_to_json(s)::text like '%00000000191%')::text into x;
+  casos := casos || text 'sugestão: nenhum campo de dado pessoal (CPF, CNH, RG, nascimento, senha) no retorno'; obtidos := obtidos || x; esperados := esperados || text 'nenhum / 0';
+  -- na criação do desconto: só a SUGESTÃO é preenchida; o motorista cobrado fica vazio
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor, grau_infracao) values (vs1, hub8, '2032-09-10 10:00-03', now(), 130.16, 'media') returning id into mus1;
+  insert into frota.multas (veiculo_id, hub_id, data_infracao, data_recebimento_email, valor, grau_infracao) values (vs1, hub8, '2032-09-10 21:00-03', now(), 130.16, 'media') returning id into mus2;
+  insert into frota.descontos_folha (tipo, multa_id) values ('multa', mus1) returning id into dss1;
+  select (motorista_sugerido_id = ms1)::text || ' / ' || origem_sugestao || ' / ' || coalesce(motorista_id::text, 'vazio') into x from frota.descontos_folha where id = dss1;
+  casos := casos || text 'desconto novo: sugestão preenchida, motorista cobrado continua vazio'; obtidos := obtidos || x; esperados := esperados || text 'true / checklist / vazio';
+  insert into frota.descontos_folha (tipo, multa_id) values ('multa', mus2) returning id into dss2;
+  select coalesce(motorista_sugerido_id::text, 'vazio') || ' / ' || coalesce(origem_sugestao, 'vazio') into x from frota.descontos_folha where id = dss2;
+  casos := casos || text 'desconto novo: sem retirada no horário, sem sugestão'; obtidos := obtidos || x; esperados := esperados || text 'vazio / vazio';
+  execute 'reset role';
+  -- quem só vê Multas ou não tem Multas não consulta
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin perform * from frota.sugerir_motorista(vs1, '2032-09-10 10:00-03'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'sugestão: visualizador de Multas não consulta'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin perform * from frota.sugerir_motorista(vs1, '2032-09-10 10:00-03'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'sugestão: operador sem Multas não consulta'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop
