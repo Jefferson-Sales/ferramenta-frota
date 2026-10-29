@@ -316,6 +316,14 @@
   .ex-indisp-tabela .ex-fase-pag{ color:var(--warning); font-weight:600; }
   .ex-indisp-tabela .ex-fase-pag .qf-sub{ color:var(--warning); }
   .osd-hist{ list-style:none; margin:0; padding:0; font-size:var(--fs-md); }
+  /* Descontos em folha (Multas) */
+  .dsc-kpis{ grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); }
+  .dsc-kpis .kpi-card .kpi-num{ font-size:var(--fs-2xl); }
+  .dsc-kpis .dsc-kpi-final{ background:var(--surface-2); }
+  .dsc-motivo{ min-width:180px; max-width:280px; }
+  .dsc-nowrap{ white-space:nowrap; }
+  .dsc-hist .det{ flex-basis:100%; color:var(--muted); font-size:var(--fs-sm); padding-left:calc(112px + var(--espaco-4)); }
+  @media (max-width:560px){ .dsc-hist .det{ padding-left:0; } .detail-grid.dsc-resumo{ grid-template-columns:1fr; } }
   .osd-hist li{ display:flex; flex-wrap:wrap; gap:var(--espaco-1) var(--espaco-4); padding:var(--espaco-2) 0; border-bottom:1px solid var(--line); }
   .osd-hist li:last-child{ border-bottom:none; }
   .osd-hist .quando{ font-family:var(--font-mono); font-size:var(--fs-sm); color:var(--muted); min-width:112px; }
@@ -560,6 +568,12 @@
       <div class="topline"><h1>Multas</h1></div>
       <p class="section-desc">Fluxo completo: e-mail recebido → identificação do condutor → liderança → locadora → desconto em folha.</p>
 
+      <div class="qf-abas" role="tablist" aria-label="Visões de Multas">
+        <button type="button" role="tab" class="qf-aba mu-aba on" data-mu-tela="multas" aria-selected="true">Multas registradas</button>
+        <button type="button" role="tab" class="qf-aba mu-aba" data-mu-tela="descontos" aria-selected="false">Descontos em folha</button>
+      </div>
+
+      <div id="mu-aba-multas">
       <div class="card">
         <div class="card-head"><h2>Multas registradas</h2><div class="card-head-actions"><span class="count" id="multas-count"></span><button class="inline-add-trigger" data-open-modal="modal-multa" data-edit="multas">+ Nova multa</button></div></div>
         <div class="fin-filtros">
@@ -577,6 +591,29 @@
           </table>
         </div>
       </div>
+      </div><!-- /mu-aba-multas -->
+
+      <div id="mu-aba-descontos" hidden>
+        <p class="section-desc">Esteira de cobrança de multas e avarias (substitui o pipe "Descontos em folha" do Pipefy). Os números do topo contam cada fase; clique para filtrar. Clique numa linha para ver o detalhe e a linha do tempo.</p>
+        <div class="kpi-row dsc-kpis" id="dsc-kpis"></div>
+        <div class="card">
+          <div class="card-head"><h2>Descontos</h2><div class="card-head-actions"><span class="count" id="dsc-count"></span></div></div>
+          <div class="fin-filtros">
+            <label>Tipo <select id="dsc-f-tipo" class="filter-select"><option value="">Todos</option><option value="multa">Multa</option><option value="avaria">Avaria</option></select></label>
+            <label>Hub <select id="dsc-f-hub" class="filter-select"><option value="">Todos</option></select></label>
+            <label>Destino do valor <select id="dsc-f-destino" class="filter-select"><option value="">Todos</option></select></label>
+            <label>Mês da ocorrência <input type="month" id="dsc-f-mes" class="filter-select"></label>
+            <button type="button" class="btn qf-mini" id="dsc-f-limpar">Limpar filtros</button>
+            <span class="qf-sub" id="dsc-f-total"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Placa</th><th>Tipo</th><th>Motivo</th><th>Motorista</th><th class="num">Valor</th><th class="num">Parcelas</th><th>Fase</th><th>Destino do valor</th></tr></thead>
+              <tbody id="dsc-body"><tr><td colspan="8" class="empty-row">Carregando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /mu-aba-descontos -->
     </section>
 
     <!-- FINANCEIRO -->
@@ -1213,6 +1250,13 @@
   <div class="modal modal-largo">
     <div class="modal-head"><h3 id="ex-indisp-titulo">Carros indisponíveis</h3><button class="modal-close" data-close-modal>×</button></div>
     <div id="ex-indisp-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-desconto" hidden>
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-head"><h3 id="dsc-titulo">Desconto</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div id="dsc-corpo"></div>
   </div>
 </div>
 
@@ -2095,7 +2139,7 @@
     if (key === "manutencao") loadManutencao(true);
     if (key === "qualidade"){ loadQualidade(); if (QF.tela === "diaria") loadQualidadeDiaria(); }
     if (key === "gestao_manutencao") loadGestaoManutencao();
-    if (key === "multas") loadMultas();
+    if (key === "multas"){ loadMultas(); if (!document.getElementById("mu-aba-descontos").hidden) loadDescontos(); }
     if (key === "financeiro") loadFinanceiro();
     if (key === "eletrificacao") loadEletrificacao();
     if (key === "acessos") loadAcessos();
@@ -2914,6 +2958,217 @@
     if (!tr || !canEdit("multas")) return;
     abrirEdicaoMulta(tr.dataset.multaId);
   });
+
+  // ---------------- Descontos em folha (aba de Multas) — Etapa 4a: lista e detalhe, só leitura ----------------
+  // Dados: descontos_folha (RLS = módulo Multas). Fases e destino do valor em Regras.DESCONTO_FASES / Regras.destinoContabil.
+  var DSC = { lista: [], motoristas: {}, filtros: { fase: "", tipo: "", hub: "", destino: "", mes: "" }, atual: null };
+
+  function muTrocarTela(tela){
+    document.querySelectorAll("[data-mu-tela]").forEach(function(b){
+      var on = b.dataset.muTela === tela;
+      b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.getElementById("mu-aba-multas").hidden = tela !== "multas";
+    document.getElementById("mu-aba-descontos").hidden = tela !== "descontos";
+    if (tela === "descontos") loadDescontos();
+  }
+  document.querySelectorAll("[data-mu-tela]").forEach(function(b){
+    b.addEventListener("click", function(){ muTrocarTela(b.dataset.muTela); });
+  });
+
+  function loadDescontos(){
+    rest("v_motoristas_basico?select=id,nome").then(function(rows){
+      DSC.motoristas = {}; (rows || []).forEach(function(m){ DSC.motoristas[m.id] = m.nome; });
+      if (DSC.lista.length) aplicarFiltrosDescontos();
+    }).catch(function(){});
+    rest("hubs?select=id,nome&order=nome").then(function(rows){
+      var sel = document.getElementById("dsc-f-hub");
+      sel.innerHTML = '<option value="">Todos</option>' + (rows || []).map(function(h){ return '<option value="' + esc(h.id) + '">' + esc(h.nome) + '</option>'; }).join("");
+      sel.value = DSC.filtros.hub;
+    }).catch(function(){});
+    rest("descontos_folha?select=*,veiculos(placa),hubs(nome),multas(descricao,numero_multa,auto_infracao),ctb_infracoes(descricao,pontos)&order=criado_em.desc&limit=5000").then(function(rows){
+      DSC.lista = rows || [];
+      aplicarFiltrosDescontos();
+    }).catch(function(e){
+      document.getElementById("dsc-body").innerHTML = '<tr><td colspan="8" class="empty-row" style="color:var(--critical)">Erro ao carregar: ' + esc(e.message) + '</td></tr>';
+    });
+  }
+
+  (function(){
+    var dest = document.getElementById("dsc-f-destino");
+    dest.innerHTML = '<option value="">Todos</option>' + ["em_andamento", "repasse_motorista", "custo_beep", "sem_custo"].map(function(k){
+      var nome = { em_andamento: "Em andamento", repasse_motorista: "Cobrança do motorista", custo_beep: "Custo Beep (empresa)", sem_custo: "Sem custo" }[k];
+      return '<option value="' + k + '">' + esc(nome) + '</option>';
+    }).join("");
+    [["dsc-f-tipo", "tipo"], ["dsc-f-hub", "hub"], ["dsc-f-destino", "destino"], ["dsc-f-mes", "mes"]].forEach(function(p){
+      document.getElementById(p[0]).addEventListener("change", function(ev){ DSC.filtros[p[1]] = ev.target.value; aplicarFiltrosDescontos(); });
+    });
+    document.getElementById("dsc-f-limpar").addEventListener("click", function(){
+      DSC.filtros = { fase: "", tipo: "", hub: "", destino: "", mes: "" };
+      ["dsc-f-tipo", "dsc-f-hub", "dsc-f-destino", "dsc-f-mes"].forEach(function(id){ document.getElementById(id).value = ""; });
+      aplicarFiltrosDescontos();
+    });
+    document.getElementById("dsc-kpis").addEventListener("click", function(ev){
+      var b = ev.target.closest("[data-dsc-fase]"); if (!b) return;
+      DSC.filtros.fase = DSC.filtros.fase === b.dataset.dscFase ? "" : b.dataset.dscFase;
+      aplicarFiltrosDescontos();
+    });
+    document.getElementById("dsc-body").addEventListener("click", function(ev){
+      var tr = ev.target.closest("[data-dsc-id]"); if (tr) abrirDesconto(tr.dataset.dscId);
+    });
+  })();
+
+  function dscMotivo(d){
+    if (d.ctb_infracoes && d.ctb_infracoes.descricao) return d.ctb_infracoes.descricao;
+    if (d.descricao) return d.descricao;
+    if (d.multas){ var m = Regras.motivoDaDescricao(d.multas.descricao); if (m) return m; } // nunca devolve o nome do motorista
+    return d.tipo === "avaria" ? "Avaria" : "—";
+  }
+  function dscNomeMotorista(id){ return id ? (DSC.motoristas[id] || "Motorista do cadastro") : ""; }
+  function dscFasePill(fase){
+    var f = Regras.faseDesconto(fase) || { nome: fase, final: false };
+    var tom = f.final ? Regras.destinoContabil(fase).tom : (fase === "rejeitada_dp" ? "warn" : "neutral");
+    return pill(f.nome, tom);
+  }
+  function dscDestinoPill(fase){ var d = Regras.destinoContabil(fase); return pill(d.nome, d.tom); }
+
+  function aplicarFiltrosDescontos(){
+    var f = DSC.filtros;
+    // os contadores respeitam os outros filtros, mas não o da fase (para mostrar quanto há em cada uma)
+    var base = DSC.lista.filter(function(d){
+      if (f.tipo && d.tipo !== f.tipo) return false;
+      if (f.hub && d.hub_id !== f.hub) return false;
+      if (f.destino && Regras.destinoContabil(d.fase).chave !== f.destino) return false;
+      if (f.mes && (!d.ocorrida_em || isoParaCampoLocal(d.ocorrida_em).slice(0, 7) !== f.mes)) return false;
+      return true;
+    });
+    var cont = {}; base.forEach(function(d){ cont[d.fase] = (cont[d.fase] || 0) + 1; });
+    document.getElementById("dsc-kpis").innerHTML = Regras.DESCONTO_FASES.map(function(fa){
+      var tom = fa.final ? Regras.destinoContabil(fa.chave).tom : (fa.chave === "rejeitada_dp" ? "warn" : "");
+      return '<button type="button" class="kpi-card clickable ' + tom + (fa.final ? " dsc-kpi-final" : "") + (f.fase === fa.chave ? " sel" : "") +
+        '" data-dsc-fase="' + fa.chave + '" title="' + (f.fase === fa.chave ? "Tirar o filtro" : "Filtrar a lista") + '">' +
+        '<div class="kpi-num">' + (cont[fa.chave] || 0) + '</div><div class="kpi-label">' + esc(fa.nome) + (fa.final ? " · final" : "") + '</div></button>';
+    }).join("");
+    var rows = f.fase ? base.filter(function(d){ return d.fase === f.fase; }) : base;
+    renderDescontos(rows);
+    var filtrado = f.fase || f.tipo || f.hub || f.destino || f.mes;
+    document.getElementById("dsc-f-total").textContent = filtrado
+      ? rows.length + " de " + DSC.lista.length + " · " + money(rows.reduce(function(s, d){ return s + (Number(d.valor) || 0); }, 0)) : "";
+  }
+
+  function renderDescontos(rows){
+    var body = document.getElementById("dsc-body");
+    document.getElementById("dsc-count").textContent = rows.length + (rows.length === 1 ? " desconto" : " descontos");
+    if (!rows.length){
+      body.innerHTML = '<tr><td colspan="8" class="empty-row">' + (DSC.lista.length ? "Nenhum desconto com esses filtros." : "Nenhum desconto registrado ainda.") + '</td></tr>';
+      return;
+    }
+    var agora = Date.now();
+    body.innerHTML = rows.map(function(d){
+      var fa = Regras.faseDesconto(d.fase) || {};
+      var tempo = fa.final ? "em " + dateBR(d.fase_desde) : "há " + Regras.duracaoTexto(agora - new Date(d.fase_desde).getTime());
+      var mot = d.motorista_id ? esc(dscNomeMotorista(d.motorista_id))
+        : (d.motorista_sugerido_id ? '<span class="qf-sub">Sugerido: ' + esc(dscNomeMotorista(d.motorista_sugerido_id)) + '</span>' : '<span class="qf-sub">A definir</span>');
+      return '<tr class="os-row" data-dsc-id="' + esc(d.id) + '">' +
+        '<td>' + esc(d.veiculos ? d.veiculos.placa : "—") + '<div class="qf-sub">' + esc(d.hubs ? d.hubs.nome : "") + '</div></td>' +
+        '<td>' + (d.tipo === "avaria" ? "Avaria" : "Multa") + '</td>' +
+        '<td class="dsc-motivo">' + esc(dscMotivo(d)) + (d.ocorrida_em ? '<div class="qf-sub">' + esc(dateTimeBR(d.ocorrida_em)) + '</div>' : '') + '</td>' +
+        '<td>' + mot + '</td>' +
+        '<td class="num dsc-nowrap">' + money(d.valor) + '</td>' +
+        '<td class="num">' + esc(d.parcelas) + 'x</td>' +
+        '<td>' + dscFasePill(d.fase) + '<div class="qf-sub">' + esc(tempo) + '</div></td>' +
+        '<td>' + dscDestinoPill(d.fase) + '</td></tr>';
+    }).join("");
+  }
+
+  var DSC_GRAU = { leve: "Leve", media: "Média", grave: "Grave", gravissima: "Gravíssima" };
+  var DSC_CONCORDA = { sim: "Sim", nao: "Não (contestou)", desligado: "Motorista já desligado" };
+  var DSC_ORIGEM_SUG = { checklist: "checklist de Retirada", telemetria: "telemetria", manual: "escolha manual", importacao: "Pipefy" };
+
+  function abrirDesconto(id){
+    var d = DSC.lista.filter(function(x){ return x.id === id; })[0];
+    if (!d) return;
+    DSC.atual = d;
+    var fa = Regras.faseDesconto(d.fase) || { nome: d.fase };
+    var item = function(k, v, largo){ return '<div' + (largo ? ' class="osd-largo"' : '') + '><div class="k">' + esc(k) + '</div>' + v + '</div>'; };
+    var infracao = d.tipo === "multa"
+      ? (d.ctb_codigo ? esc(d.ctb_codigo) + " · " : "") + (d.grau ? esc(DSC_GRAU[d.grau] || d.grau) + " · " + esc(Regras.PONTOS_POR_GRAU[d.grau]) + " pontos" : "Gravidade não informada")
+      : (d.os_id ? "Ligada a uma OS de Manutenções" : "Sem OS ligada");
+    var sug = d.motorista_sugerido_id ? esc(dscNomeMotorista(d.motorista_sugerido_id)) + (d.origem_sugestao ? ' <span class="qf-sub">(' + esc(DSC_ORIGEM_SUG[d.origem_sugestao] || d.origem_sugestao) + ')</span>' : "") : "—";
+    var resp = [];
+    if (d.motorista_concorda) resp.push(item("Motorista concorda?", esc(DSC_CONCORDA[d.motorista_concorda] || d.motorista_concorda)));
+    if (d.contestacao_valida != null) resp.push(item("Contestação válida?", d.contestacao_valida ? "Sim" : "Não"));
+    if (d.retencao_rescisoria != null) resp.push(item("Retenção rescisória?", d.retencao_rescisoria ? "Sim" : "Não"));
+    if (d.contestacao_motivo) resp.push(item("Motivo da contestação", esc(d.contestacao_motivo), true));
+    if (d.motivo_rejeicao_dp) resp.push(item("Motivo da rejeição do DP", esc(d.motivo_rejeicao_dp), true));
+    if (d.motivo_custo_beep) resp.push(item("Motivo do Custo Beep", esc(d.motivo_custo_beep), true));
+    if (d.motivo_cobranca_errada) resp.push(item("Motivo da cobrança errada", esc(d.motivo_cobranca_errada), true));
+
+    document.getElementById("dsc-titulo").textContent = (d.tipo === "avaria" ? "Avaria" : "Multa") + " · " + (d.veiculos ? d.veiculos.placa : "veículo");
+    document.getElementById("dsc-corpo").innerHTML =
+      '<div class="detail-grid dsc-resumo">' +
+        item("Fase atual", dscFasePill(d.fase) + ' <span class="qf-sub">desde ' + esc(dateTimeBR(d.fase_desde)) + '</span>') +
+        item("Destino do valor", dscDestinoPill(d.fase)) +
+        item("Motivo", esc(dscMotivo(d)), true) +
+        item(d.tipo === "multa" ? "Infração (CTB)" : "Avaria", infracao) +
+        item("Ocorrência", esc(d.ocorrida_em ? dateTimeBR(d.ocorrida_em) : "—")) +
+        item("Hub (na ocorrência)", esc(d.hubs ? d.hubs.nome : "—")) +
+        item("Valor", money(d.valor)) +
+        item("Parcelas", esc(d.parcelas) + "x" + (d.parcelas_sugeridas ? ' <span class="qf-sub">(sugerido ' + esc(d.parcelas_sugeridas) + 'x)</span>' : "")) +
+        item("Motorista cobrado", d.motorista_id ? esc(dscNomeMotorista(d.motorista_id)) : '<span class="qf-sub">A definir</span>') +
+        item("Motorista sugerido", sug) +
+        item("Líder", esc(d.lider_nome || "—")) +
+        (d.multas && (d.multas.auto_infracao || d.multas.numero_multa) ? item("AIT / notificação", esc([d.multas.auto_infracao, d.multas.numero_multa].filter(Boolean).join(" · "))) : "") +
+        (d.pipefy_card_id ? item("Card do Pipefy", esc(d.pipefy_card_id)) : "") +
+      '</div>' +
+      (resp.length ? '<div class="detail-section"><h4>Respostas da esteira</h4><div class="detail-grid dsc-resumo">' + resp.join("") + '</div></div>' : '') +
+      '<div class="detail-section"><h4>Linha do tempo</h4><div class="ac-hint">Gravada pelo banco a cada passo; não dá para editar nem apagar.</div><div id="dsc-historico"><span class="osd-vazio">Carregando…</span></div></div>';
+    openModal("modal-desconto");
+    carregarHistoricoDesconto(d.id);
+  }
+
+  function carregarHistoricoDesconto(id){
+    rest("descontos_historico?desconto_id=eq." + id + "&select=fase_anterior,fase_nova,observacao,detalhes,origem,mudou_em,mudou_por_nome&order=mudou_em.asc").then(function(h){
+      if (!DSC.atual || DSC.atual.id !== id) return;
+      var host = document.getElementById("dsc-historico");
+      if (!h.length){ host.innerHTML = '<span class="osd-vazio">Sem registros.</span>'; return; }
+      // tempo em cada fase = do passo que entrou nela até o passo seguinte que trocou de fase
+      var trocas = h.filter(function(x){ return x.fase_anterior !== x.fase_nova; });
+      var agora = Date.now();
+      var nomeFase = function(k){ var f = Regras.faseDesconto(k); return f ? f.nome : k; };
+      var itens = h.map(function(x){
+        var det = x.detalhes || {}, linhas = [];
+        var troca = x.fase_anterior !== x.fase_nova;
+        var rotulo = x.fase_anterior == null ? "Criado em " + nomeFase(x.fase_nova)
+          : troca ? nomeFase(x.fase_anterior) + " → " + nomeFase(x.fase_nova) : "Atualização";
+        if (det.motorista_anterior_id) linhas.push("Motorista trocado: " + dscNomeMotorista(det.motorista_anterior_id) + " → " + (dscNomeMotorista(det.motorista_id) || "nenhum"));
+        else if (x.fase_anterior == null && det.motorista_id) linhas.push("Motorista: " + dscNomeMotorista(det.motorista_id));
+        if (troca && x.fase_nova === "avaliacao_frota" && det.contestacao_motivo) linhas.push("Contestação: " + det.contestacao_motivo);
+        if (det.motivo_custo_beep) linhas.push("Motivo do Custo Beep: " + det.motivo_custo_beep);
+        if (det.motivo_rejeicao_dp) linhas.push("Motivo da rejeição: " + det.motivo_rejeicao_dp);
+        if (det.motivo_cobranca_errada) linhas.push("Motivo: " + det.motivo_cobranca_errada);
+        if (!troca && x.fase_anterior != null && !det.motorista_anterior_id && !x.observacao) linhas.push("Valor " + money(det.valor) + " · " + det.parcelas + "x");
+        if (x.observacao) linhas.push("Observação: " + x.observacao);
+        var tempo = "";
+        if (troca){
+          var i = trocas.indexOf(x), prox = trocas[i + 1];
+          var fim = (Regras.faseDesconto(x.fase_nova) || {}).final;
+          if (prox) tempo = Regras.duracaoTexto(new Date(prox.mudou_em) - new Date(x.mudou_em));
+          else if (!fim) tempo = "há " + Regras.duracaoTexto(agora - new Date(x.mudou_em).getTime());
+        }
+        var origem = { automatico: "automático", importacao: "importado do Pipefy", reabertura: "reaberto pelo admin" }[x.origem];
+        return '<li><span class="quando">' + esc(dateTimeBR(x.mudou_em)) + '</span><span>' + esc(rotulo) +
+          (origem ? ' <span class="quem">(' + esc(origem) + ')</span>' : '') +
+          (x.mudou_por_nome ? ' <span class="quem">· ' + esc(x.mudou_por_nome) + '</span>' : '') + '</span>' +
+          (tempo ? '<span class="tempo' + (tempo.indexOf("há") === 0 ? ' atual' : '') + '">' + esc(tempo) + '</span>' : '') +
+          (linhas.length ? '<span class="det">' + linhas.map(esc).join("<br>") + '</span>' : '') + '</li>';
+      });
+      host.innerHTML = '<ul class="osd-hist dsc-hist">' + itens.reverse().join("") + '</ul>';
+    }).catch(function(e){
+      var host = document.getElementById("dsc-historico");
+      if (host) host.innerHTML = '<span class="osd-vazio">Erro ao carregar a linha do tempo: ' + esc(e.message) + '</span>';
+    });
+  }
 
   function toDatetimeLocal(v){
     if (!v) return "";
@@ -4202,7 +4457,7 @@
 
   function qfTrocarTela(tela){
     QF.tela = tela;
-    document.querySelectorAll(".qf-aba").forEach(function(b){
+    document.querySelectorAll("[data-qf-tela]").forEach(function(b){
       var on = b.dataset.qfTela === tela;
       b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
     });
@@ -4210,7 +4465,7 @@
     document.getElementById("qf-aba-diaria").hidden = tela !== "diaria";
     if (tela === "diaria") loadQualidadeDiaria();
   }
-  document.querySelectorAll(".qf-aba").forEach(function(b){
+  document.querySelectorAll("[data-qf-tela]").forEach(function(b){
     b.addEventListener("click", function(){ qfTrocarTela(b.dataset.qfTela); });
   });
 

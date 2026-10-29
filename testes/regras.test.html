@@ -237,6 +237,20 @@
   igual("ajuste manual: 0 não vale",       R.parcelasValidas(0), false);
   igual("ajuste manual: 2,5 não vale",     R.parcelasValidas(2.5), false);
 
+  grupo("Descontos — fases e destino do valor");
+  igual("9 fases, na ordem do banco",      R.DESCONTO_FASES.map(function(f){ return f.chave; }).join(","),
+        "enviado_lider,avaliacao_frota,conferencia_frota,analise_rh,encaminhado_dp,rejeitada_dp,confirmado_dp,custo_beep,cobranca_errada");
+  igual("finais: Confirmado, Custo Beep e Cobrança errada", R.DESCONTO_FASES.filter(function(f){ return f.final; }).map(function(f){ return f.chave; }).join(","), "confirmado_dp,custo_beep,cobranca_errada");
+  igual("Rejeitada pelo DP não é final",   R.faseDesconto("rejeitada_dp").final, false);
+  igual("nome da fase",                    R.faseDesconto("conferencia_frota").nome, "Conferência da Frota");
+  igual("fase desconhecida → null",        R.faseDesconto("xyz"), null);
+  igual("Confirmado pelo DP → cobrança do motorista", R.destinoContabil("confirmado_dp").nome, "Cobrança do motorista");
+  igual("Custo Beep → empresa",            R.destinoContabil("custo_beep").nome, "Custo Beep (empresa)");
+  igual("Cobrança errada → sem custo",     R.destinoContabil("cobranca_errada").nome, "Sem custo");
+  igual("Rejeitada pelo DP → em andamento", R.destinoContabil("rejeitada_dp").nome, "Em andamento");
+  igual("destino = coluna resultado do banco", ["confirmado_dp","custo_beep","cobranca_errada","enviado_lider"].map(function(f){ return R.destinoContabil(f).chave; }).join(","),
+        "repasse_motorista,custo_beep,sem_custo,em_andamento");
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){

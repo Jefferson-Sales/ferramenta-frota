@@ -219,8 +219,36 @@
     return Number.isInteger(n) && n >= 1 && n <= PARCELAS_MAX;
   }
 
+  // Fases da esteira (mesmos nomes do banco, frota.fase_desconto) e o destino do valor de cada uma.
+  // Destino (decisão do Jefferson, 27/10/2026): Confirmado pelo DP = cobrança do motorista; Custo Beep = a empresa paga;
+  // Cobrança errada = sem custo para ninguém; as demais ainda estão em andamento. "Rejeitada pelo DP" não é final.
+  var DESCONTO_FASES = [
+    { chave: "enviado_lider",     nome: "Enviado ao líder",       final: false },
+    { chave: "avaliacao_frota",   nome: "Avaliação da Frota",     final: false },
+    { chave: "conferencia_frota", nome: "Conferência da Frota",   final: false },
+    { chave: "analise_rh",        nome: "Análise RH",             final: false },
+    { chave: "encaminhado_dp",    nome: "Encaminhado ao DP",      final: false },
+    { chave: "rejeitada_dp",      nome: "Rejeitada pelo DP",      final: false },
+    { chave: "confirmado_dp",     nome: "Confirmado pelo DP",     final: true },
+    { chave: "custo_beep",        nome: "Custo Beep",             final: true },
+    { chave: "cobranca_errada",   nome: "Cobrança errada",        final: true }
+  ];
+  function faseDesconto(chave) {
+    for (var i = 0; i < DESCONTO_FASES.length; i++) if (DESCONTO_FASES[i].chave === chave) return DESCONTO_FASES[i];
+    return null;
+  }
+  function destinoContabil(fase) {
+    if (fase === "confirmado_dp")   return { chave: "repasse_motorista", nome: "Cobrança do motorista", tom: "good" };
+    if (fase === "custo_beep")      return { chave: "custo_beep",        nome: "Custo Beep (empresa)",  tom: "crit" };
+    if (fase === "cobranca_errada") return { chave: "sem_custo",         nome: "Sem custo",             tom: "neutral" };
+    return { chave: "em_andamento", nome: "Em andamento", tom: "warn" };
+  }
+
   global.Regras = {
     PARCELAS_MAX: PARCELAS_MAX,
+    DESCONTO_FASES: DESCONTO_FASES,
+    faseDesconto: faseDesconto,
+    destinoContabil: destinoContabil,
     parcelasSugeridas: parcelasSugeridas,
     parcelasValidas: parcelasValidas,
     motivoDaDescricao: motivoDaDescricao,

@@ -9,6 +9,7 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 **Próximos passos:**
 1. **Jefferson:** conferir a lista do CTB (códigos `PROV-nn`, gravidade e valor) — ou mandar a exportação do Pipefy para carregar a lista completa (vem junto com a E5). Enquanto nenhuma linha estiver conferida, a gravidade não é preenchida sozinha e o rodízio não vira Custo Beep automático.
 2. **E3** sugestão de motorista — **feita em 29/10/2026** (função + gatilho + 16 testes).
+   **E4a** (lista e detalhe dos descontos) — **feita em 29/10/2026**. Próxima: **E4b** (abrir desconto pela multa/OS, CTB, sugestão de motorista, valor bruto/com desconto).
 3. **E4** tela da esteira em Multas (com anexos no bucket).
 4. **E5** importação dos 291 cards; **E6** Visão Executiva (Repasse × Custo Beep).
 
@@ -176,7 +177,11 @@ Fases finais não mudam mais (só admin reabre, com motivo — fica no históric
 2. Na criação do desconto, o banco preenche `motorista_sugerido_id` + `origem_sugestao`; o **motorista confirmado continua vazio até alguém confirmar** na tela (sugestão nunca vira cobrança sozinha).
 3. Testes de banco com dados fictícios: Retirada cobrindo o horário, Retirada já devolvida, devolução atrasada, duas Retiradas no dia, matrícula de auxiliar, operador sem Multas recusado, nenhum dado pessoal no retorno.
 
-### Etapa 4 — tela da esteira de descontos (proposta de 29/10/2026, aguardando validação)
+### Etapa 4 — tela da esteira de descontos (aprovada em 29/10/2026)
+
+**Decisões do Jefferson (29/10/2026):** formato **lista com contadores por fase** (não quadro tipo Pipefy); valor da multa = **Valor bruto** + **Valor com desconto (opcional)**, e o valor considerado (`multas.valor`) passa a ser calculado: com desconto se houver, senão o bruto (entra na E4b).
+
+**Andamento:** E4a feita em 29/10/2026 (lista + detalhe + linha do tempo; regras `DESCONTO_FASES`/`faseDesconto`/`destinoContabil` com 10 testes; conferida no navegador com dados fictícios, computador e celular). Junto, corrigido um erro antigo: clicar nas abas da tela Motoristas deixava a Qualidade da Frota em branco (as abas da Qualidade respondiam a qualquer botão com a classe `qf-aba`).
 
 **Onde:** dentro de Multas, uma aba nova **"Descontos em folha"** ao lado de "Multas registradas" (mesmo acesso de Multas). Avarias entram na mesma aba (tipo Avaria).
 
