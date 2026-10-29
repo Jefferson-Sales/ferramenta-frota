@@ -79,6 +79,14 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 
 ---
 
+## 7. Novos pedidos (29/10/2026)
+
+- [ ] **Relatório Executivo RPS (PDF):** botão (ou rotina) que exporta um consolidado com os KPIs da reunião — Disponibilidade, OS, Financeiro e Elétricos — a partir dos mesmos números da Visão Executiva. Sem nome de motorista nem dado pessoal.
+- [ ] **Botão SOS no checklist:** acionamento rápido para o motorista em rota avisar a Frota e o líder, mostrando o telefone de socorro/guincho da locadora do veículo. A conversar antes: para quem vai o aviso (e-mail? WhatsApp?), onde fica o telefone de socorro de cada locadora (cadastro do fornecedor) e se o aviso guarda localização (hoje a regra é **não** guardar localização).
+- [ ] **Mural de Sugestões:** espaço na ferramenta para a equipe registrar melhorias (quem sugeriu, data, situação: nova / em análise / feita / descartada).
+
+---
+
 ## Como usar este arquivo com o Claude Code
 
 1. Abra o Claude Code na pasta do repositório (`ferramenta-frota`).

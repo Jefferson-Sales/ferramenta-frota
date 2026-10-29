@@ -8,7 +8,7 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 
 **Próximos passos:**
 1. **Jefferson:** conferir a lista do CTB (códigos `PROV-nn`, gravidade e valor) — ou mandar a exportação do Pipefy para carregar a lista completa (vem junto com a E5). Enquanto nenhuma linha estiver conferida, a gravidade não é preenchida sozinha e o rodízio não vira Custo Beep automático.
-2. **E3** sugestão de motorista (checklist de Retirada aberta / `driver_code` da Questar).
+2. **E3** sugestão de motorista — proposta escrita (seção "Etapa 3" abaixo), aguardando validação do Jefferson.
 3. **E4** tela da esteira em Multas (com anexos no bucket).
 4. **E5** importação dos 291 cards; **E6** Visão Executiva (Repasse × Custo Beep).
 
@@ -97,7 +97,7 @@ Ideia central: **`multas` continua sendo a multa** (recebimento e identificaçã
 
 **Decisões do Jefferson (29/10/2026) que fecharam o desenho:**
 - **Contestação válida:** se a empresa absorve → Custo Beep (com motivo); se provou que o infrator era outro colaborador → a Frota troca o motorista e o card volta para "Enviado ao líder" (o banco exige a troca e a observação).
-- **Rejeitada (pelo DP):** falha documental (termo ilegível, CNH ausente, perda de prazo de folha) — **não é final**: volta para a Frota corrigir e reenviar ao DP (exige dizer o que foi corrigido). Incluído também Rejeitada → Custo Beep (com motivo), para o caso de a Frota decidir absorver — **a confirmar com o Jefferson**.
+- **Rejeitada (pelo DP):** falha documental (termo ilegível, CNH ausente, perda de prazo de folha) — **não é final**: volta para a Frota corrigir e reenviar ao DP (exige dizer o que foi corrigido). Rejeitada → Custo Beep (com motivo) **confirmado pelo Jefferson em 29/10/2026**: quando o DP não consegue executar o desconto e a Beep absorve.
 - **Cobrança errada (pela Frota):** cancelamento definitivo (multa duplicada, cobrança indevida da locadora, erro no AIT), de qualquer fase em andamento, com motivo; final sem custo.
 - **CTB:** carga inicial com os enquadramentos mais frequentes, todos com `conferido = false`; a lista completa vem com a importação dos 291 cards.
 
@@ -133,7 +133,7 @@ Ideia central: **`multas` continua sendo a multa** (recebimento e identificaçã
 | Encaminhado ao DP | Confirmado pelo DP | — |
 | Encaminhado ao DP | Rejeitada pelo DP (não final) | motivo |
 | Rejeitada pelo DP | Encaminhado ao DP | o que foi corrigido |
-| Rejeitada pelo DP | Custo Beep | motivo (a confirmar) |
+| Rejeitada pelo DP | Custo Beep | motivo (DP não consegue descontar; Beep absorve) |
 | qualquer fase em andamento | Cobrança errada | motivo |
 
 Fases finais não mudam mais (só admin reabre, com motivo — fica no histórico).
@@ -143,6 +143,34 @@ Fases finais não mudam mais (só admin reabre, com motivo — fica no históric
 **Acesso:** igual a Multas — vê quem tem `posso_ver('multas')`; cria/move quem opera Multas e admin; ninguém apaga (usa Rejeitada/Cobrança errada). Sem filtro de hub (Multas não tem).
 
 **Fica para as próximas etapas:** tabela de anexos e envio pela tela (o bucket privado `descontos-anexos` já existe), sugestão de motorista (E3), tela (E4), importação do Pipefy (E5), Visão Executiva (E6).
+
+### Decisões do Jefferson (29/10/2026, depois da Etapa 1)
+
+- **CTB:** ficam os 16 enquadramentos com códigos `PROV-nn`; a lista completa é carregada e conferida na importação dos 291 cards (E5).
+- **Rejeitada pelo DP → Custo Beep:** confirmado.
+- **Ordem:** Etapa 3 (sugestão de motorista) e depois Etapa 4 (tela).
+
+**Calibração da tela (Etapa 4):**
+- Não mostrar os campos antigos "Valor considerado" e "Valor absorvido pela empresa" (colunas `valor_desconto`/`valor_absorvido_empresa` de `multas`, vazias). A coluna fica no banco (nada se apaga sem perguntar); só some da tela. O destino do valor sai da fase.
+- Abertura simples: a data de cadastro é a data de envio ao líder (Fase 1) — o banco já faz isso (`criado_em` = início da fase "Enviado ao líder").
+- Líder/supervisor totalmente opcional.
+- Ao escolher a infração do CTB: preencher a descrição oficial, a gravidade e os pontos na CNH.
+- Destino contábil claro na tela: **Confirmado pelo DP = Cobrança do motorista** × **Custo Beep = Empresa** (Cobrança errada = sem custo).
+
+### Etapa 3 — sugestão de motorista (proposta de 29/10/2026, aguardando validação)
+
+**O que os dados mostram hoje (29/10/2026):**
+- **Telemetria Questar:** o código do motorista (`driver_code`) está **vazio nas 19.280 viagens**. A Questar não sabe quem dirigia — a identificação de motorista (cartão/chaveiro ou app) não está ativa nos carros. Sem isso, a telemetria não sugere ninguém.
+- **Checklist de Retirada:** só 4 Retiradas enviadas desde 21/10 (quase todas de teste). A regra funciona, mas só vai sugerir alguém quando os hubs usarem o checklist no dia a dia.
+- **Multas existentes:** a última infração é de 26/09/2026, antes do checklist. Para elas, a sugestão não tem fonte; o motorista vem do card do Pipefy na importação (E5) ou é escolhido à mão.
+
+**Proposta:**
+1. Função `frota.sugerir_motorista(veiculo, data_hora)` que devolve **só** id, nome, de onde veio e o grau de confiança (nada de CPF/CNH). Quem pode chamar: admin ou quem opera Multas.
+   - **Checklist:** a Retirada daquele carro enviada antes do horário e ainda aberta naquele horário (fechada depois ou sem devolução). Confiança **alta** se a devolução veio depois no mesmo turno; **média** se a Retirada estava aberta havia mais de 24 h (devolução atrasada); nenhuma sugestão se a matrícula não for de motorista do cadastro (ex.: auxiliar).
+   - **Telemetria:** a viagem que cobre o horário, pelo `driver_code` ligado à matrícula. Fica pronta mas **desligada** até a Questar mandar o código (precisa de uma tabela de ligação código → motorista).
+   - Se as duas fontes discordarem: mostra as duas e não escolhe sozinha.
+2. Na criação do desconto, o banco preenche `motorista_sugerido_id` + `origem_sugestao`; o **motorista confirmado continua vazio até alguém confirmar** na tela (sugestão nunca vira cobrança sozinha).
+3. Testes de banco com dados fictícios: Retirada cobrindo o horário, Retirada já devolvida, devolução atrasada, duas Retiradas no dia, matrícula de auxiliar, operador sem Multas recusado, nenhum dado pessoal no retorno.
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
