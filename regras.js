@@ -251,7 +251,126 @@
     return { chave: "em_andamento", nome: "Em andamento", tom: "warn" };
   }
 
+  // ---------- Esteira: próximos passos (Etapa 4c, 30/10/2026) ----------
+  // Espelho dos caminhos aceitos pelo gatilho frota.tg_descontos_folha_regras — o banco continua sendo a trava final.
+  // Quem registra as respostas do líder e do DP é a Frota (eles não têm login); o histórico guarda quem registrou.
+  // campos: motorista (cobrado, obrigatório), motorista_se_faltar (só pede se ainda não houver), motorista_novo (trocar por outro),
+  //   contestacao_motivo, motivo_custo_beep, motivo_rejeicao_dp, motivo_cobranca_errada, observacao, fase_reabrir.
+  // encerra = leva a uma fase final (a tela pede uma confirmação a mais).
+  var DESCONTO_PASSOS = [
+    { id: "concordou", de: "enviado_lider", para: "conferencia_frota", nome: "Motorista concordou", campos: ["motorista"], fixos: { motorista_concorda: "sim" } },
+    { id: "contestou", de: "enviado_lider", para: "avaliacao_frota", nome: "Motorista contestou", campos: ["motorista", "contestacao_motivo"], fixos: { motorista_concorda: "nao" } },
+    { id: "desligado", de: "enviado_lider", para: "analise_rh", nome: "Motorista já desligado", campos: ["motorista"], fixos: { motorista_concorda: "desligado" } },
+    { id: "contestacao_invalida", de: "avaliacao_frota", para: "conferencia_frota", nome: "Contestação não válida", campos: [], fixos: { contestacao_valida: false } },
+    { id: "contestacao_custo_beep", de: "avaliacao_frota", para: "custo_beep", nome: "Válida: a empresa absorve", campos: ["motivo_custo_beep"], fixos: { contestacao_valida: true }, encerra: true },
+    { id: "outro_motorista", de: "avaliacao_frota", para: "enviado_lider", nome: "Válida: era outro motorista", campos: ["motorista_novo", "observacao"], fixos: { contestacao_valida: true },
+      rotuloObs: "Por que era outro motorista" },
+    { id: "enviar_dp", de: "conferencia_frota", para: "encaminhado_dp", nome: "Enviar ao DP", campos: ["motorista_se_faltar"], fixos: {} },
+    { id: "devolver_lider", de: "conferencia_frota", para: "enviado_lider", nome: "Devolver ao líder", campos: ["observacao"], fixos: {},
+      rotuloObs: "Observações da Frota (o motivo)" },
+    { id: "conferencia_custo_beep", de: "conferencia_frota", para: "custo_beep", nome: "Não cobrar: Custo Beep", campos: ["motivo_custo_beep"], fixos: {}, encerra: true },
+    { id: "com_retencao", de: "analise_rh", para: "encaminhado_dp", nome: "Tem retenção rescisória: enviar ao DP", campos: [], fixos: { retencao_rescisoria: true } },
+    { id: "sem_retencao", de: "analise_rh", para: "custo_beep", nome: "Sem retenção: Custo Beep", campos: [], fixos: { retencao_rescisoria: false }, encerra: true },
+    { id: "confirmado", de: "encaminhado_dp", para: "confirmado_dp", nome: "Confirmado pelo DP", campos: [], fixos: {}, encerra: true },
+    { id: "rejeitada", de: "encaminhado_dp", para: "rejeitada_dp", nome: "Rejeitada pelo DP", campos: ["motivo_rejeicao_dp"], fixos: {} },
+    { id: "reenviar_dp", de: "rejeitada_dp", para: "encaminhado_dp", nome: "Reenviar ao DP", campos: ["observacao"], fixos: {},
+      rotuloObs: "O que foi corrigido" },
+    { id: "rejeitada_custo_beep", de: "rejeitada_dp", para: "custo_beep", nome: "Custo Beep", campos: ["motivo_custo_beep"], fixos: {}, encerra: true },
+    { id: "cobranca_errada", de: "*", para: "cobranca_errada", nome: "Cobrança errada", campos: ["motivo_cobranca_errada"], fixos: {}, encerra: true },
+    { id: "reabrir", de: "final", para: null, nome: "Reabrir (admin)", campos: ["fase_reabrir", "observacao"], fixos: {}, soAdmin: true,
+      rotuloObs: "Motivo da reabertura" }
+  ];
+  // texto obrigatório: pelo menos 5 caracteres sem contar os espaços das pontas (= frota.texto_ok)
+  function textoOk(t) { return String(t == null ? "" : t).trim().length >= 5; }
+  // papel: "admin", "opera" (operador com Multas) ou qualquer outro (só vê → nenhum botão)
+  function proximosPassos(fase, papel) {
+    var f = faseDesconto(fase);
+    if (!f || (papel !== "admin" && papel !== "opera")) return [];
+    return DESCONTO_PASSOS.filter(function(p){
+      if (f.final) return p.de === "final" && papel === "admin";
+      return p.de === fase || p.de === "*";
+    });
+  }
+  function passoDesconto(id) {
+    for (var i = 0; i < DESCONTO_PASSOS.length; i++) if (DESCONTO_PASSOS[i].id === id) return DESCONTO_PASSOS[i];
+    return null;
+  }
+  var TEXTO_CAMPO = { contestacao_motivo: "o motivo da contestação", motivo_custo_beep: "o motivo do Custo Beep",
+    motivo_rejeicao_dp: "o motivo da rejeição do DP", motivo_cobranca_errada: "o motivo da cobrança errada" };
+  // dados = o que a pessoa preencheu; atual = o desconto como está ({ motorista_id }).
+  // Devolve { erro } ou { patch } (o corpo do PATCH em descontos_folha).
+  function montarPasso(passo, dados, atual) {
+    if (typeof passo === "string") passo = passoDesconto(passo);
+    if (!passo) return { erro: "Passo desconhecido." };
+    dados = dados || {}; atual = atual || {};
+    var patch = { fase: passo.para };
+    for (var k in passo.fixos) patch[k] = passo.fixos[k];
+    for (var i = 0; i < passo.campos.length; i++) {
+      var c = passo.campos[i];
+      if (c === "motorista") {
+        if (!dados.motorista_id) return { erro: "Escolha o motorista cobrado." };
+        patch.motorista_id = dados.motorista_id;
+      } else if (c === "motorista_se_faltar") {
+        if (!atual.motorista_id && !dados.motorista_id) return { erro: "Escolha o motorista antes de enviar ao DP." };
+        if (!atual.motorista_id) patch.motorista_id = dados.motorista_id;
+      } else if (c === "motorista_novo") {
+        if (!dados.motorista_id) return { erro: "Escolha o motorista correto." };
+        if (dados.motorista_id === atual.motorista_id) return { erro: "Escolha um motorista diferente do atual." };
+        patch.motorista_id = dados.motorista_id;
+      } else if (c === "fase_reabrir") {
+        var f = faseDesconto(dados.fase_reabrir);
+        if (!f || f.final) return { erro: "Escolha para qual fase em andamento o desconto volta." };
+        patch.fase = f.chave;
+      } else if (c === "observacao") {
+        if (!textoOk(dados.observacao)) return { erro: "Preencha " + (passo.rotuloObs || "a observação").toLowerCase() + " (pelo menos 5 letras)." };
+        patch.observacao_fase = String(dados.observacao).trim();
+      } else {
+        if (!textoOk(dados[c])) return { erro: "Informe " + TEXTO_CAMPO[c] + " (pelo menos 5 letras)." };
+        patch[c] = String(dados[c]).trim();
+      }
+    }
+    return { patch: patch };
+  }
+
+  // ---------- Corrigir dados sem trocar de fase (Etapa 4c) — mesma regra do gatilho no banco ----------
+  // Corrigir (mudar um valor que já existia) exige justificativa; definir motorista ou líder pela 1ª vez não exige.
+  // antes/depois: { motorista_id, lider_nome, valor_bruto, valor_com_desconto, parcelas } (+ antes.valor).
+  // Devolve { erro } ou { patch, mudou: [rótulos], exigeJustificativa }.
+  function correcaoDesconto(antes, depois, justificativa) {
+    var num = function(v){ if (v == null || v === "") return null; var x = Number(v); return isNaN(x) ? NaN : Math.round(x * 100) / 100; };
+    var txt = function(v){ v = String(v == null ? "" : v).trim(); return v || null; };
+    var b0 = num(antes.valor_bruto), d0 = num(antes.valor_com_desconto), b1 = num(depois.valor_bruto), d1 = num(depois.valor_com_desconto);
+    if (isNaN(b1) || isNaN(d1) || (b1 != null && b1 <= 0) || (d1 != null && d1 <= 0)) return { erro: "Valor inválido." };
+    if (b1 == null && d1 == null) return { erro: "Informe o valor bruto." };
+    if (b1 != null && d1 != null && d1 > b1) return { erro: "O valor com desconto não pode ser maior que o bruto." };
+    var p1 = Number(depois.parcelas);
+    if (!parcelasValidas(p1)) return { erro: "Escolha o número de parcelas (de 1 a 6)." };
+    var v0 = num(antes.valor), v1 = valorConsiderado(b1, d1);
+    var l0 = txt(antes.lider_nome), l1 = txt(depois.lider_nome);
+    var m0 = antes.motorista_id || null, m1 = depois.motorista_id || null;
+    var patch = {}, mudou = [], exige = false;
+    if (m1 !== m0) { patch.motorista_id = m1; mudou.push("motorista"); if (m0) exige = true; }
+    if (l1 !== l0) { patch.lider_nome = l1; mudou.push("líder"); if (l0) exige = true; }
+    // desconto antigo só com "valor" (sem bruto/com desconto): a tela mostra o valor no campo do bruto
+    var b0c = (b0 == null && d0 == null) ? v0 : b0;
+    if (b1 !== b0c) { patch.valor_bruto = b1; if (b0c != null) exige = true; }
+    if (d1 !== d0) { patch.valor_com_desconto = d1; exige = true; }
+    if (v1 !== v0) exige = true;
+    if (b1 !== b0c || d1 !== d0) mudou.push("valor");
+    if (p1 !== Number(antes.parcelas)) { patch.parcelas = p1; mudou.push("parcelas"); exige = true; }
+    if (!mudou.length) return { erro: "Nada mudou." };
+    if (exige && !textoOk(justificativa)) return { erro: "Escreva a justificativa da correção (pelo menos 5 letras)." };
+    if (textoOk(justificativa)) patch.observacao_fase = String(justificativa).trim();
+    return { patch: patch, mudou: mudou, exigeJustificativa: exige };
+  }
+
   global.Regras = {
+    DESCONTO_PASSOS: DESCONTO_PASSOS,
+    proximosPassos: proximosPassos,
+    passoDesconto: passoDesconto,
+    montarPasso: montarPasso,
+    correcaoDesconto: correcaoDesconto,
+    textoOk: textoOk,
     PARCELAS_MAX: PARCELAS_MAX,
     DESCONTO_FASES: DESCONTO_FASES,
     faseDesconto: faseDesconto,

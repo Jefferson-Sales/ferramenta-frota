@@ -261,6 +261,55 @@
   igual("destino = coluna resultado do banco", ["confirmado_dp","custo_beep","cobranca_errada","enviado_lider"].map(function(f){ return R.destinoContabil(f).chave; }).join(","),
         "repasse_motorista,custo_beep,sem_custo,em_andamento");
 
+  grupo("Descontos — próximos passos (espelho do gatilho do banco)");
+  var ids = function(fase, papel){ return R.proximosPassos(fase, papel).map(function(p){ return p.id; }).join(","); };
+  var destinos = function(fase){ return R.proximosPassos(fase, "opera").map(function(p){ return p.para; }).join(","); };
+  // mesma árvore do gatilho tg_descontos_folha_regras (testada no banco na seção 16 do regras.test.sql)
+  igual("Enviado ao líder → Conferência, Avaliação, Análise RH ou Cobrança errada", destinos("enviado_lider"), "conferencia_frota,avaliacao_frota,analise_rh,cobranca_errada");
+  igual("Avaliação → Conferência, Custo Beep, volta ao líder ou Cobrança errada", destinos("avaliacao_frota"), "conferencia_frota,custo_beep,enviado_lider,cobranca_errada");
+  igual("Conferência → DP, volta ao líder, Custo Beep ou Cobrança errada", destinos("conferencia_frota"), "encaminhado_dp,enviado_lider,custo_beep,cobranca_errada");
+  igual("Análise RH → DP (com retenção) ou Custo Beep (sem)", destinos("analise_rh"), "encaminhado_dp,custo_beep,cobranca_errada");
+  igual("Encaminhado ao DP → Confirmado ou Rejeitada", destinos("encaminhado_dp"), "confirmado_dp,rejeitada_dp,cobranca_errada");
+  igual("Rejeitada pelo DP → reenviar ou Custo Beep", destinos("rejeitada_dp"), "encaminhado_dp,custo_beep,cobranca_errada");
+  igual("quem só vê Multas não tem botões", ids("enviado_lider", "visualizador"), "");
+  igual("final: operador não tem botões", ids("confirmado_dp", "opera"), "");
+  igual("final: admin só reabre", ids("custo_beep", "admin"), "reabrir");
+  igual("botões que encerram pedem confirmação", R.DESCONTO_PASSOS.filter(function(p){ return p.encerra; }).map(function(p){ return p.para; }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(","), "custo_beep,confirmado_dp,cobranca_errada");
+  igual("concordou: sem motorista é recusado", R.montarPasso("concordou", {}, {}).erro, "Escolha o motorista cobrado.");
+  igual("concordou: grava motorista e concorda = sim", JSON.stringify(R.montarPasso("concordou", { motorista_id: "m1" }, {}).patch),
+        '{"fase":"conferencia_frota","motorista_concorda":"sim","motorista_id":"m1"}');
+  igual("contestou: motivo curto é recusado", !!R.montarPasso("contestou", { motorista_id: "m1", contestacao_motivo: " abc " }, {}).erro, true);
+  igual("contestou: grava o motivo sem espaços nas pontas", R.montarPasso("contestou", { motorista_id: "m1", contestacao_motivo: "  Não estava no carro " }, {}).patch.contestacao_motivo, "Não estava no carro");
+  igual("era outro motorista: o mesmo de antes é recusado", R.montarPasso("outro_motorista", { motorista_id: "m1", observacao: "Escala do dia" }, { motorista_id: "m1" }).erro, "Escolha um motorista diferente do atual.");
+  igual("era outro motorista: troca + observação + válida", JSON.stringify(R.montarPasso("outro_motorista", { motorista_id: "m2", observacao: "Escala do dia" }, { motorista_id: "m1" }).patch),
+        '{"fase":"enviado_lider","contestacao_valida":true,"motorista_id":"m2","observacao_fase":"Escala do dia"}');
+  igual("enviar ao DP: com motorista já definido não reenvia o motorista", JSON.stringify(R.montarPasso("enviar_dp", {}, { motorista_id: "m1" }).patch), '{"fase":"encaminhado_dp"}');
+  igual("enviar ao DP: sem motorista pede o motorista", !!R.montarPasso("enviar_dp", {}, {}).erro, true);
+  igual("devolver ao líder exige Observações da Frota", !!R.montarPasso("devolver_lider", { observacao: "" }, {}).erro, true);
+  igual("sem retenção → Custo Beep (o motivo o banco põe)", JSON.stringify(R.montarPasso("sem_retencao", {}, {}).patch), '{"fase":"custo_beep","retencao_rescisoria":false}');
+  igual("DP rejeitou: exige motivo", !!R.montarPasso("rejeitada", {}, {}).erro, true);
+  igual("cobrança errada: grava o motivo", R.montarPasso("cobranca_errada", { motivo_cobranca_errada: "Multa duplicada" }, {}).patch.motivo_cobranca_errada, "Multa duplicada");
+  igual("reabrir: não volta para fase final", !!R.montarPasso("reabrir", { fase_reabrir: "custo_beep", observacao: "Locadora confirmou" }, {}).erro, true);
+  igual("reabrir: fase escolhida + motivo", JSON.stringify(R.montarPasso("reabrir", { fase_reabrir: "conferencia_frota", observacao: "Locadora confirmou" }, {}).patch),
+        '{"fase":"conferencia_frota","observacao_fase":"Locadora confirmou"}');
+  igual("texto obrigatório = 5 caracteres sem espaços nas pontas", [R.textoOk("abcd"), R.textoOk("  abcd  "), R.textoOk("abcde")].join(","), "false,false,true");
+
+  grupo("Descontos — corrigir dados (mesma regra do banco)");
+  var antes = { motorista_id: "m1", lider_nome: "Líder A", valor: 500, valor_bruto: 700, valor_com_desconto: 500, parcelas: 3 };
+  var igualA = function(mud){ var d = { motorista_id: "m1", lider_nome: "Líder A", valor_bruto: 700, valor_com_desconto: 500, parcelas: 3 }; for (var k in mud) d[k] = mud[k]; return d; };
+  igual("nada mudou", R.correcaoDesconto(antes, igualA({}), "").erro, "Nada mudou.");
+  igual("trocar parcelas sem justificativa é recusado", !!R.correcaoDesconto(antes, igualA({ parcelas: 6 }), "").erro, true);
+  igual("trocar parcelas com justificativa", JSON.stringify(R.correcaoDesconto(antes, igualA({ parcelas: 6 }), " Pedido do RH ").patch), '{"parcelas":6,"observacao_fase":"Pedido do RH"}');
+  igual("trocar motorista já definido exige justificativa", R.correcaoDesconto(antes, igualA({ motorista_id: "m2" }), "").erro, "Escreva a justificativa da correção (pelo menos 5 letras).");
+  igual("trocar líder já preenchido exige justificativa", !!R.correcaoDesconto(antes, igualA({ lider_nome: "Líder B" }), "").erro, true);
+  igual("definir motorista e líder pela 1ª vez não exige", R.correcaoDesconto({ valor: 100, valor_bruto: 100, parcelas: 1 }, { motorista_id: "m1", lider_nome: "Líder A", valor_bruto: 100, parcelas: 1 }, "").exigeJustificativa, false);
+  igual("tirar o valor com desconto exige justificativa", !!R.correcaoDesconto(antes, igualA({ valor_com_desconto: "" }), "").erro, true);
+  igual("com desconto maior que o bruto é recusado", R.correcaoDesconto(antes, igualA({ valor_com_desconto: 800 }), "Ajuste da oficina").erro, "O valor com desconto não pode ser maior que o bruto.");
+  igual("parcelas fora de 1–6 são recusadas", !!R.correcaoDesconto(antes, igualA({ parcelas: 7 }), "Ajuste da oficina").erro, true);
+  igual("desconto antigo só com valor: mesmo número no bruto = nada mudou", R.correcaoDesconto({ valor: 195.23, parcelas: 2 }, { valor_bruto: "195.23", parcelas: 2 }, "").erro, "Nada mudou.");
+  igual("desconto antigo só com valor: trocar o valor exige justificativa", !!R.correcaoDesconto({ valor: 195.23, parcelas: 2 }, { valor_bruto: 150, parcelas: 2 }, "").erro, true);
+  igual("líder em branco vira vazio (null)", JSON.stringify(R.correcaoDesconto(antes, igualA({ lider_nome: "  " }), "Líder saiu da empresa").patch), '{"lider_nome":null,"observacao_fase":"Líder saiu da empresa"}');
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){

@@ -755,11 +755,31 @@ begin
   insert into frota.descontos_folha (tipo, os_id, valor_bruto, valor_com_desconto) values ('avaria', osd, 700, 500) returning id into dsv1;
   select valor || ' / ' || parcelas_sugeridas into x from frota.descontos_folha where id = dsv1;
   casos := casos || text 'valor: com desconto preenchido vale ele (R$ 500 → 3x)'; obtidos := obtidos || x; esperados := esperados || text '500.00 / 3';
-  update frota.descontos_folha set valor_com_desconto = null where id = dsv1;
+  update frota.descontos_folha set valor_com_desconto = null, observacao_fase = 'Desconto da locadora não vale' where id = dsv1;
   select valor || ' / ' || parcelas_sugeridas into x from frota.descontos_folha where id = dsv1;
   casos := casos || text 'valor: sem desconto vale o bruto (R$ 700 → sugestão 6x)'; obtidos := obtidos || x; esperados := esperados || text '700.00 / 6';
   begin insert into frota.descontos_folha (tipo, os_id, valor_bruto, valor_com_desconto) values ('avaria', osd, 300, 400); x := 'aceitou'; exception when others then x := 'recusou'; end;
   casos := casos || text 'valor: com desconto maior que o bruto é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+
+  -- ============================================ 19. CORRIGIR DADOS SEM TROCAR DE FASE (Etapa 4c) = Regras.correcaoDesconto
+  begin update frota.descontos_folha set parcelas = 6 where id = dsv1; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Corrigir dados exige%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'corrigir: trocar parcelas sem justificativa é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.descontos_folha set valor_bruto = 650 where id = dsv1; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Corrigir dados exige%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'corrigir: trocar valor sem justificativa é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set parcelas = 6, valor_bruto = 650, observacao_fase = 'Orçamento revisado pela oficina' where id = dsv1;
+  select (detalhes->>'valor_anterior') || '>' || (detalhes->>'valor') || ' ' || (detalhes->>'parcelas_anterior') || '>' || (detalhes->>'parcelas') || ' / ' || fase_anterior || '=' || fase_nova || ' / ' || observacao
+    into x from frota.descontos_historico where desconto_id = dsv1 order by mudou_em desc limit 1;
+  casos := casos || text 'corrigir: com justificativa grava o antes e o depois na linha do tempo'; obtidos := obtidos || x;
+  esperados := esperados || text '700.00>650.00 3>6 / enviado_lider=enviado_lider / Orçamento revisado pela oficina';
+  begin update frota.descontos_folha set motorista_id = mot1, lider_nome = 'TESTE Líder Um' where id = dsv1; x := 'aceitou'; exception when others then x := sqlerrm; end;
+  casos := casos || text 'corrigir: definir motorista e líder pela 1ª vez não exige justificativa'; obtidos := obtidos || x; esperados := esperados || text 'aceitou';
+  begin update frota.descontos_folha set motorista_id = mot2 where id = dsv1; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Corrigir dados exige%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'corrigir: trocar motorista já definido sem justificativa é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.descontos_folha set lider_nome = 'TESTE Líder Dois' where id = dsv1; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Corrigir dados exige%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'corrigir: trocar líder já preenchido sem justificativa é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_folha set lider_nome = 'TESTE Líder Dois', observacao_fase = 'Motorista mudou de equipe' where id = dsv1;
+  select (detalhes->>'lider_anterior') || ' > ' || (detalhes->>'lider_nome') into x from frota.descontos_historico where desconto_id = dsv1 order by mudou_em desc limit 1;
+  casos := casos || text 'corrigir: troca de líder fica na linha do tempo'; obtidos := obtidos || x; esperados := esperados || text 'TESTE Líder Um > TESTE Líder Dois';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 

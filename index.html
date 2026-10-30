@@ -333,6 +333,16 @@
   .dn-mot-acoes{ display:flex; flex-wrap:wrap; gap:var(--espaco-3); align-items:center; margin-top:var(--espaco-2); }
   .dn-mot-acoes .btn{ width:auto; }
   .dn-aviso{ color:var(--warning); }
+  .dsc-passos{ display:flex; flex-wrap:wrap; gap:var(--espaco-3); }
+  .dsc-passos .btn{ width:auto; }
+  .dsc-passos .dsc-passo-avanca{ border-color:var(--accent); color:var(--accent); }
+  .dsc-passos .btn.sel{ background:var(--accent-soft); border-color:var(--accent); color:var(--ink); }
+  .dsc-passos .dsc-corrigir{ margin-left:auto; }
+  .dsc-passo-form{ margin-top:var(--espaco-6); border:1px solid var(--line); border-radius:var(--radius); padding:var(--espaco-6); background:var(--surface-2); }
+  .dsc-pf-titulo{ font-weight:600; margin-bottom:var(--espaco-2); }
+  .dsc-passo-form .form-grid{ margin-top:var(--espaco-5); }
+  .dsc-passo-form .modal-actions{ margin-top:var(--espaco-2); }
+  @media (max-width:560px){ .dsc-passos .btn{ flex:1 1 100%; } .dsc-passos .dsc-corrigir{ margin-left:0; } }
   .dsc-hist .det{ flex-basis:100%; color:var(--muted); font-size:var(--fs-sm); padding-left:calc(112px + var(--espaco-4)); }
   @media (max-width:560px){ .dsc-hist .det{ padding-left:0; } .detail-grid.dsc-resumo{ grid-template-columns:1fr; } }
   .osd-hist li{ display:flex; flex-wrap:wrap; gap:var(--espaco-1) var(--espaco-4); padding:var(--espaco-2) 0; border-bottom:1px solid var(--line); }
@@ -3194,11 +3204,178 @@
         (d.multas && (d.multas.auto_infracao || d.multas.numero_multa) ? item("AIT / notificação", esc([d.multas.auto_infracao, d.multas.numero_multa].filter(Boolean).join(" · "))) : "") +
         (d.pipefy_card_id ? item("Card do Pipefy", esc(d.pipefy_card_id)) : "") +
       '</div>' +
+      dscAcoesHtml(d) +
       (resp.length ? '<div class="detail-section"><h4>Respostas da esteira</h4><div class="detail-grid dsc-resumo">' + resp.join("") + '</div></div>' : '') +
       '<div class="detail-section"><h4>Linha do tempo</h4><div class="ac-hint">Gravada pelo banco a cada passo; não dá para editar nem apagar.</div><div id="dsc-historico"><span class="osd-vazio">Carregando…</span></div></div>';
     openModal("modal-desconto");
     carregarHistoricoDesconto(d.id);
   }
+
+  // ---------------- Andar na esteira e corrigir dados — Etapa 4c ----------------
+  // Só os passos que o banco aceita na fase atual (Regras.proximosPassos = gatilho descontos_folha_regras).
+  // A Frota registra as respostas do líder e do DP (eles não têm login); o histórico guarda quem registrou.
+  function dscPapel(){ return !perfil ? "" : perfil.papel === "admin" ? "admin" : canEdit("multas") ? "opera" : "ver"; }
+  function dscAcoesHtml(d){
+    var passos = Regras.proximosPassos(d.fase, dscPapel());
+    var fa = Regras.faseDesconto(d.fase) || {};
+    var corrigir = !fa.final && (dscPapel() === "admin" || dscPapel() === "opera");
+    if (!passos.length && !corrigir) return "";
+    return '<div class="detail-section" id="dsc-acoes"><h4>' + (fa.final ? "Desconto finalizado" : "Próximo passo") + '</h4>' +
+      '<div class="dsc-passos">' + passos.map(function(p){
+        var cls = p.id === "cobranca_errada" ? "btn btn-danger" : (p.encerra || p.id === "reabrir" ? "btn" : "btn dsc-passo-avanca");
+        return '<button type="button" class="' + cls + '" data-dsc-passo="' + p.id + '">' + esc(p.nome) + '</button>';
+      }).join("") +
+      (corrigir ? '<button type="button" class="btn dsc-corrigir" data-dsc-corrigir>Corrigir dados</button>' : '') + '</div>' +
+      '<div class="dsc-passo-form" id="dsc-passo-form" hidden></div></div>';
+  }
+
+  function dscMotTexto(id){
+    if (!id) return "";
+    var r = (DN.listaMot || []).filter(function(x){ return x.id === id; })[0];
+    return r ? dnMotRotulo(r) : (DSC.motoristas[id] || "");
+  }
+  function dscMotDoTexto(t){
+    t = String(t || "").trim(); if (!t) return null;
+    var r = DN.listaMot.filter(function(x){ return dnMotRotulo(x) === t; })[0] || DN.listaMot.filter(function(x){ return x.matricula && x.matricula === t; })[0];
+    if (!r){ var mesmoNome = DN.listaMot.filter(function(x){ return x.nome === t; }); if (mesmoNome.length === 1) r = mesmoNome[0]; }
+    return r ? r.id : undefined; // undefined = digitou algo que não está na lista
+  }
+  function dscCampoMotorista(rotulo, valor, dica){
+    return '<div class="field span2"><label for="dsc-pf-mot">' + esc(rotulo) + '</label><input id="dsc-pf-mot" list="dn-mot-lista" placeholder="Nome ou matrícula" value="' + esc(valor) + '">' +
+      (dica ? '<div class="ac-hint">' + dica + '</div>' : '') + '</div>';
+  }
+  var DSC_ROTULO_CAMPO = { contestacao_motivo: "Motivo da contestação (o que o motorista disse)", motivo_custo_beep: "Motivo do Custo Beep",
+    motivo_rejeicao_dp: "Motivo da rejeição (ex.: termo ilegível, CNH ausente, prazo de folha)", motivo_cobranca_errada: "Motivo (ex.: multa duplicada, cobrança indevida, erro no AIT)" };
+  var DSC_AVISO_PASSO = {
+    concordou: "Registre o que o líder trouxe: o motorista concorda com o desconto.",
+    contestou: "O motorista não concorda; a Frota avalia a contestação.",
+    desligado: "O motorista já saiu da empresa; o RH verifica se há retenção rescisória.",
+    contestacao_invalida: "A contestação não procede: o desconto segue para a Conferência.",
+    outro_motorista: "A contestação procede e era outra pessoa: o desconto volta ao líder com o motorista correto.",
+    enviar_dp: "Tudo conferido: o desconto vai para o DP lançar na folha.",
+    com_retencao: "Há valor a reter na rescisão: o desconto vai para o DP.",
+    sem_retencao: "Não há retenção rescisória: a empresa absorve (motivo \"Motorista desligado\").",
+    confirmado: "O DP confirmou o lançamento na folha. Destino do valor: cobrança do motorista.",
+    reabrir: "Só admin. O desconto volta para a fase escolhida e o motivo fica na linha do tempo."
+  };
+
+  function dscAbrirPasso(id){
+    var d = DSC.atual, p = Regras.passoDesconto(id), host = document.getElementById("dsc-passo-form");
+    if (!d || !p || !host) return;
+    var sug = d.motorista_id || d.motorista_sugerido_id || "";
+    var campos = p.campos.map(function(c){
+      if (c === "motorista") return dscCampoMotorista("Motorista cobrado", dscMotTexto(sug),
+        !d.motorista_id && d.motorista_sugerido_id ? "Preenchido com o motorista sugerido — confira antes de confirmar." : "");
+      if (c === "motorista_novo") return dscCampoMotorista("Motorista correto", "", "Atual: " + esc(dscNomeMotorista(d.motorista_id) || "nenhum") + ".");
+      if (c === "motorista_se_faltar") return d.motorista_id ? "" : dscCampoMotorista("Motorista cobrado", dscMotTexto(sug), "O DP só recebe com o motorista definido.");
+      if (c === "fase_reabrir") return '<div class="field span2"><label for="dsc-pf-fase">Volta para a fase</label><select id="dsc-pf-fase">' +
+        Regras.DESCONTO_FASES.filter(function(f){ return !f.final; }).map(function(f){ return '<option value="' + f.chave + '">' + esc(f.nome) + '</option>'; }).join("") + '</select></div>';
+      var rot = c === "observacao" ? (p.rotuloObs || "Observação") : DSC_ROTULO_CAMPO[c];
+      return '<div class="field span2"><label for="dsc-pf-' + c + '">' + esc(rot) + '</label><textarea id="dsc-pf-' + c + '" rows="2" maxlength="' + (c === "observacao" || c === "contestacao_motivo" ? 2000 : 500) + '"></textarea></div>';
+    }).join("");
+    var destino = Regras.faseDesconto(p.para);
+    host.innerHTML = '<div class="dsc-pf-titulo">' + esc(p.nome) + (destino && destino.nome !== p.nome ? ' <span class="qf-sub">→ ' + esc(destino.nome) + (destino.final ? " (final)" : "") + '</span>' : '') + '</div>' +
+      (DSC_AVISO_PASSO[p.id] ? '<div class="ac-hint">' + esc(DSC_AVISO_PASSO[p.id]) + '</div>' : '') +
+      '<div class="form-grid">' + campos + '</div>' +
+      '<div class="field-err" id="dsc-pf-err" hidden></div>' +
+      '<div class="modal-actions"><button type="button" class="btn" data-dsc-pf-cancelar>Cancelar</button>' +
+      '<button type="button" class="btn btn-primary" style="width:auto" data-dsc-pf-confirmar="' + p.id + '">Confirmar</button></div>';
+    host.hidden = false;
+    dscMarcarBotao(id);
+    if (p.campos.some(function(c){ return c.indexOf("motorista") === 0; })) dnMotoristas().then(function(){
+      var inp = document.getElementById("dsc-pf-mot");
+      if (inp && !inp.value && p.campos[0] !== "motorista_novo") inp.value = dscMotTexto(sug);
+    }).catch(function(){});
+    var primeiro = host.querySelector("input,textarea,select"); if (primeiro) primeiro.focus();
+  }
+  function dscMarcarBotao(id){
+    document.querySelectorAll("#dsc-acoes [data-dsc-passo],#dsc-acoes [data-dsc-corrigir]").forEach(function(b){
+      b.classList.toggle("sel", (b.dataset.dscPasso || (b.hasAttribute("data-dsc-corrigir") ? "_corrigir" : "")) === id);
+    });
+  }
+
+  function dscConfirmarPasso(id, btn){
+    var d = DSC.atual, p = Regras.passoDesconto(id);
+    if (!d || !p) return;
+    setErr("dsc-pf-err", "");
+    var val = function(k){ var e = document.getElementById("dsc-pf-" + k); return e ? e.value : ""; };
+    var dados = { observacao: val("observacao"), fase_reabrir: val("fase"), contestacao_motivo: val("contestacao_motivo"),
+      motivo_custo_beep: val("motivo_custo_beep"), motivo_rejeicao_dp: val("motivo_rejeicao_dp"), motivo_cobranca_errada: val("motivo_cobranca_errada") };
+    var inp = document.getElementById("dsc-pf-mot");
+    if (inp){
+      var mid = dscMotDoTexto(inp.value);
+      if (mid === undefined){ setErr("dsc-pf-err", "Escolha o motorista da lista (nome ou matrícula)."); return; }
+      dados.motorista_id = mid;
+    }
+    var r = Regras.montarPasso(p, dados, d);
+    if (r.erro){ setErr("dsc-pf-err", r.erro); return; }
+    var para = Regras.faseDesconto(r.patch.fase);
+    if (p.encerra && !confirm("Encerrar este desconto como \"" + para.nome + "\"?\n\nDestino do valor: " + Regras.destinoContabil(para.chave).nome + ".\nDepois disso só um admin reabre.")) return;
+    btn.disabled = true;
+    rest("descontos_folha?id=eq." + d.id, { method: "PATCH", body: r.patch }).then(function(){
+      toast("Desconto em " + para.nome + ".");
+      dscRecarregar(d);
+    }).catch(function(e){ setErr("dsc-pf-err", e.message); btn.disabled = false; });
+  }
+
+  function dscAbrirCorrecao(){
+    var d = DSC.atual, host = document.getElementById("dsc-passo-form");
+    if (!d || !host) return;
+    var bruto = d.valor_bruto != null ? d.valor_bruto : (d.valor_com_desconto == null ? d.valor : "");
+    host.innerHTML = '<div class="dsc-pf-titulo">Corrigir dados <span class="qf-sub">· a fase não muda</span></div>' +
+      '<div class="ac-hint">Cada correção fica na linha do tempo com a justificativa. Definir o motorista ou o líder pela primeira vez não precisa de justificativa.</div>' +
+      '<div class="form-grid">' +
+        dscCampoMotorista("Motorista cobrado", dscMotTexto(d.motorista_id), "Deixe em branco para \"a definir\".") +
+        '<div class="field span2"><label for="dsc-cd-lider">Líder / supervisor</label><input id="dsc-cd-lider" maxlength="120" value="' + esc(d.lider_nome || "") + '"></div>' +
+        '<div class="field"><label for="dsc-cd-bruto">Valor bruto (R$)</label><input id="dsc-cd-bruto" type="number" step="0.01" min="0.01" value="' + esc(bruto) + '"></div>' +
+        '<div class="field"><label for="dsc-cd-comdesc">Valor com desconto (R$) — opcional</label><input id="dsc-cd-comdesc" type="number" step="0.01" min="0.01" value="' + esc(d.valor_com_desconto != null ? d.valor_com_desconto : "") + '"></div>' +
+        '<div class="field"><label for="dsc-cd-parcelas">Parcelas</label><select id="dsc-cd-parcelas">' + [1, 2, 3, 4, 5, 6].map(function(n){
+          return '<option value="' + n + '"' + (Number(d.parcelas) === n ? " selected" : "") + '>' + n + 'x</option>'; }).join("") + '</select>' +
+          (d.parcelas_sugeridas ? '<div class="ac-hint">Sugerido: ' + esc(d.parcelas_sugeridas) + 'x</div>' : '') + '</div>' +
+        '<div class="field span2"><label for="dsc-cd-just">Justificativa da correção</label><textarea id="dsc-cd-just" rows="2" maxlength="2000" placeholder="Ex.: orçamento revisado pela oficina"></textarea></div>' +
+      '</div>' +
+      '<div class="field-err" id="dsc-pf-err" hidden></div>' +
+      '<div class="modal-actions"><button type="button" class="btn" data-dsc-pf-cancelar>Cancelar</button>' +
+      '<button type="button" class="btn btn-primary" style="width:auto" data-dsc-cd-salvar>Salvar correção</button></div>';
+    host.hidden = false;
+    dscMarcarBotao("_corrigir");
+    dnMotoristas().then(function(){ var inp = document.getElementById("dsc-pf-mot"); if (inp && d.motorista_id) inp.value = dscMotTexto(d.motorista_id); }).catch(function(){});
+  }
+  function dscSalvarCorrecao(btn){
+    var d = DSC.atual; if (!d) return;
+    setErr("dsc-pf-err", "");
+    var mid = dscMotDoTexto(document.getElementById("dsc-pf-mot").value);
+    if (mid === undefined){ setErr("dsc-pf-err", "Escolha o motorista da lista (nome ou matrícula) ou deixe em branco."); return; }
+    var r = Regras.correcaoDesconto(d, {
+      motorista_id: mid, lider_nome: document.getElementById("dsc-cd-lider").value,
+      valor_bruto: document.getElementById("dsc-cd-bruto").value, valor_com_desconto: document.getElementById("dsc-cd-comdesc").value,
+      parcelas: parseInt(document.getElementById("dsc-cd-parcelas").value, 10)
+    }, document.getElementById("dsc-cd-just").value);
+    if (r.erro){ setErr("dsc-pf-err", r.erro); return; }
+    btn.disabled = true;
+    rest("descontos_folha?id=eq." + d.id, { method: "PATCH", body: r.patch }).then(function(){
+      toast("Correção salva (" + r.mudou.join(", ") + ").");
+      dscRecarregar(d);
+    }).catch(function(e){
+      var msg = e.message || "";
+      if (/valor_com_desconto_menor/.test(msg)) msg = "O valor com desconto não pode ser maior que o bruto.";
+      setErr("dsc-pf-err", msg); btn.disabled = false;
+    });
+  }
+  // depois de gravar: recarrega a lista, os contadores e reabre o mesmo desconto (com a linha do tempo nova)
+  function dscRecarregar(d){
+    DSC.abrirDepois = d.id;
+    loadDescontos();
+    if (d.multa_id) loadMultas();
+  }
+  document.getElementById("dsc-corpo").addEventListener("click", function(ev){
+    var b;
+    if ((b = ev.target.closest("[data-dsc-passo]"))) dscAbrirPasso(b.dataset.dscPasso);
+    else if (ev.target.closest("[data-dsc-corrigir]")) dscAbrirCorrecao();
+    else if (ev.target.closest("[data-dsc-pf-cancelar]")){ var h = document.getElementById("dsc-passo-form"); h.hidden = true; h.innerHTML = ""; dscMarcarBotao(""); }
+    else if ((b = ev.target.closest("[data-dsc-pf-confirmar]"))) dscConfirmarPasso(b.dataset.dscPfConfirmar, b);
+    else if ((b = ev.target.closest("[data-dsc-cd-salvar]"))) dscSalvarCorrecao(b);
+  });
 
   function carregarHistoricoDesconto(id){
     rest("descontos_historico?desconto_id=eq." + id + "&select=fase_anterior,fase_nova,observacao,detalhes,origem,mudou_em,mudou_por_nome&order=mudou_em.asc").then(function(h){
@@ -3212,16 +3389,24 @@
       var itens = h.map(function(x){
         var det = x.detalhes || {}, linhas = [];
         var troca = x.fase_anterior !== x.fase_nova;
+        var corrigiu = !troca && x.fase_anterior != null && (det.motorista_anterior_id || det.valor_anterior != null || det.parcelas_anterior != null ||
+          det.lider_trocado || det.valor_com_desconto_trocado || det.valor_bruto_anterior != null);
         var rotulo = x.fase_anterior == null ? "Criado em " + nomeFase(x.fase_nova)
-          : troca ? nomeFase(x.fase_anterior) + " → " + nomeFase(x.fase_nova) : "Atualização";
+          : troca ? nomeFase(x.fase_anterior) + " → " + nomeFase(x.fase_nova) : (corrigiu ? "Dados corrigidos" : "Atualização");
+        var ou = function(v, f){ return v == null || v === "" ? "vazio" : f ? f(v) : v; };
         if (det.motorista_anterior_id) linhas.push("Motorista trocado: " + dscNomeMotorista(det.motorista_anterior_id) + " → " + (dscNomeMotorista(det.motorista_id) || "nenhum"));
         else if (x.fase_anterior == null && det.motorista_id) linhas.push("Motorista: " + dscNomeMotorista(det.motorista_id));
         if (troca && x.fase_nova === "avaliacao_frota" && det.contestacao_motivo) linhas.push("Contestação: " + det.contestacao_motivo);
         if (det.motivo_custo_beep) linhas.push("Motivo do Custo Beep: " + det.motivo_custo_beep);
         if (det.motivo_rejeicao_dp) linhas.push("Motivo da rejeição: " + det.motivo_rejeicao_dp);
         if (det.motivo_cobranca_errada) linhas.push("Motivo: " + det.motivo_cobranca_errada);
-        if (!troca && x.fase_anterior != null && !det.motorista_anterior_id && !x.observacao) linhas.push("Valor " + money(det.valor) + " · " + det.parcelas + "x");
-        if (x.observacao) linhas.push("Observação: " + x.observacao);
+        if (det.valor_anterior != null) linhas.push("Valor: " + money(det.valor_anterior) + " → " + money(det.valor));
+        if (det.valor_bruto_anterior != null) linhas.push("Valor bruto: " + money(det.valor_bruto_anterior) + " → " + ou(det.valor_bruto, money));
+        if (det.valor_com_desconto_trocado) linhas.push("Valor com desconto: " + ou(det.valor_com_desconto_anterior, money) + " → " + ou(det.valor_com_desconto, money));
+        if (det.parcelas_anterior != null) linhas.push("Parcelas: " + det.parcelas_anterior + "x → " + det.parcelas + "x");
+        if (det.lider_trocado) linhas.push("Líder: " + ou(det.lider_anterior) + " → " + ou(det.lider_nome));
+        if (!troca && x.fase_anterior != null && !corrigiu && !det.motorista_anterior_id && !x.observacao) linhas.push("Valor " + money(det.valor) + " · " + det.parcelas + "x");
+        if (x.observacao) linhas.push((corrigiu ? "Justificativa: " : "Observação: ") + x.observacao);
         var tempo = "";
         if (troca){
           var i = trocas.indexOf(x), prox = trocas[i + 1];
