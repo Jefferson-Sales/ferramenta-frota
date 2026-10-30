@@ -9,7 +9,7 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 **Próximos passos:**
 1. **Jefferson:** conferir a lista do CTB (códigos `PROV-nn`, gravidade e valor) — ou mandar a exportação do Pipefy para carregar a lista completa (vem junto com a E5). Enquanto nenhuma linha estiver conferida, a gravidade não é preenchida sozinha e o rodízio não vira Custo Beep automático.
 2. **E3** sugestão de motorista — **feita em 29/10/2026** (função + gatilho + 16 testes).
-   **E4a** (lista e detalhe dos descontos) — **feita em 29/10/2026**. Próxima: **E4b** (abrir desconto pela multa/OS, CTB, sugestão de motorista, valor bruto/com desconto).
+   **E4a** (lista e detalhe dos descontos) — **feita em 29/10/2026**. **E4b** (abrir desconto pela multa e pela OS, CTB, sugestão de motorista, valor bruto/com desconto) — **feita em 30/10/2026** (157 testes de banco e 157 da tela; conferida no navegador com dados fictícios, computador e celular). Próxima: **E4c** (botões de fase).
 3. **E4** tela da esteira em Multas (com anexos no bucket).
 4. **E5** importação dos 291 cards; **E6** Visão Executiva (Repasse × Custo Beep).
 

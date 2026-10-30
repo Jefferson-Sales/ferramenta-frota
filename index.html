@@ -1290,7 +1290,7 @@
         <div class="field"><label for="dn-parcelas">Parcelas</label><select id="dn-parcelas"><option value="">Escolha…</option><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option></select><div class="ac-hint" id="dn-parcelas-info"></div></div>
         <div class="field"><label for="dn-lider">Líder / supervisor (opcional)</label><input id="dn-lider" maxlength="120"></div>
       </div>
-      <div class="ac-hint">O desconto começa em <b>Enviado ao líder</b> na data de hoje. Rodízio (infração conferida como Custo Beep automático) já nasce como Custo Beep.</div>
+      <div class="ac-hint" id="dn-nota"></div>
       <div class="field-err" id="dn-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="dn-salvar" style="width:auto">Abrir desconto</button></div>
     </form>
@@ -3260,9 +3260,9 @@
   function muAtualizarValorInfo(){
     var b = document.getElementById("mu-valor-bruto").value, d = document.getElementById("mu-valor-desconto").value;
     var v = Regras.valorConsiderado(b, d);
-    document.getElementById("mu-valor-info").innerHTML = v != null
+    document.getElementById("mu-valor-info").innerHTML = "<span>" + (v != null
       ? "Valor considerado (o que soma nos totais): <b>" + esc(money(v)) + "</b> — " + (Regras.valorConsiderado(null, d) != null ? "com desconto" : "valor bruto")
-      : "Informe o valor bruto da multa (o valor com desconto é opcional).";
+      : "Informe o valor bruto da multa (o valor com desconto é opcional).") + "</span>";
   }
   ["mu-valor-bruto", "mu-valor-desconto"].forEach(function(id){ document.getElementById(id).addEventListener("input", muAtualizarValorInfo); });
   function muPreencherCTB(cod){
@@ -3325,6 +3325,7 @@
       lider: m.supervisor_responsavel || m.lideranca_responsavel || "", motorista: m.motorista_identificado_id || "",
       origem: "Multa " + (m.placa || "") + (m.auto_infracao ? " · AIT " + m.auto_infracao : "") + " · infração em " + dateTimeBR(m.data_infracao) + (m.hub ? " · " + m.hub : "") });
   }
+  function dnRotuloAnomalia(a){ return a.item_codigo ? qfItem(a) + (a.descricao ? ": " + a.descricao : "") : (a.descricao || qfItem(a)); }
   function abrirNovoDescontoOS(o){
     var placa = (o.veiculos || {}).placa || "";
     dnAbrir({ tipo: "avaria", os: o, veiculo_id: o.veiculo_id, quando: o.data_parou || null, bruto: o.valor_total, comdesc: null, lider: "", motorista: "",
@@ -3337,7 +3338,7 @@
       if (!DN.ctx || DN.ctx.os !== o) return;
       DN.anomalias = r[1] || [];
       sel.innerHTML = '<option value="">' + (DN.anomalias.length ? "—" : "Nenhuma anomalia ligada a esta OS") + '</option>' + DN.anomalias.map(function(a){
-        return '<option value="' + esc(a.id) + '">' + esc(qfItem(a) + (a.descricao ? " — " + a.descricao : "") + " · " + dateTimeBR(a.created_at)) + '</option>';
+        return '<option value="' + esc(a.id) + '">' + esc(dnRotuloAnomalia(a) + " · " + dateTimeBR(a.created_at)) + '</option>';
       }).join("");
       if (DN.anomalias.length === 1){ sel.value = DN.anomalias[0].id; dnAoEscolherAnomalia(); }
     }).catch(function(){});
@@ -3353,6 +3354,8 @@
     ["dn-ctb-titulo", "dn-ctb-wrap", "dn-grau-wrap", "dn-pontos-wrap"].forEach(function(id){ document.getElementById(id).hidden = !multa; });
     document.getElementById("dn-anomalia-wrap").hidden = multa;
     document.getElementById("dn-desc-rotulo").textContent = multa ? "Observação (opcional)" : "Descrição da avaria";
+    document.getElementById("dn-nota").innerHTML = "O desconto começa em <b>Enviado ao líder</b> com a data de hoje." +
+      (multa ? " Rodízio (infração conferida como Custo Beep automático) já nasce como Custo Beep." : "");
     document.getElementById("dn-quando").value = isoParaCampoLocal(ctx.quando || new Date().toISOString());
     document.getElementById("dn-bruto").value = ctx.bruto != null ? ctx.bruto : "";
     document.getElementById("dn-comdesc").value = ctx.comdesc != null ? ctx.comdesc : "";
@@ -3385,9 +3388,9 @@
   function dnValor(){ return Regras.valorConsiderado(document.getElementById("dn-bruto").value, document.getElementById("dn-comdesc").value); }
   function dnAtualizarValor(){
     var v = dnValor(), d = document.getElementById("dn-comdesc").value;
-    document.getElementById("dn-valor-info").innerHTML = v != null
+    document.getElementById("dn-valor-info").innerHTML = "<span>" + (v != null
       ? "Valor da cobrança: <b>" + esc(money(v)) + "</b> — " + (Regras.valorConsiderado(null, d) != null ? "com desconto" : "valor bruto")
-      : "Informe o valor bruto (o valor com desconto é opcional).";
+      : "Informe o valor bruto (o valor com desconto é opcional).") + "</span>";
     dnSugerirParcelas();
   }
   function dnSugerirParcelas(){
@@ -3458,7 +3461,7 @@
     if (!a) return;
     if (a.created_at) document.getElementById("dn-quando").value = isoParaCampoLocal(a.created_at);
     var desc = document.getElementById("dn-desc");
-    if (!desc.value.trim()) desc.value = qfItem(a) + (a.descricao ? ": " + a.descricao : "");
+    if (!desc.value.trim()) desc.value = dnRotuloAnomalia(a);
     dnBuscarSugestao();
   }
   document.getElementById("dn-anomalia").addEventListener("change", dnAoEscolherAnomalia);
