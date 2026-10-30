@@ -34,7 +34,7 @@ declare
   hub8 uuid; vd1 uuid; vd2 uuid; mot1 uuid; mot2 uuid; mul1 uuid; mul2 uuid; mul3 uuid; mul4 uuid; mul5 uuid;
   osd uuid; ckd uuid; and1 uuid; u_mul uuid; u_mvis uuid; dsc uuid; dsc2 uuid; dsc3 uuid; dsc4 uuid; dsc5 uuid;
   ms1 uuid; ms2 uuid; ms3 uuid; vs1 uuid; vs2 uuid; vs3 uuid; vs4 uuid; mus1 uuid; mus2 uuid; dss1 uuid; dss2 uuid;
-  dsv1 uuid;
+  dsv1 uuid; anx1 uuid; anx2 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -782,6 +782,59 @@ begin
   casos := casos || text 'corrigir: troca de líder fica na linha do tempo'; obtidos := obtidos || x; esperados := esperados || text 'TESTE Líder Um > TESTE Líder Dois';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 20. ANEXOS DOS DESCONTOS (Etapa 4d)
+  -- arquivos fictícios no bucket (somem no fim, junto com o resto)
+  insert into storage.objects (bucket_id, name, metadata) values
+    ('descontos-anexos', dsc5 || '/termo.pdf', '{"size": 1000, "mimetype": "application/pdf"}'),
+    ('descontos-anexos', dsc5 || '/pessoal/cnh.jpg', '{"size": 2000, "mimetype": "image/jpeg"}');
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mul, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.descontos_anexos (desconto_id, tipo, nome_arquivo, storage_path) values (dsc5, 'termo', 'Termo assinado.pdf', dsc5 || '/termo.pdf') returning id into anx1;
+  select a.tamanho_bytes || ' / ' || a.mime || ' / ' || a.enviado_por_nome || ' / ' || (h.detalhes->>'anexo_acao') into x
+    from frota.descontos_anexos a join frota.descontos_historico h on h.desconto_id = a.desconto_id and h.detalhes->>'anexo_id' = a.id::text where a.id = anx1;
+  casos := casos || text 'anexo: operador envia; tamanho e tipo vêm do armazenamento; entra na linha do tempo'; obtidos := obtidos || x;
+  esperados := esperados || text '1000 / application/pdf / TESTE Operador Multas / enviado';
+  begin insert into frota.descontos_anexos (desconto_id, tipo, nome_arquivo, storage_path) values (dsc5, 'outro', 'x.pdf', dsc5 || '/nao-existe.pdf'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Arquivo não encontrado%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'anexo: registro sem o arquivo no armazenamento é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin insert into frota.descontos_anexos (desconto_id, tipo, nome_arquivo, storage_path) values (dsc4, 'outro', 'x.pdf', dsc5 || '/termo.pdf'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'O arquivo não é deste desconto%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'anexo: arquivo de outro desconto é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  insert into frota.descontos_anexos (desconto_id, tipo, nome_arquivo, storage_path) values (dsc5, 'documento_pessoal', 'CNH Fulano de Tal.jpg', dsc5 || '/pessoal/cnh.jpg') returning id into anx2;
+  select nome_arquivo into x from frota.descontos_anexos where id = anx2;
+  casos := casos || text 'documento pessoal: operador envia; o nome original (com nome da pessoa) não é guardado'; obtidos := obtidos || x; esperados := esperados || text 'Documento pessoal.jpg';
+  begin perform frota.abrir_anexo_desconto(anx2); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Documento pessoal: só admin%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'documento pessoal: operador não abre'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select count(*) filter (where name like '%/pessoal/%')::text || ' / ' || count(*) filter (where name like '%/termo.pdf')::text into x from storage.objects where bucket_id = 'descontos-anexos' and name like dsc5 || '/%';
+  casos := casos || text 'armazenamento: operador não lê a pasta "pessoal", lê o termo'; obtidos := obtidos || x; esperados := esperados || text '0 / 1';
+  select (frota.abrir_anexo_desconto(anx1) = dsc5 || '/termo.pdf')::text into x;
+  casos := casos || text 'anexo: operador abre o termo'; obtidos := obtidos || x; esperados := esperados || text 'true';
+  begin update frota.descontos_anexos set descartado_motivo = 'Termo errado enviado' where id = anx1; get diagnostics x = row_count; x := case when x = '0' then 'recusou' else 'aceitou' end; exception when others then x := 'recusou'; end;
+  casos := casos || text 'anexo: operador não descarta'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.descontos_anexos where id = anx1; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'anexo: operador não apaga'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.descontos_anexos where desconto_id = dsc5;
+  casos := casos || text 'anexo: quem só vê Multas não vê anexos'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select (frota.abrir_anexo_desconto(anx2) is not null)::text into x;
+  x := x || ' / ' || (select count(*) from frota.descontos_anexos_acessos where anexo_id in (anx1, anx2))::text;
+  casos := casos || text 'documento pessoal: admin abre e cada abertura fica registrada'; obtidos := obtidos || x; esperados := esperados || text 'true / 2';
+  begin update frota.descontos_anexos set descartado_motivo = 'x' where id = anx1; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Descartar exige o motivo%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'anexo: descartar sem motivo é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.descontos_anexos set descartado_motivo = 'Termo de outro desconto' where id = anx1;
+  select a.descartado_por_nome || ' / ' || (select h.detalhes->>'anexo_acao' || ': ' || h.observacao from frota.descontos_historico h where h.detalhes->>'anexo_id' = a.id::text order by h.mudou_em desc limit 1) into x
+    from frota.descontos_anexos a where a.id = anx1;
+  casos := casos || text 'anexo: admin descarta com motivo (fica na linha do tempo)'; obtidos := obtidos || x; esperados := esperados || text 'TESTE Admin / descartado: Termo de outro desconto';
+  begin update frota.descontos_anexos set nome_arquivo = 'outro.pdf' where id = anx2; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Anexo não pode ser alterado%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'anexo: nem admin altera o arquivo registrado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  begin delete from frota.descontos_anexos where id = anx2; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Anexo não pode ser apagado%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'anexo: nem o dono do banco apaga'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop

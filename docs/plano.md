@@ -9,7 +9,7 @@ Criado em 23/10/2026. **Aprovado pelo Jefferson em 23/10/2026.**
 **Próximos passos:**
 1. **Jefferson:** conferir a lista do CTB (códigos `PROV-nn`, gravidade e valor) — ou mandar a exportação do Pipefy para carregar a lista completa (vem junto com a E5). Enquanto nenhuma linha estiver conferida, a gravidade não é preenchida sozinha e o rodízio não vira Custo Beep automático.
 2. **E3** sugestão de motorista — **feita em 29/10/2026** (função + gatilho + 16 testes).
-   **E4a** (lista e detalhe dos descontos) — **feita em 29/10/2026**. **E4b** (abrir desconto pela multa e pela OS, CTB, sugestão de motorista, valor bruto/com desconto) — **feita em 30/10/2026** (157 testes de banco e 157 da tela; conferida no navegador com dados fictícios, computador e celular). **E4c** (botões da esteira + Corrigir dados com justificativa) — **feita em 30/10/2026** (194 testes da tela; banco: seções de descontos 33/33, 7 casos novos na seção 19; conferida no navegador, computador e celular). Próxima: **E4d** (anexos).
+   **E4a** (lista e detalhe dos descontos) — **feita em 29/10/2026**. **E4b** (abrir desconto pela multa e pela OS, CTB, sugestão de motorista, valor bruto/com desconto) — **feita em 30/10/2026** (157 testes de banco e 157 da tela; conferida no navegador com dados fictícios, computador e celular). **E4c** (botões da esteira + Corrigir dados com justificativa) — **feita em 30/10/2026** (194 testes da tela; banco: seções de descontos 33/33, 7 casos novos na seção 19; conferida no navegador, computador e celular). **E4d** (anexos: termo, documento pessoal só admin abre, outros; descartar com motivo; cada abertura registrada) — **feita em 30/10/2026** (205 testes da tela; banco: seção 20 com 15/15; conferida no navegador com dados fictícios, computador e celular — **falta um envio real de arquivo** com login de verdade). Próximo: **pacote de melhorias de produto** (seção abaixo) e depois **E5** (importação dos 291 cards).
 3. **E4** tela da esteira em Multas (com anexos no bucket).
 4. **E5** importação dos 291 cards; **E6** Visão Executiva (Repasse × Custo Beep).
 
@@ -213,6 +213,50 @@ Tela inicial de quem trabalha no hub (auxiliar de frota / operador de Manutenç�
 - **Tela inicial padrão** de quem tem perfil operacional de hub (auxiliares/operadores). Admin acessa pelo menu lateral normalmente.
 - Para o perfil operacional, **substitui a Visão Executiva**, que segue restrita à Diretoria/Gestão.
 - **Filtro de hub estrito:** o auxiliar vê só veículos, contratos, anomalias e checklists do próprio hub. Contrato não tem hub no banco: "contrato do hub" = contrato com pelo menos um carro ativo naquele hub (a franquia em pool continua sendo do contrato inteiro — o card mostra o excedente do contrato e quantos carros dele estão no hub). Reaproveita as peças da Visão Executiva (`css/painel-exec.css` + `js/painel-exec.js`) e as RPCs que já existem; provavelmente uma RPC nova `painel_auxiliar(p_hub)` (security invoker) para juntar as contagens.
+
+## Pacote de melhorias de produto (pedido do Jefferson em 30/10/2026 — prioritário, depois da 4d)
+
+Ordem sugerida: **1 → 2 → 3a → 3b → 4** (do mais simples e só de tela para o que mexe no banco e depende de dado externo). Cada item com conferência no navegador e push só com "sim".
+
+### 1. Menu único "Manutenções" (fim da duplicidade)
+- Sai o item "Gestão de Manutenção" do menu. **Manutenções** passa a ter duas abas: **Painel / Indicadores** (o Dash atual) e **Ordens de Serviço** (lista e detalhe de hoje).
+- Só tela: o acesso já é o mesmo (`gestao_manutencao` deriva de `manutencao` em `canView/canEdit`), nada muda no banco nem nos perfis.
+- Cuidados: os atalhos que hoje levam ao Dash (cards da Visão Executiva, botão "‹ Voltar", `exIr`/`origemDrill`, card "Anomalias abertas") passam a abrir Manutenções na aba Painel. Qual aba abre primeiro: proposta **Ordens de Serviço** para quem opera, **Painel** para admin/visualizador — confirmar.
+- "Gestão de Checklist" continua com esse nome (feito em 30/10/2026).
+
+### 2. Limpeza visual para o perfil operacional (auxiliar / operador de hub)
+- No Painel de Manutenções, o perfil operacional **não vê**: "Oficinas: SLA e custo no período", "Custo por veículo (15 maiores)" e "Quebras por hub".
+- **Revisões preventivas vencidas e vencendo:** clicar na linha do carro abre a **Nova OS** já como preventiva, com placa, km de entrada (o `km_ref`) e o marco da revisão preenchidos. Se o carro já tem OS preventiva aberta, abre essa OS em vez de criar outra (evita duplicada).
+- **Para decidir:**
+  - **Só esconder ou também bloquear?** Esconder na tela é limpeza visual; quem souber usar o navegador ainda consegue ler os custos pela função `dash_manutencao`. Se a regra é "o auxiliar não pode ver custo", a função do banco passa a não devolver custos para esse perfil (recomendado, pequeno).
+  - **Quem é "perfil operacional":** proposta = operador (não admin) que opera Manutenções ou Checklist e **não** tem Financeiro. Hoje o Vitor Hugo é operador com todos os módulos — com essa regra ele continua vendo custos (tem Financeiro). A mesma definição vale para a tela inicial do Painel do Auxiliar.
+
+### 3a. Transferir veículo de hub (com histórico imutável)
+- Botão **Transferir de hub** no detalhe do veículo → janela com hub de destino, data do translado, motivo (lista: balanceamento, socorro, oficina, devolução à locadora, outro) e observações.
+- Banco: tabela **`frota.veiculos_historico_hub`** (veiculo_id, placa na data, hub_origem, hub_destino, data_translado, motivo, observacao, created_at, usuario_id + nome), **imutável** (mesmo gatilho das outras tabelas de histórico), com RLS. A troca é feita por uma função `transferir_veiculo_hub(...)` (security definer, confere permissão e hub) que grava o histórico e muda `veiculos.hub_id` na mesma transação — ninguém muda o hub "por fora" sem deixar rastro. Migração inicial: uma linha "já estava assim" por carro, igual ao histórico de OS.
+- **Para decidir:**
+  - **Quem pode transferir:** proposta = admin, quem opera Cadastro da Frota, e o operador de hub **só para tirar um carro do próprio hub** (destino pode ser qualquer hub).
+  - **Efeito no histórico (importante):** hoje o hub de uma OS ou checklist é o **hub atual do carro** (regra de 21/10/2026: "se o carro muda de hub, o histórico vai junto"). Depois da transferência, o hub de origem **deixa de ver** as OS e checklists antigos do carro e o de destino passa a ver. Proposta: manter assim (simples, quem fica com o carro vê a história toda). A alternativa (cada registro ficar com o hub da época) é um projeto maior em todas as policies de Manutenções e Checklist.
+  - **Data do translado no futuro** (agendar): proposta = não nesta etapa; só até hoje.
+  - Descontos e multas já guardam o hub **da ocorrência** — não mudam com a transferência.
+
+### 3b. CRM da placa (linha do tempo do veículo)
+- No detalhe do veículo, uma **linha do tempo única**: mudanças de hub (3a), OS (abertura, troca de status, conclusão — `os_status_historico`), checklists (Retirada/Devolução/Inspeção, com resultado), anomalias (abertas/resolvidas), revisões, multas e descontos.
+- Cada bloco respeita o acesso da pessoa: quem não vê Multas não vê multas nem descontos; Manutenções e Checklist só nos hubs dela. Sem CPF/CNH; nome de motorista só onde o módulo já mostra.
+- Filtros por tipo de evento e período; carrega os mais recentes primeiro (o carro pode ter centenas de eventos).
+
+### 4. Cockpit do Auxiliar e monitor de elétricos
+- Junta-se ao **Painel Operacional do Auxiliar** (seção acima): resumo de **carros no pátio** (disponíveis), **indisponíveis com a última tratativa** (reaproveita `exec_indisponiveis`), **contratos / km excedente** (regra de "contrato do hub" já decidida) e a **grade de elétricos**.
+- **Grade de elétricos:** cada carro elétrico do hub com o % de bateria e a hora da leitura, atualizada a cada 15 min, com **alerta visual de recarga quando a bateria ≤ 60%** (regra em `regras.js`, com teste).
+- **Dependência de dado (bloqueia a grade em tempo real):**
+  - Hoje o **campo de nível de bateria vem vazio nos elétricos** na API da Questar (constatado em 27/10/2026) e a sincronização é **uma vez por dia** (02:00).
+  - Para atualizar a cada 15 min é preciso: (1) confirmar com a Questar/Exodus se a API entrega o % de bateria desses carros (ou outro campo/endpoint); (2) rotina nova a cada 15 min só com a leitura de bateria (respeitando o limite de chamadas da API), sem guardar localização.
+  - **Enquanto isso:** a grade mostra o **% informado no último checklist** (`checklists.bateria_pct`) com a hora — com aviso "leitura do checklist, não em tempo real".
+
+### Segurança — avisos antigos do verificador do Supabase (vistos em 30/10/2026, não são das entregas novas)
+- 7 views criadas sem `security_invoker` (rodam com o acesso do dono e podem ignorar o RLS): `v_contratos_vencendo`, `v_contratos_vencendo_old`, `v_fornecedores_nota_atrasada`, `v_custo_falta_retorno_multas`, `v_ranking_motoristas_sinistro`, `v_avaliacao_oficina` e `v_motoristas_basico` (esta é de propósito: lista motoristas sem dado sensível para quem não é admin). Proposta: passar as 6 primeiras para `security_invoker = true` numa etapa própria, conferindo as telas que as usam.
+- Funções de gatilho antigas ainda executáveis por `anon`/`authenticated` (revogar o EXECUTE, como já é feito nas novas) e 5 funções sem `search_path` fixo.
+- Proteção contra senhas vazadas desligada no Auth (liga no painel do Supabase).
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 

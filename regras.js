@@ -364,7 +364,54 @@
     return { patch: patch, mudou: mudou, exigeJustificativa: exige };
   }
 
+  // ---------- Anexos dos descontos (Etapa 4d, 30/10/2026) ----------
+  // Mesmas regras do bucket descontos-anexos (10 MB; PDF ou imagem) e do gatilho frota.tg_descontos_anexos.
+  // Documento pessoal (CNH, RG): só admin abre; o caminho não leva o nome original do arquivo (pode ter o nome da pessoa).
+  var ANEXO_MAX_BYTES = 10 * 1024 * 1024;
+  var ANEXO_MIMES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+  var ANEXO_TIPOS = [
+    { chave: "termo", nome: "Termo assinado", soAdminAbre: false },
+    { chave: "documento_pessoal", nome: "Documento pessoal (CNH, RG)", soAdminAbre: true },
+    { chave: "outro", nome: "Outro (AIT, orçamento, comprovante)", soAdminAbre: false }
+  ];
+  function anexoTipo(chave) {
+    for (var i = 0; i < ANEXO_TIPOS.length; i++) if (ANEXO_TIPOS[i].chave === chave) return ANEXO_TIPOS[i];
+    return null;
+  }
+  // arquivo = { name, size, type } (o File do navegador). Devolve "" se pode enviar, ou a mensagem do problema.
+  function anexoDescontoErro(arquivo, tipo) {
+    if (!anexoTipo(tipo)) return "Escolha o tipo do anexo.";
+    if (!arquivo) return "Escolha um arquivo.";
+    if (!(arquivo.size > 0)) return "O arquivo está vazio.";
+    if (arquivo.size > ANEXO_MAX_BYTES) return "Arquivo maior que 10 MB.";
+    var mime = String(arquivo.type || "").toLowerCase();
+    if (!mime && /\.(heic|heif)$/i.test(arquivo.name || "")) mime = "image/heic"; // alguns celulares não informam o tipo do HEIC
+    if (ANEXO_MIMES.indexOf(mime) < 0) return "Só PDF ou foto (JPG, PNG, WEBP, HEIC).";
+    return "";
+  }
+  // caminho no bucket: {desconto}/{momento}-{nome limpo} ou {desconto}/pessoal/{momento}.{extensão}
+  function caminhoAnexoDesconto(descontoId, tipo, nomeArquivo, momento) {
+    var nome = String(nomeArquivo || "arquivo");
+    var ext = (nome.match(/\.([A-Za-z0-9]{1,5})$/) || [])[1];
+    ext = ext ? ext.toLowerCase() : "";
+    if (tipo === "documento_pessoal") return descontoId + "/pessoal/" + momento + (ext ? "." + ext : "");
+    var limpo = nome.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(-80);
+    return descontoId + "/" + momento + "-" + limpo;
+  }
+  function podeAbrirAnexo(tipo, papel) {
+    var t = anexoTipo(tipo);
+    if (!t) return false;
+    if (papel === "admin") return true;
+    return papel === "opera" && !t.soAdminAbre;
+  }
+
   global.Regras = {
+    ANEXO_MAX_BYTES: ANEXO_MAX_BYTES,
+    ANEXO_TIPOS: ANEXO_TIPOS,
+    anexoTipo: anexoTipo,
+    anexoDescontoErro: anexoDescontoErro,
+    caminhoAnexoDesconto: caminhoAnexoDesconto,
+    podeAbrirAnexo: podeAbrirAnexo,
     DESCONTO_PASSOS: DESCONTO_PASSOS,
     proximosPassos: proximosPassos,
     passoDesconto: passoDesconto,

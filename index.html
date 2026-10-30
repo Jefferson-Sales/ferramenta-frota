@@ -342,6 +342,16 @@
   .dsc-pf-titulo{ font-weight:600; margin-bottom:var(--espaco-2); }
   .dsc-passo-form .form-grid{ margin-top:var(--espaco-5); }
   .dsc-passo-form .modal-actions{ margin-top:var(--espaco-2); }
+  .dsc-anexos{ list-style:none; margin:0 0 var(--espaco-5); padding:0; }
+  .dsc-anexos li{ display:flex; align-items:center; justify-content:space-between; gap:var(--espaco-4); flex-wrap:wrap; padding:var(--espaco-4) 0; border-bottom:1px solid var(--line); }
+  .dsc-anexos li.descartado .nome{ text-decoration:line-through; color:var(--muted); }
+  .dsc-anexo-info{ min-width:0; flex:1 1 220px; }
+  .dsc-anexo-info .nome{ font-weight:600; overflow-wrap:anywhere; }
+  .dsc-anexo-acoes{ display:flex; gap:var(--espaco-3); align-items:center; }
+  .dsc-anexo-acoes .btn{ width:auto; }
+  .dsc-anexo-envio{ display:flex; flex-wrap:wrap; gap:var(--espaco-3); align-items:center; margin-top:var(--espaco-4); }
+  .dsc-anexo-envio .btn{ width:auto; }
+  .dsc-anexo-envio input[type=file]{ flex:1 1 200px; min-width:0; font-size:var(--fs-sm); }
   @media (max-width:560px){ .dsc-passos .btn{ flex:1 1 100%; } .dsc-passos .dsc-corrigir{ margin-left:0; } }
   .dsc-hist .det{ flex-basis:100%; color:var(--muted); font-size:var(--fs-sm); padding-left:calc(112px + var(--espaco-4)); }
   @media (max-width:560px){ .dsc-hist .det{ padding-left:0; } .detail-grid.dsc-resumo{ grid-template-columns:1fr; } }
@@ -3205,10 +3215,12 @@
         (d.pipefy_card_id ? item("Card do Pipefy", esc(d.pipefy_card_id)) : "") +
       '</div>' +
       dscAcoesHtml(d) +
+      dscAnexosHtml() +
       (resp.length ? '<div class="detail-section"><h4>Respostas da esteira</h4><div class="detail-grid dsc-resumo">' + resp.join("") + '</div></div>' : '') +
       '<div class="detail-section"><h4>Linha do tempo</h4><div class="ac-hint">Gravada pelo banco a cada passo; não dá para editar nem apagar.</div><div id="dsc-historico"><span class="osd-vazio">Carregando…</span></div></div>';
     openModal("modal-desconto");
     carregarHistoricoDesconto(d.id);
+    carregarAnexosDesconto(d.id);
   }
 
   // ---------------- Andar na esteira e corrigir dados — Etapa 4c ----------------
@@ -3377,6 +3389,111 @@
     else if ((b = ev.target.closest("[data-dsc-cd-salvar]"))) dscSalvarCorrecao(b);
   });
 
+  // ---------------- Anexos do desconto — Etapa 4d ----------------
+  // Bucket privado descontos-anexos. Termo e "outro": admin e quem opera Multas. Documento pessoal (CNH, RG): quem opera envia,
+  // só admin abre. Cada abertura passa por frota.abrir_anexo_desconto (registra quem abriu) e gera um link de 5 minutos.
+  // Ninguém apaga: admin descarta com motivo (vai para a linha do tempo).
+  function dscAnexosHtml(){
+    var papel = dscPapel();
+    if (papel !== "admin" && papel !== "opera") return ""; // quem só vê Multas não tem acesso aos anexos (RLS)
+    return '<div class="detail-section"><h4>Anexos</h4>' +
+      '<div id="dsc-anexos"><span class="osd-vazio">Carregando…</span></div>' +
+      '<div class="dsc-anexo-envio">' +
+        '<select id="dsc-anexo-tipo" class="filter-select" aria-label="Tipo do anexo"><option value="">Tipo do anexo…</option>' +
+          Regras.ANEXO_TIPOS.map(function(t){ return '<option value="' + t.chave + '">' + esc(t.nome) + '</option>'; }).join("") + '</select>' +
+        '<input type="file" id="dsc-anexo-arquivo" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" aria-label="Arquivo">' +
+        '<button type="button" class="btn" data-dsc-anexo-enviar>Enviar</button>' +
+      '</div>' +
+      '<div class="ac-hint">PDF ou foto, até 10 MB. Documento pessoal (CNH, RG): só admin abre depois de enviado, e cada abertura fica registrada.</div>' +
+      '<div class="field-err" id="dsc-anexo-err" hidden></div></div>';
+  }
+  function dscTamanho(b){ return b == null ? "" : b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + " KB" : (b / 1048576).toFixed(1).replace(".", ",") + " MB"; }
+  function carregarAnexosDesconto(id){
+    var host = document.getElementById("dsc-anexos"); if (!host) return;
+    rest("descontos_anexos?desconto_id=eq." + id + "&select=id,tipo,nome_arquivo,tamanho_bytes,enviado_por_nome,enviado_em,descartado_em,descartado_por_nome,descartado_motivo&order=enviado_em.desc").then(function(rows){
+      if (!DSC.atual || DSC.atual.id !== id) return;
+      host = document.getElementById("dsc-anexos"); if (!host) return;
+      rows = rows || [];
+      if (!rows.length){ host.innerHTML = '<span class="osd-vazio">Nenhum anexo ainda.</span>'; return; }
+      var papel = dscPapel();
+      host.innerHTML = '<ul class="dsc-anexos">' + rows.map(function(a){
+        var t = Regras.anexoTipo(a.tipo) || { nome: a.tipo };
+        var abre = Regras.podeAbrirAnexo(a.tipo, papel);
+        var desc = !!a.descartado_em;
+        return '<li class="' + (desc ? "descartado" : "") + '"><div class="dsc-anexo-info">' +
+            '<div class="nome">' + esc(a.nome_arquivo) + '</div>' +
+            '<div class="qf-sub">' + esc(t.nome) + (a.tamanho_bytes ? " · " + esc(dscTamanho(a.tamanho_bytes)) : "") + " · " + esc(dateTimeBR(a.enviado_em)) + (a.enviado_por_nome ? " · " + esc(a.enviado_por_nome) : "") + '</div>' +
+            (desc ? '<div class="qf-sub">Descartado' + (a.descartado_por_nome ? " por " + esc(a.descartado_por_nome) : "") + ": " + esc(a.descartado_motivo) + '</div>' : '') +
+          '</div><div class="dsc-anexo-acoes">' +
+            (abre ? '<button type="button" class="btn qf-mini" data-dsc-anexo-abrir="' + esc(a.id) + '">Abrir</button>' : '<span class="qf-sub">Só admin abre</span>') +
+            (papel === "admin" && !desc ? '<button type="button" class="btn qf-mini btn-danger" data-dsc-anexo-descartar="' + esc(a.id) + '">Descartar</button>' : '') +
+          '</div></li>';
+      }).join("") + '</ul>';
+    }).catch(function(e){
+      var h = document.getElementById("dsc-anexos");
+      if (h) h.innerHTML = '<span class="osd-vazio">Erro ao carregar os anexos: ' + esc(e.message) + '</span>';
+    });
+  }
+  function dscEnviarAnexo(btn){
+    var d = DSC.atual; if (!d) return;
+    setErr("dsc-anexo-err", "");
+    var tipo = document.getElementById("dsc-anexo-tipo").value;
+    var input = document.getElementById("dsc-anexo-arquivo");
+    var file = input.files && input.files[0];
+    var erro = Regras.anexoDescontoErro(file, tipo);
+    if (erro){ setErr("dsc-anexo-err", erro); return; }
+    var path = Regras.caminhoAnexoDesconto(d.id, tipo, file.name, Date.now());
+    var mime = file.type || (/\.heif$/i.test(file.name) ? "image/heif" : "image/heic");
+    btn.disabled = true; btn.textContent = "Enviando…";
+    ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/descontos-anexos/" + path.split("/").map(encodeURIComponent).join("/"), {
+        method: "POST",
+        headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": mime },
+        body: file
+      });
+    }).then(function(r){
+      if (!r.ok) return r.text().then(function(t){ throw new Error(t || ("Erro " + r.status)); });
+      return rest("descontos_anexos", { method: "POST", body: { desconto_id: d.id, tipo: tipo, nome_arquivo: file.name, storage_path: path } });
+    }).then(function(){
+      toast("Anexo enviado.");
+      input.value = ""; document.getElementById("dsc-anexo-tipo").value = "";
+      carregarAnexosDesconto(d.id); carregarHistoricoDesconto(d.id);
+    }).catch(function(e){ setErr("dsc-anexo-err", "Não foi possível enviar: " + e.message); })
+      .then(function(){ btn.disabled = false; btn.textContent = "Enviar"; });
+  }
+  function dscAbrirAnexo(id){
+    // abre a aba já no clique (senão o navegador bloqueia a janela aberta depois da espera)
+    var janela = window.open("", "_blank");
+    rest("rpc/abrir_anexo_desconto", { method: "POST", body: { p_anexo: id } }).then(function(path){
+      return ensureFreshSession().then(function(){
+        return fetch(SUPA_URL + "/storage/v1/object/sign/descontos-anexos/" + String(path).split("/").map(encodeURIComponent).join("/"), {
+          method: "POST", headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+          body: JSON.stringify({ expiresIn: 300 }) });
+      });
+    }).then(function(r){ return r.ok ? r.json() : r.text().then(function(t){ throw new Error(t || ("Erro " + r.status)); }); })
+      .then(function(j){
+        if (!j || !j.signedURL) throw new Error("link não gerado");
+        var url = SUPA_URL + "/storage/v1" + j.signedURL;
+        if (janela) janela.location.href = url; else window.open(url, "_blank");
+      }).catch(function(e){ if (janela) janela.close(); toast("Não foi possível abrir o anexo: " + e.message, true); });
+  }
+  function dscDescartarAnexo(id){
+    var motivo = prompt("Motivo do descarte (o arquivo continua guardado; o motivo vai para a linha do tempo):");
+    if (motivo == null) return;
+    if (!Regras.textoOk(motivo)){ toast("Descartar exige o motivo (pelo menos 5 letras).", true); return; }
+    var d = DSC.atual;
+    rest("descontos_anexos?id=eq." + id, { method: "PATCH", body: { descartado_motivo: motivo.trim() } }).then(function(){
+      toast("Anexo descartado.");
+      if (d){ carregarAnexosDesconto(d.id); carregarHistoricoDesconto(d.id); }
+    }).catch(function(e){ toast("Não foi possível descartar: " + e.message, true); });
+  }
+  document.getElementById("dsc-corpo").addEventListener("click", function(ev){
+    var b;
+    if ((b = ev.target.closest("[data-dsc-anexo-enviar]"))) dscEnviarAnexo(b);
+    else if ((b = ev.target.closest("[data-dsc-anexo-abrir]"))) dscAbrirAnexo(b.dataset.dscAnexoAbrir);
+    else if ((b = ev.target.closest("[data-dsc-anexo-descartar]"))) dscDescartarAnexo(b.dataset.dscAnexoDescartar);
+  });
+
   function carregarHistoricoDesconto(id){
     rest("descontos_historico?desconto_id=eq." + id + "&select=fase_anterior,fase_nova,observacao,detalhes,origem,mudou_em,mudou_por_nome&order=mudou_em.asc").then(function(h){
       if (!DSC.atual || DSC.atual.id !== id) return;
@@ -3391,8 +3508,12 @@
         var troca = x.fase_anterior !== x.fase_nova;
         var corrigiu = !troca && x.fase_anterior != null && (det.motorista_anterior_id || det.valor_anterior != null || det.parcelas_anterior != null ||
           det.lider_trocado || det.valor_com_desconto_trocado || det.valor_bruto_anterior != null);
+        var anexo = det.anexo_acao ? (Regras.anexoTipo(det.anexo_tipo) || { nome: det.anexo_tipo }).nome : null;
         var rotulo = x.fase_anterior == null ? "Criado em " + nomeFase(x.fase_nova)
-          : troca ? nomeFase(x.fase_anterior) + " → " + nomeFase(x.fase_nova) : (corrigiu ? "Dados corrigidos" : "Atualização");
+          : troca ? nomeFase(x.fase_anterior) + " → " + nomeFase(x.fase_nova)
+          : anexo ? (det.anexo_acao === "descartado" ? "Anexo descartado: " : "Anexo enviado: ") + anexo
+          : (corrigiu ? "Dados corrigidos" : "Atualização");
+        if (anexo && det.anexo_nome) linhas.push("Arquivo: " + det.anexo_nome);
         var ou = function(v, f){ return v == null || v === "" ? "vazio" : f ? f(v) : v; };
         if (det.motorista_anterior_id) linhas.push("Motorista trocado: " + dscNomeMotorista(det.motorista_anterior_id) + " → " + (dscNomeMotorista(det.motorista_id) || "nenhum"));
         else if (x.fase_anterior == null && det.motorista_id) linhas.push("Motorista: " + dscNomeMotorista(det.motorista_id));
@@ -3405,8 +3526,8 @@
         if (det.valor_com_desconto_trocado) linhas.push("Valor com desconto: " + ou(det.valor_com_desconto_anterior, money) + " → " + ou(det.valor_com_desconto, money));
         if (det.parcelas_anterior != null) linhas.push("Parcelas: " + det.parcelas_anterior + "x → " + det.parcelas + "x");
         if (det.lider_trocado) linhas.push("Líder: " + ou(det.lider_anterior) + " → " + ou(det.lider_nome));
-        if (!troca && x.fase_anterior != null && !corrigiu && !det.motorista_anterior_id && !x.observacao) linhas.push("Valor " + money(det.valor) + " · " + det.parcelas + "x");
-        if (x.observacao) linhas.push((corrigiu ? "Justificativa: " : "Observação: ") + x.observacao);
+        if (!troca && x.fase_anterior != null && !corrigiu && !anexo && !det.motorista_anterior_id && !x.observacao) linhas.push("Valor " + money(det.valor) + " · " + det.parcelas + "x");
+        if (x.observacao) linhas.push((corrigiu ? "Justificativa: " : anexo ? "Motivo: " : "Observação: ") + x.observacao);
         var tempo = "";
         if (troca){
           var i = trocas.indexOf(x), prox = trocas[i + 1];

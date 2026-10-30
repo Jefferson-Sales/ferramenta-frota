@@ -310,6 +310,19 @@
   igual("desconto antigo só com valor: trocar o valor exige justificativa", !!R.correcaoDesconto({ valor: 195.23, parcelas: 2 }, { valor_bruto: 150, parcelas: 2 }, "").erro, true);
   igual("líder em branco vira vazio (null)", JSON.stringify(R.correcaoDesconto(antes, igualA({ lider_nome: "  " }), "Líder saiu da empresa").patch), '{"lider_nome":null,"observacao_fase":"Líder saiu da empresa"}');
 
+  grupo("Descontos — anexos (mesmas regras do bucket e do banco)");
+  igual("PDF de 1 MB pode", R.anexoDescontoErro({ name: "termo.pdf", size: 1048576, type: "application/pdf" }, "termo"), "");
+  igual("maior que 10 MB não pode", R.anexoDescontoErro({ name: "a.pdf", size: 10 * 1048576 + 1, type: "application/pdf" }, "termo"), "Arquivo maior que 10 MB.");
+  igual("exatamente 10 MB pode", R.anexoDescontoErro({ name: "a.pdf", size: 10 * 1048576, type: "application/pdf" }, "outro"), "");
+  igual("planilha não pode", R.anexoDescontoErro({ name: "a.xlsx", size: 10, type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }, "outro"), "Só PDF ou foto (JPG, PNG, WEBP, HEIC).");
+  igual("HEIC sem tipo informado (celular) pode", R.anexoDescontoErro({ name: "IMG_1.HEIC", size: 10, type: "" }, "documento_pessoal"), "");
+  igual("sem tipo de anexo não pode", R.anexoDescontoErro({ name: "a.pdf", size: 10, type: "application/pdf" }, ""), "Escolha o tipo do anexo.");
+  igual("arquivo vazio não pode", R.anexoDescontoErro({ name: "a.pdf", size: 0, type: "application/pdf" }, "termo"), "O arquivo está vazio.");
+  igual("caminho do termo: pasta do desconto + nome limpo", R.caminhoAnexoDesconto("d1", "termo", "Termo Assinado João.pdf", 123), "d1/123-Termo_Assinado_Joao.pdf");
+  igual("documento pessoal: pasta 'pessoal' e sem o nome original", R.caminhoAnexoDesconto("d1", "documento_pessoal", "CNH Fulano de Tal.JPG", 123), "d1/pessoal/123.jpg");
+  igual("documento pessoal: só admin abre", [R.podeAbrirAnexo("documento_pessoal", "admin"), R.podeAbrirAnexo("documento_pessoal", "opera")].join(","), "true,false");
+  igual("termo: admin e quem opera Multas abrem; quem só vê, não", [R.podeAbrirAnexo("termo", "admin"), R.podeAbrirAnexo("termo", "opera"), R.podeAbrirAnexo("termo", "ver")].join(","), "true,true,false");
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){
