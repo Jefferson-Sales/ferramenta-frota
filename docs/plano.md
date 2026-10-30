@@ -197,6 +197,20 @@ Fases finais não mudam mais (só admin reabre, com motivo — fica no históric
 1. **Valor da multa:** hoje o formulário tem "Valor bruto", "Valor com desconto" e "Valor considerado" (o que soma nos totais). Proposta: deixar só **Valor bruto** e **Valor com desconto (opcional)**, e o valor considerado passa a ser automático (com desconto se houver, senão o bruto). Ou prefere um campo único "Valor da multa"?
 2. **Formato da lista:** lista com contadores por fase (funciona bem no celular) ou quadro em colunas tipo Pipefy (melhor no computador, ruim no celular)?
 
+## Painel Operacional do Auxiliar (backlog, pedido do Jefferson em 30/10/2026)
+
+Tela inicial de quem trabalha no hub (auxiliar de frota / operador de Manutenções e Checklist), focada na rotina do dia. Cards clicáveis, cada um levando à lista de pendentes e ao atalho de ação. Sempre só os hubs da pessoa (`hub_liberado`), sem dado pessoal sensível.
+
+| Card | O que mostra | Clique leva a | Dados que já existem |
+|---|---|---|---|
+| **Checklists do dia** | Realizados × Não realizados (Retirada) | Lista de carros pendentes no dia | `checklist_visao_diaria(dia)` (mesma regra da Visão diária e do Dash) |
+| **Fila de Preventivas** | Vencidas e a vencer | Atalho para **agendar OS** de preventiva (formulário de OS já com placa e marco) | `v_revisoes_status` |
+| **Fila unificada de Avarias/Anomalias** | Anomalias abertas apontadas por motoristas ou auxiliares | Atalho **Abrir OS**, perguntando se o carro **roda ou parou** (`veiculo_parado`) | `v_anomalias_abertas` + "Abrir OS" da anomalia (já existe) |
+| **Prazos de retorno vencidos** | OS em oficina com previsão de retorno já passada | Detalhe da OS (tratativas) | `ordens_servico.previsao_retorno` |
+| **Contratos vencendo & km excedente** | Contratos a vencer e pool com km acima da franquia | Cadastro da Frota filtrado | `v_cadastro_frota` / `v_pool_km_contrato` (contratos não têm hub: definir se o auxiliar vê todos ou só os carros do hub) |
+
+A decidir antes de construir: quem vê a tela como inicial (todo operador com Manutenções/Checklist? só auxiliares com matrícula?), se substitui a Visão Executiva como primeira tela para esses perfis e o recorte de contratos por hub. Reaproveita as peças da Visão Executiva (`css/painel-exec.css` + `js/painel-exec.js`) e as RPCs que já existem; provavelmente uma RPC nova `painel_auxiliar(p_hub)` (security invoker) para juntar as contagens.
+
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
 Usar esta evolução para calibrar qualquer cálculo histórico de frota, disponibilidade, custo e km por hub dos elétricos (não supor 60 carros desde o início do ano):

@@ -85,6 +85,13 @@ Este arquivo reúne tudo que falta ajustar ou construir na ferramenta, organizad
 - [ ] **Botão SOS no checklist:** acionamento rápido para o motorista em rota avisar a Frota e o líder, mostrando o telefone de socorro/guincho da locadora do veículo. A conversar antes: para quem vai o aviso (e-mail? WhatsApp?), onde fica o telefone de socorro de cada locadora (cadastro do fornecedor) e se o aviso guarda localização (hoje a regra é **não** guardar localização).
 - [ ] **Mural de Sugestões:** espaço na ferramenta para a equipe registrar melhorias (quem sugeriu, data, situação: nova / em análise / feita / descartada).
 
+## 8. Pedidos de 30/10/2026
+
+- [x] **Nova OS:** um campo só de placa (com sugestões ao digitar), sem o select duplicado. _(30/10/2026)_
+- [x] **Menu:** "Qualidade da Frota" passa a se chamar **"Gestão de Checklist"**. _(30/10/2026)_
+- [x] **Gerenciar acessos:** admin redefine a senha de login de um usuário (digitada ou gerada; cada troca registrada). _(30/10/2026)_
+- [ ] **Painel Operacional do Auxiliar** (tela inicial focada na rotina do hub, cards clicáveis) — desenho em `docs/plano.md`, seção "Painel Operacional do Auxiliar".
+
 ---
 
 ## Como usar este arquivo com o Claude Code

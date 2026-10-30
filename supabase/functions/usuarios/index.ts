@@ -1,6 +1,6 @@
 // Edge Function `usuarios` — Gerenciar acessos (tela só para admin no index.html).
 // Cria login (exige service_role, por isso fica aqui e não no navegador), edita perfil,
-// ativa/desativa acesso. Toda chamada exige o JWT de um usuário com papel 'admin' e ativo,
+// ativa/desativa acesso e redefine a senha de login (ação "senha", registrada em frota.senha_login_trocas). Toda chamada exige o JWT de um usuário com papel 'admin' e ativo,
 // conferido aqui no servidor. verify_jwt = false na plataforma (preflight CORS).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -258,6 +258,26 @@ async function acaoAtivo(body: any, eu: string, ativo: boolean) {
   return { ok: true };
 }
 
+// Admin redefine a senha de login de um usuário (digitada, mín. 8, ou gerada aqui e mostrada uma única vez).
+// Cada troca fica registrada em frota.senha_login_trocas (de quem, por quem, quando) — a senha nunca é guardada.
+async function acaoSenha(body: any, eu: string) {
+  const uid = String(body.user_id || "");
+  if (!UUID_RE.test(uid)) throw new Falha("Usuário inválido.");
+  let senha = String(body.senha || "");
+  const gerada = !senha;
+  if (gerada) senha = gerarSenha();
+  else if (senha.length < 8) throw new Falha("A senha precisa ter pelo menos 8 caracteres.");
+  else if (senha.length > 72) throw new Falha("A senha pode ter no máximo 72 caracteres.");
+  const { data: u, error: e1 } = await admin.auth.admin.getUserById(uid);
+  if (e1 || !u?.user) throw new Falha("Login não encontrado.", 404);
+  const { error } = await admin.auth.admin.updateUserById(uid, { password: senha });
+  if (error) throw new Falha("Não foi possível trocar a senha: " + error.message);
+  const { error: e2 } = await db().from("senha_login_trocas").insert({ user_id: uid, trocado_por: eu, senha_gerada: gerada });
+  const aviso = e2 ? "Senha trocada, mas o registro da troca falhou (" + e2.message + ")." : undefined;
+  if (e2) console.error("usuarios: registro da troca de senha falhou:", e2.message);
+  return { ok: true, senha_gerada: gerada ? senha : null, aviso };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return withCors(new Response(null, { status: 204 }));
   if (req.method !== "POST") return json({ error: "Use POST." }, 405);
@@ -270,6 +290,7 @@ Deno.serve(async (req) => {
       case "editar": return json(await acaoEditar(body, eu));
       case "desativar": return json(await acaoAtivo(body, eu, false));
       case "ativar": return json(await acaoAtivo(body, eu, true));
+      case "senha": return json(await acaoSenha(body, eu));
       default: return json({ error: "Ação desconhecida." }, 400);
     }
   } catch (e) {

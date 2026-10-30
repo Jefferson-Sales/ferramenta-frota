@@ -760,10 +760,10 @@
     </section>
 
     <section class="panel" data-panel="qualidade">
-      <div class="topline"><h1>Qualidade da Frota</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
+      <div class="topline"><h1>Gestão de Checklist</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
       <p class="section-desc">Estado de cada veículo segundo os checklists de Retirada, Devolução e Inspeção técnica. O status considera as anomalias abertas agora. Clique num veículo para ver o histórico e as fotos. Na <strong>Visão diária</strong>, veja quais carros fizeram (ou não) o checklist de retirada em cada dia.</p>
 
-      <div class="qf-abas" role="tablist" aria-label="Visões da Qualidade da Frota">
+      <div class="qf-abas" role="tablist" aria-label="Visões da Gestão de Checklist">
         <button type="button" role="tab" class="qf-aba on" data-qf-tela="geral" aria-selected="true">Visão geral</button>
         <button type="button" role="tab" class="qf-aba" data-qf-tela="diaria" aria-selected="false">Visão diária</button>
       </div>
@@ -1033,7 +1033,7 @@
         </div>
         <div class="field span2" id="ac-hubs-field">
           <div class="ac-hubs-head">
-            <label>Hubs <span class="ac-hubs-sub">(valem só para Manutenções e Qualidade da Frota)</span></label>
+            <label>Hubs <span class="ac-hubs-sub">(valem só para Manutenções e Gestão de Checklist)</span></label>
             <span class="ac-hubs-acoes"><button type="button" class="btn qf-mini" id="ac-hubs-todos">Marcar todos</button><button type="button" class="btn qf-mini" id="ac-hubs-limpar">Limpar</button></span>
           </div>
           <div class="ac-hubs" id="ac-hubs"></div>
@@ -1046,6 +1046,14 @@
             <button type="button" class="btn" id="ac-toggle-ativo"></button>
           </div>
         </div>
+        <div class="field span2" id="ac-trocar-senha-field" hidden>
+          <label for="ac-nova-senha">Redefinir senha de login</label>
+          <div class="ac-senha-row">
+            <input id="ac-nova-senha" type="text" autocomplete="new-password" maxlength="72" placeholder="Em branco = gerar automaticamente" spellcheck="false">
+            <button type="button" class="btn" id="ac-trocar-senha">Trocar senha</button>
+          </div>
+          <div class="ac-hint">Mínimo de 8 caracteres. A senha antiga para de funcionar na hora e a nova aparece uma única vez. A troca fica registrada (quem trocou e quando), sem guardar a senha. Se a pessoa estiver com o painel aberto em algum aparelho, continua conectada até sair.</div>
+        </div>
       </div>
       <div class="field-err" id="ac-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="ac-btn-salvar" style="width:auto">Criar usuário</button></div>
@@ -1055,7 +1063,7 @@
 
 <div class="modal-overlay" id="modal-usuario-criado" data-sem-fechar-fora hidden>
   <div class="modal" style="max-width:460px;">
-    <div class="modal-head"><h3>Usuário criado</h3><button class="modal-close" data-close-modal>×</button></div>
+    <div class="modal-head"><h3 id="ac-cred-titulo">Usuário criado</h3><button class="modal-close" data-close-modal>×</button></div>
     <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Envie estes dados para a pessoa por um canal privado. Ela entra em <strong id="ac-cred-url"></strong>.</p>
     <div class="ac-cred" id="ac-cred"></div>
     <div class="ac-aviso">Esta senha não será mostrada de novo.</div>
@@ -1210,9 +1218,11 @@
     <div class="modal-head"><h3>Nova ordem de serviço</h3><button class="modal-close" data-close-modal>×</button></div>
     <form data-form="os">
       <div class="form-grid">
-        <div class="field span2"><label for="os-busca-placa">Veículo</label>
-          <input id="os-busca-placa" type="search" placeholder="Buscar placa… (ex.: ABC1D23)" autocomplete="off" style="margin-bottom:6px; text-transform:uppercase">
-          <select id="os-veiculo" required aria-label="Veículo"><option value="">Selecione…</option></select>
+        <div class="field span2"><label for="os-busca-placa">Veículo (placa)</label>
+          <input id="os-busca-placa" list="os-placas-lista" placeholder="Digite a placa (ex.: ABC1D23)" autocomplete="off" style="text-transform:uppercase">
+          <datalist id="os-placas-lista"></datalist>
+          <select id="os-veiculo" hidden aria-hidden="true" tabindex="-1"><option value="">Selecione…</option></select>
+          <div class="ac-hint" id="os-placa-info"></div>
         </div>
         <div class="field span2">
           <label for="os-quando">Quando</label>
@@ -1578,7 +1588,7 @@
     {key:"frota", label:"Cadastro da Frota"},
     {key:"manutencao", label:"Manutenções"},
     {key:"gestao_manutencao", label:"Gestão de Manutenção"},
-    {key:"qualidade", label:"Qualidade da Frota"},
+    {key:"qualidade", label:"Gestão de Checklist"},
     {key:"multas", label:"Multas"},
     {key:"financeiro", label:"Financeiro"},
     {key:"eletrificacao", label:"Carros Elétricos"}
@@ -2799,20 +2809,23 @@
   // ---- abertura de OS: busca por placa ----
   function normalizarPlaca(s){ return (s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
 
+  // Um campo só: o que se digita na placa escolhe o veículo (a lista de sugestões vem dos carros dos hubs do usuário).
+  // O <select id="os-veiculo"> fica escondido e guarda o veículo escolhido — o resto do formulário continua lendo dele.
   function renderVeiculosOS(){
-    var sel = document.getElementById("os-veiculo");
+    var sel = document.getElementById("os-veiculo"), info = document.getElementById("os-placa-info");
     var termo = normalizarPlaca(document.getElementById("os-busca-placa").value);
-    var atual = sel.value;
-    var lista = termo
-      ? veiculosOsCache.filter(function(v){ return normalizarPlaca(v.placa).indexOf(termo) !== -1; })
-      : veiculosOsCache;
-    var vazio = termo
-      ? (lista.length ? lista.length + (lista.length === 1 ? " placa encontrada" : " placas encontradas") : "Nenhuma placa encontrada")
-      : "Selecione…";
-    sel.innerHTML = '<option value="">' + esc(vazio) + "</option>" +
-      lista.map(function(v){ return '<option value="' + v.id + '">' + esc(v.placa) + "</option>"; }).join("");
-    if (lista.length === 1) sel.value = lista[0].id;
-    else if (lista.some(function(v){ return v.id === atual; })) sel.value = atual;
+    var antes = sel.value;
+    if (sel.options.length !== veiculosOsCache.length + 1){
+      sel.innerHTML = '<option value=""></option>' + veiculosOsCache.map(function(v){ return '<option value="' + v.id + '">' + esc(v.placa) + "</option>"; }).join("");
+      document.getElementById("os-placas-lista").innerHTML = veiculosOsCache.map(function(v){ return '<option value="' + esc(v.placa) + '"></option>'; }).join("");
+    }
+    var exata = veiculosOsCache.filter(function(v){ return normalizarPlaca(v.placa) === termo; })[0];
+    var parciais = termo ? veiculosOsCache.filter(function(v){ return normalizarPlaca(v.placa).indexOf(termo) !== -1; }) : [];
+    var escolhido = exata || (parciais.length === 1 ? parciais[0] : null);
+    sel.value = escolhido ? escolhido.id : "";
+    info.textContent = !termo ? "" : escolhido ? "Veículo: " + escolhido.placa
+      : parciais.length ? parciais.length + " placas encontradas — continue digitando ou escolha na lista." : "Nenhuma placa encontrada nos seus hubs.";
+    if (sel.value !== antes) sel.dispatchEvent(new Event("change"));
   }
 
   document.getElementById("os-busca-placa").addEventListener("input", renderVeiculosOS);
@@ -4072,7 +4085,7 @@
       var ls = r[1] || [];
       if (!ls.length) return;
       OSA.fechamento = { osId: osId, lista: ls };
-      document.getElementById("osa-resumo").textContent = "A OS do " + placa + " foi concluída. Para cada anomalia do checklist ligada a ela, diga se o problema foi resolvido. Se continuar, ela volta para Aberta e segue visível na Qualidade da Frota.";
+      document.getElementById("osa-resumo").textContent = "A OS do " + placa + " foi concluída. Para cada anomalia do checklist ligada a ela, diga se o problema foi resolvido. Se continuar, ela volta para Aberta e segue visível na Gestão de Checklist.";
       document.getElementById("osa-lista").innerHTML = ls.map(function(a){
         return '<div class="osa-item" data-osa-id="' + esc(a.id) + '"><div>' + qfSevPill(a.severidade) + " <b>" + esc(qfItem(a)) + "</b>" + (a.descricao ? ' <span class="qf-sub">— ' + esc(a.descricao) + "</span>" : "") + "</div>" +
           '<div class="osa-opcoes"><label><input type="radio" name="osa-' + esc(a.id) + '" value="resolvida"> Sim, marcar como resolvida</label>' +
@@ -4495,7 +4508,7 @@
   }
   document.getElementById("os-tipo").addEventListener("change", osFormPreventiva);
   document.getElementById("os-veiculo").addEventListener("change", osFormPreventiva);
-  document.querySelector('[data-form="os"]').addEventListener("reset", function(){ osPrev = { veiculo: null, info: null }; setTimeout(osFormPreventiva, 0); });
+  document.querySelector('[data-form="os"]').addEventListener("reset", function(){ osPrev = { veiculo: null, info: null }; setTimeout(function(){ renderVeiculosOS(); osFormPreventiva(); }, 0); });
   document.getElementById("os-quando").addEventListener("change", osFormSinistro);
   document.getElementById("os-tipo").addEventListener("change", osFormSinistro);
   document.getElementById("os-parado").addEventListener("change", osFormSinistro);
@@ -5123,7 +5136,7 @@
       { num: pDisp == null ? "—" : pDisp + "%", label: "Disponíveis agora (" + gmNum(disp.disponivel) + " de " + gmNum(disp.total) + ")", cls: Regras.faixaDisponibilidade(pDisp), ir: "disp", dica: "Ver a disponibilidade por hub" },
       { num: gmNum(disp.indisponivel), label: "Indisponíveis agora", cls: disp.indisponivel ? "warn" : "good", ir: "indisp", dica: "Ver os carros parados, com OS, prazos e tratativas" },
       { num: pCk == null ? "—" : pCk + "%", label: "Checklist de retirada no período (" + gmNum(ckFez) + " de " + gmNum(ckEsp) + ")", cls: pCk == null ? "neutral" : pCk >= 90 ? "good" : pCk >= 70 ? "warn" : "crit", ir: "checklist", dica: "Ver o checklist de retirada por dia" },
-      { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good", ir: "anomalias", dica: "Abrir a lista de anomalias abertas (Qualidade da Frota)" },
+      { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good", ir: "anomalias", dica: "Abrir a lista de anomalias abertas (Gestão de Checklist)" },
       { num: gmNum(rv.vencidas), label: "Revisões vencidas", cls: rv.vencidas ? "crit" : "good", ir: "vencida", dica: "Ver só as revisões vencidas" },
       { num: gmNum(rv.vencendo), label: "Revisões vencendo (até 1.000 km)", cls: rv.vencendo ? "warn" : "good", ir: "vencendo", dica: "Ver só as revisões vencendo" },
       { num: gmNum(aConferir), label: "Revisões a conferir", cls: aConferir ? "warn" : "good", ir: "conferir", dica: "Ver a lista \"a conferir\"" }
@@ -5500,7 +5513,7 @@
     {key:"executivo", label:"Visão Executiva (Diretoria)"},
     {key:"frota", label:"Cadastro da Frota"},
     {key:"manutencao", label:"Manutenções"},
-    {key:"checklist", label:"Checklist / Qualidade da Frota"},
+    {key:"checklist", label:"Checklist (formulário e Gestão de Checklist)"},
     {key:"multas", label:"Multas"},
     {key:"financeiro", label:"Financeiro"},
     {key:"eletrificacao", label:"Carros Elétricos"}
@@ -5667,7 +5680,7 @@
     document.getElementById("ac-hubs-todos").disabled = !usa;
     document.getElementById("ac-hubs-limpar").disabled = !usa;
     document.getElementById("ac-hubs-hint").textContent = admin ? "Admin vê todos os hubs."
-      : !usa ? "Só vale para Manutenções e Qualidade da Frota. Marque um desses módulos para escolher os hubs."
+      : !usa ? "Só vale para Manutenções e Gestão de Checklist. Marque um desses módulos para escolher os hubs."
       : "A pessoa só vê veículos, OS, checklists e anomalias dos hubs marcados. Hub novo não entra sozinho: marque aqui quando for cadastrado.";
   }
   function acHubsMarcados(){
@@ -5724,6 +5737,7 @@
     em.value = novo ? "" : (u.email || "");
     em.readOnly = !novo; em.required = novo;
     document.getElementById("ac-senha-field").hidden = !novo;
+    document.getElementById("ac-trocar-senha-field").hidden = novo || !!u.sem_login;
     var pf = document.getElementById("ac-papel-f");
     pf.value = novo ? "operador" : (u.papel || "operador");
     pf.disabled = !!eu; // não tirar o próprio admin
@@ -5772,7 +5786,7 @@
     }
     if (acUsaHub()){
       dados.hubs = acHubsMarcados();
-      if (!dados.hubs.length){ setErr("ac-err", "Marque pelo menos um hub (vale para Manutenções e Qualidade da Frota)."); return; }
+      if (!dados.hubs.length){ setErr("ac-err", "Marque pelo menos um hub (vale para Manutenções e Gestão de Checklist)."); return; }
     }
     var senha = "";
     if (!id){
@@ -5819,8 +5833,26 @@
     });
   });
 
+  // admin redefine a senha de login (Edge Function usuarios, ação "senha"; registrada em senha_login_trocas)
+  document.getElementById("ac-trocar-senha").addEventListener("click", function(){
+    var u = AC.editando; if (!u) return;
+    var senha = document.getElementById("ac-nova-senha").value;
+    setErr("ac-err", "");
+    if (senha && senha.length < 8){ setErr("ac-err", "A nova senha precisa ter pelo menos 8 caracteres (ou deixe em branco para gerar)."); return; }
+    var nome = u.nome || u.email;
+    if (!confirm("Trocar a senha de login de " + nome + "?\n\nA senha antiga para de funcionar na hora.")) return;
+    var btn = this; btn.disabled = true;
+    chamarUsuarios("senha", { user_id: u.user_id, senha: senha }).then(function(res){
+      document.getElementById("modal-usuario").hidden = true;
+      if (res && res.aviso) toast(res.aviso, true);
+      mostrarCredenciais(u.email, (res && res.senha_gerada) || senha, "Senha redefinida");
+    }).catch(function(e){ setErr("ac-err", e.message); })
+      .finally(function(){ btn.disabled = false; });
+  });
+
   var acCredTexto = "";
-  function mostrarCredenciais(email, senha){
+  function mostrarCredenciais(email, senha, titulo){
+    document.getElementById("ac-cred-titulo").textContent = titulo || "Usuário criado";
     var url = location.origin + location.pathname.replace(/[^/]*$/, "");
     document.getElementById("ac-cred-url").textContent = url;
     document.getElementById("ac-cred").innerHTML = "E-mail: " + esc(email) + "<br>Senha: " + esc(senha);
