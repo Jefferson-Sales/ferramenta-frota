@@ -209,7 +209,10 @@ Tela inicial de quem trabalha no hub (auxiliar de frota / operador de Manutenç�
 | **Prazos de retorno vencidos** | OS em oficina com previsão de retorno já passada | Detalhe da OS (tratativas) | `ordens_servico.previsao_retorno` |
 | **Contratos vencendo & km excedente** | Contratos a vencer e pool com km acima da franquia | Cadastro da Frota filtrado | `v_cadastro_frota` / `v_pool_km_contrato` (contratos não têm hub: definir se o auxiliar vê todos ou só os carros do hub) |
 
-A decidir antes de construir: quem vê a tela como inicial (todo operador com Manutenções/Checklist? só auxiliares com matrícula?), se substitui a Visão Executiva como primeira tela para esses perfis e o recorte de contratos por hub. Reaproveita as peças da Visão Executiva (`css/painel-exec.css` + `js/painel-exec.js`) e as RPCs que já existem; provavelmente uma RPC nova `painel_auxiliar(p_hub)` (security invoker) para juntar as contagens.
+**Decisões do Jefferson (30/10/2026):**
+- **Tela inicial padrão** de quem tem perfil operacional de hub (auxiliares/operadores). Admin acessa pelo menu lateral normalmente.
+- Para o perfil operacional, **substitui a Visão Executiva**, que segue restrita à Diretoria/Gestão.
+- **Filtro de hub estrito:** o auxiliar vê só veículos, contratos, anomalias e checklists do próprio hub. Contrato não tem hub no banco: "contrato do hub" = contrato com pelo menos um carro ativo naquele hub (a franquia em pool continua sendo do contrato inteiro — o card mostra o excedente do contrato e quantos carros dele estão no hub). Reaproveita as peças da Visão Executiva (`css/painel-exec.css` + `js/painel-exec.js`) e as RPCs que já existem; provavelmente uma RPC nova `painel_auxiliar(p_hub)` (security invoker) para juntar as contagens.
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
