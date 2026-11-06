@@ -23,6 +23,17 @@ alter table frota.notas_fiscais
   add column importado_em   timestamptz;
 comment on column frota.notas_fiscais.pipefy_card_id is 'NÚMERO DO PIPE da planilha CONTROLE DE NOTAS — chave da carga (upsert).';
 
+-- frota.financeiro_notas = o nome pedido pelo Jefferson, como VIEW sobre a tabela que já existe (uma fonte só para a
+-- Visão Executiva e para o fechamento; nada de duas tabelas de notas que podem divergir).
+create or replace view frota.financeiro_notas with (security_invoker = true) as
+select n.id, n.pipefy_card_id as numero_pipe, n.numero_nota, f.nome as fornecedor, f.cnpj, h.nome as hub, n.hub_id,
+       c.nome as conta, n.categoria_id, n.valor, n.data_emissao, n.data_vencimento, n.data_pagamento,
+       n.mes_referencia as mes_competencia, n.aprovacao, n.forma_pagamento, n.origem_carga, n.importado_em
+from frota.notas_fiscais n
+left join frota.fornecedores f on f.id = n.fornecedor_id
+left join frota.hubs h on h.id = n.hub_id
+left join frota.categorias_custo c on c.id = n.categoria_id;
+
 -- ---------------------------------------------------------------- 2. transações de cartão
 create table frota.financeiro_transacoes_cartao (
   id                    uuid primary key default gen_random_uuid(),
