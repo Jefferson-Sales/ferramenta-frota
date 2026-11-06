@@ -323,6 +323,59 @@
   igual("documento pessoal: só admin abre", [R.podeAbrirAnexo("documento_pessoal", "admin"), R.podeAbrirAnexo("documento_pessoal", "opera")].join(","), "true,false");
   igual("termo: admin e quem opera Multas abrem; quem só vê, não", [R.podeAbrirAnexo("termo", "admin"), R.podeAbrirAnexo("termo", "opera"), R.podeAbrirAnexo("termo", "ver")].join(","), "true,true,false");
 
+  grupo("Financeiro — leitura das planilhas (Controle de Notas, Ticket Log, Edenred)");
+  var HUBSF = ["Alphaville", "Barra da Tijuca", "Barra Funda", "MOURISCO", "São Bernardo do Campo", "São Cristóvão", "Vila Olímpia"];
+  igual("hub: texto da planilha sem acento", R.hubDoTexto("SÃO CRISTOVÃO", HUBSF), "São Cristóvão");
+  igual("hub: \"ALPHAVILLE - SP\" (informação adicional)", R.hubDoTexto("ALPHAVILLE - SP", HUBSF), "Alphaville");
+  igual("hub: MATRIZ = MOURISCO", R.hubDoTexto("MATRIZ", HUBSF), "MOURISCO");
+  igual("hub: \"Barra\" sozinho = Barra da Tijuca (apelido)", R.hubDoTexto("BARRA", HUBSF), "Barra da Tijuca");
+  igual("hub: ND / vazio / desconhecido → null", [R.hubDoTexto("ND", HUBSF), R.hubDoTexto("", HUBSF), R.hubDoTexto("CURITIBA", HUBSF)].join(","), ",,");
+  igual("conta → coluna do fechamento", ["LOCAÇÃO VEICULAR", "COMBUSTÍVEL", "PEDAGIO E ESTACIONAMENTO EXTERNO", "LAVAGEM VEICULAR", "GARAGEM", "MANUTENÇÃO VEICULAR"].map(R.colunaDaConta).join(","),
+        "aluguel,combustivel,pedagio_estacionamento,lavagem,garagem,outras");
+  igual("Ticket Log: abastecimento, lavagem; conserto de pneu e óleo = outros", ["Abastecimento", "Lavagem expressa", "Conserto de pneu", "Oleo"].map(function(s){ return R.categoriaCartao("ticket_log", s); }).join(","), "combustivel,lavagem,outros,outros");
+  igual("Edenred: pedágio, estorno de pedágio, estacionamento, tags", ["Pedágio", "Estorno Pedágio", "Estacionamento", "Mensalidade Tag ativa - Licença de software", "Aquisição de Tag"].map(function(s){ return R.categoriaCartao("edenred", s); }).join(","),
+        "pedagio,pedagio,estacionamento,taxa_tag,taxa_tag");
+  igual("data do Excel = horário de Brasília (sem deslocar o fuso)", R.serialExcelParaISO(46296.0104166667), "2026-10-01T00:15:00-03:00");
+  igual("data do Excel: 31/10 às 23:59 continua em outubro", R.serialExcelParaISO(46326.9993055556).slice(0, 10), "2026-10-31");
+  igual("data e hora em texto (Edenred)", R.dataHoraBR("09/10/2026", "14:27:02"), "2026-10-09T14:27:02-03:00");
+  igual("valor com vírgula decimal", [R.valorBR("-10,82"), R.valorBR("1.234,56"), R.valorBR("R$ 80,00"), R.valorBR("")].join(";"), "-10.82;1234.56;80;");
+  igual("colunas pessoais reconhecidas", ["NOME MOTORISTA", "MATRICULA", "NUMERO CARTAO", "RESPONSAVEL", "BANCO", "AGÊNCIA", "PLACA", "VALOR EMISSAO"].map(R.colunaPessoal).join(","),
+        "true,true,true,true,true,true,false,false");
+  var cadT = { veiculos: { ABC1D23: { id: "v1", hub: "Alphaville" } }, hubs: HUBSF };
+  var tl = R.lerTicketLog([
+    ["CODIGO TRANSACAO", "DATA TRANSACAO", "PLACA", "MATRICULA", "NOME MOTORISTA", "SERVICO", "LITROS", "VL/LITRO", "VALOR EMISSAO", "NUMERO CARTAO", "INFORMACAO ADIDIONAL 2", "UF"],
+    ["1", 46296.5, "ABC1D23", "123", "Fulano", "Abastecimento", 10, 6, 60, "6035000011112222", "ND", "SP"],
+    ["1", 46296.5, "ABC1D23", "123", "Fulano", "Lavagem completa", null, null, 70, "6035000011112222", "ND", "SP"],
+    ["2", 46296.6, "XYZ9Z99", "456", "Beltrano", "Abastecimento", 5, 6, 30, "6035000033334444", "SAO CRISTOVAO - RJ", "RJ"],
+    ["3", 46327.2, "ABC1D23", "123", "Fulano", "Abastecimento", 5, 6, 30, "6035000011112222", "ND", "SP"]], "2026-10", cadT, "teste.xlsx");
+  igual("Ticket Log: só o mês escolhido (a de novembro fica fora)", tl.length, 3);
+  igual("Ticket Log: nome, matrícula e cartão não saem da leitura", /Fulano|Beltrano|6035000|"123"/.test(JSON.stringify(tl)), false);
+  igual("Ticket Log: mesmo código com 2 serviços = 2 linhas", tl.filter(function(t){ return t.transacao_id_externo === "1"; }).map(function(t){ return t.categoria; }).join(","), "combustivel,lavagem");
+  igual("Ticket Log: placa fora do cadastro → hub da informação adicional", tl[2].hub + " / " + tl[2].hub_regra, "São Cristóvão / informacao_adicional");
+  var ed = R.lerEdenred(["﻿Data da Geração: 01/11/2026;;", "Código da Fatura: 570123;;", "Mês de referência: out./2026;;",
+    "Código;Data da Transação;Hora da Transação;Tipo de Transação;Placa;Estabelecimento;Endereço;Valor cobrado(R$)",
+    "9;09/10/2026;14:27:02;Aquisição de Tag;;;;-10,82",
+    "a1;08/10/2026;10:00:00;Estacionamento;ABC1D23;Shopping;Rua X, 10, Barueri - SP;-16,00",
+    "a1;08/10/2026;10:00:00;Estorno Estacionamento;ABC1D23;Shopping;Rua X, 10, Barueri - SP;16,00",
+    "a1;08/10/2026;10:00:00;Estacionamento;ABC1D23;Shopping;Rua X, 10, Barueri - SP;-16,00"].join("\r\n"), cadT, "fatura.csv");
+  igual("Edenred: fatura e competência do cabeçalho", ed.fatura + " " + ed.mes, "570123 2026-10");
+  igual("Edenred: estorno desconta (total = 10,82 + 16 − 16 + 16)", ed.linhas.reduce(function(a, t){ return a + t.valor; }, 0).toFixed(2), "26.82");
+  igual("Edenred: linhas idênticas viram ocorrência 1 e 2", ed.linhas.filter(function(t){ return t.subtipo === "Estacionamento"; }).map(function(t){ return t.ocorrencia; }).join(","), "1,2");
+  igual("Edenred: tag sem placa → MOURISCO", ed.linhas[0].hub + " / " + ed.linhas[0].hub_regra, "MOURISCO / matriz_sem_placa");
+  igual("Edenred: cidade e UF pelo endereço", ed.linhas[1].cidade + "-" + ed.linhas[1].uf, "Barueri-SP");
+  var nt = R.lerControleNotas([
+    ["FORNECEDOR", "HUB", "CONTA", "NOTA FISCAL", "MÊS REFERÊNCIA", "ANO", "VALOR", "BANCO", "AGÊNCIA", "CONTA", "NÚMERO DO PIPE", "STATUS"],
+    ["LOCADORA A", "MATRIZ", "LOCAÇÃO VEICULAR", "1", 10, 2026, 1000, "ITAU", "0001", "12345-6", "111", "Aprovado"],
+    ["LOCADORA A", "MATRIZ", "LOCAÇÃO VEICULAR", "1", 10, 2026, 1200, "ITAU", "0001", "12345-6", "111", "Aprovado"],
+    ["OFICINA B", "BARRA", "MANUTENÇÃO VEICULAR", "2", 10, 2026, "R$ 80,00", "ITAU", "0001", "12345-6", "222", "Aprovado"],
+    ["TICKET LOG", "MATRIZ", "COMBUSTÍVEL", "-", 10, 2026, 248956.38, null, null, null, null, "Aprovado"],
+    ["OFICINA C", "BARRA", "GARAGEM", "3", 10, 2026, 500, null, null, null, "333", "Cancelado"],
+    ["OFICINA D", "BARRA", "GARAGEM", "4", 9, 2026, 500, null, null, null, "444", "Aprovado"]], "2026-10");
+  igual("Notas: só aprovadas, do mês e com Pipe (sem Pipe é contado à parte)", nt.notas.length + " / sem Pipe " + nt.semPipe, "2 / sem Pipe 1");
+  igual("Notas: Pipe repetido fica a última linha", nt.pipesRepetidos + " / " + nt.notas.filter(function(n){ return n.pipefy_card_id === "111"; })[0].valor, "1 / 1200");
+  igual("Notas: valor em texto \"R$ 80,00\"", nt.notas.filter(function(n){ return n.pipefy_card_id === "222"; })[0].valor, 80);
+  igual("Notas: a conta bancária (2ª \"CONTA\") e banco não são lidos", /12345-6|ITAU/.test(JSON.stringify(nt)), false);
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){

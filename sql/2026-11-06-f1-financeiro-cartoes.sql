@@ -1,6 +1,8 @@
 -- =============================================================================
--- PROPOSTA (NÃO APLICADA) — Financeiro F1: Controle de Notas + extratos de cartão (Ticket Log e Edenred) + rateio por hub.
--- Pedido do Jefferson em 06/11/2026. Só vai para o banco depois do "aprovado".
+-- Financeiro F1: Controle de Notas + extratos de cartão (Ticket Log e Edenred) + rateio por hub.
+-- Pedido do Jefferson em 06/11/2026; DDL aprovado por ele em 06/11/2026.
+-- Decisões de negócio (06/11/2026): Ticket Log = mês civil (a diferença para a NF são taxas de gestão da fatura);
+-- aluguel rateado entre os hubs pela proporção de carros ativos no mês (por locadora); conserto de pneu / óleo = "Outras".
 --
 -- Decisões embutidas (ver o resumo no chat / docs/plano.md):
 --   * NÃO cria frota.financeiro_notas: já existe frota.notas_fiscais (1.165 notas, usada pela Visão Executiva — exec_financeiro).
@@ -16,7 +18,8 @@
 
 -- ---------------------------------------------------------------- 1. notas_fiscais (ajuste)
 -- antes: conferir que não há Pipe repetido no banco (hoje: 1.155 Pipes, todos distintos)
-create unique index notas_fiscais_pipe_unico on frota.notas_fiscais (pipefy_card_id) where pipefy_card_id is not null;
+-- restrição única completa (vários vazios continuam permitidos): é o que deixa a importação usar on_conflict=pipefy_card_id
+alter table frota.notas_fiscais add constraint notas_fiscais_pipe_unico unique (pipefy_card_id);
 alter table frota.notas_fiscais
   add column aprovacao      text check (aprovacao in ('aprovado', 'cancelado')),   -- STATUS da planilha
   add column origem_carga   text check (origem_carga in ('planilha', 'manual')),
@@ -126,3 +129,63 @@ $$;
 
 revoke execute on function frota.financeiro_conciliacao(date) from public, anon;
 grant execute on function frota.financeiro_conciliacao(date) to authenticated;
+
+-- ---------------------------------------------------------------- 6. fechamento do mês: Hub × colunas, com aluguel rateado
+-- Aluguel (decisão do Jefferson, 06/11/2026): rateado entre os hubs pela proporção de carros ativos no mês.
+--   * Por locadora: a NF de locação de uma locadora vai para os hubs onde estão os carros DELA (via contrato).
+--   * "Carros ativos no mês" = média dos dias da foto diária (frota_status_diario, sem devolvidos);
+--     mês sem foto → cadastro atual (ativos, sem devolvidos). Locadora sem carro identificado → proporção da frota toda.
+-- Security definer com checagem própria: quem vê o Financeiro precisa da contagem de carros por hub (só números,
+-- sem placa nem pessoa) mesmo sem acesso ao Cadastro da Frota.
+create or replace function frota.financeiro_fechamento(p_mes date)
+returns table (hub_id uuid, hub text, aluguel numeric, combustivel numeric, pedagio_estacionamento numeric,
+               lavagem numeric, garagem numeric, outras numeric, total numeric)
+language plpgsql stable security definer set search_path = frota, public as $$
+begin
+  if not frota.posso_ver('financeiro') then raise exception 'Sem permissão para ver o Financeiro.'; end if;
+  return query
+  with fotos as (
+    select d.hub_id, ct.locadora_id, count(*)::numeric as carros_dia
+    from frota_status_diario d join veiculos v on v.id = d.veiculo_id left join contratos ct on ct.id = v.contrato_id
+    where d.dia >= p_mes and d.dia < (p_mes + interval '1 month')::date and d.status::text <> 'devolvido' and d.hub_id is not null
+    group by 1, 2
+  ), base_carros as (
+    select * from fotos
+    union all
+    select v.hub_id, ct.locadora_id, 1::numeric
+    from veiculos v left join contratos ct on ct.id = v.contrato_id
+    where not exists (select 1 from fotos) and v.ativo and v.status::text <> 'devolvido' and v.hub_id is not null
+  ), por_loc as (
+    select b.locadora_id, b.hub_id, sum(b.carros_dia) / sum(sum(b.carros_dia)) over (partition by b.locadora_id) as parte
+    from base_carros b group by 1, 2
+  ), geral as (
+    select b.hub_id, sum(b.carros_dia) / sum(sum(b.carros_dia)) over () as parte from base_carros b group by 1
+  ), aluguel_nf as (
+    select n.fornecedor_id, sum(n.valor) as valor
+    from notas_fiscais n join categorias_custo c on c.id = n.categoria_id
+    where n.mes_referencia = p_mes and c.nome ilike 'LOCA%' and coalesce(n.aprovacao, 'aprovado') = 'aprovado'
+    group by 1
+  ), aluguel as (
+    select coalesce(pl.hub_id, g.hub_id) as hub_id, sum(a.valor * coalesce(pl.parte, g.parte)) as valor
+    from aluguel_nf a
+    left join por_loc pl on pl.locadora_id = a.fornecedor_id
+    left join geral g on not exists (select 1 from por_loc p2 where p2.locadora_id = a.fornecedor_id)
+    group by 1
+  ), outras_colunas as (
+    select f.hub_id, f.coluna, f.valor from v_fechamento_hub f where f.mes = p_mes and f.coluna <> 'aluguel'
+    union all select a.hub_id, 'aluguel', a.valor from aluguel a
+  )
+  select o.hub_id, coalesce(h.nome, '(sem hub)'),
+         round(coalesce(sum(o.valor) filter (where o.coluna = 'aluguel'), 0), 2),
+         round(coalesce(sum(o.valor) filter (where o.coluna = 'combustivel'), 0), 2),
+         round(coalesce(sum(o.valor) filter (where o.coluna = 'pedagio_estacionamento'), 0), 2),
+         round(coalesce(sum(o.valor) filter (where o.coluna = 'lavagem'), 0), 2),
+         round(coalesce(sum(o.valor) filter (where o.coluna = 'garagem'), 0), 2),
+         round(coalesce(sum(o.valor) filter (where o.coluna = 'outras'), 0), 2),
+         round(coalesce(sum(o.valor), 0), 2)
+  from outras_colunas o left join hubs h on h.id = o.hub_id
+  group by o.hub_id, h.nome
+  order by h.nome nulls last;
+end $$;
+revoke execute on function frota.financeiro_fechamento(date) from public, anon;
+grant execute on function frota.financeiro_fechamento(date) to authenticated;

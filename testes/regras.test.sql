@@ -35,6 +35,7 @@ declare
   osd uuid; ckd uuid; and1 uuid; u_mul uuid; u_mvis uuid; dsc uuid; dsc2 uuid; dsc3 uuid; dsc4 uuid; dsc5 uuid;
   ms1 uuid; ms2 uuid; ms3 uuid; vs1 uuid; vs2 uuid; vs3 uuid; vs4 uuid; mus1 uuid; mus2 uuid; dss1 uuid; dss2 uuid;
   dsv1 uuid; anx1 uuid; anx2 uuid;
+  u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -835,6 +836,70 @@ begin
   perform set_config('request.jwt.claims', '', true);
   begin delete from frota.descontos_anexos where id = anx2; x := 'aceitou'; exception when others then x := case when sqlerrm like 'Anexo não pode ser apagado%' then 'recusou' else sqlerrm end; end;
   casos := casos || text 'anexo: nem o dono do banco apaga'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+
+  -- ============================================ 21. FINANCEIRO F1: CARTÕES, FECHAMENTO POR HUB E CONCILIAÇÃO
+  u_fvis := gen_random_uuid();
+  insert into auth.users (id, email, aud, role) values (u_fvis, 'teste.fin@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values (u_fvis, 'TESTE Operador Financeiro', 'operador', '{financeiro}', '{financeiro}');
+  -- locadora com 3 carros: 2 no hub A e 1 no hub B (foto diária de 2 dias); NF de aluguel de R$ 300 → A 200, B 100
+  insert into frota.hubs (nome) values ('TESTE Fin A') returning id into fha;
+  insert into frota.hubs (nome) values ('TESTE Fin B') returning id into fhb;
+  insert into frota.fornecedores (nome) values ('TESTE Locadora Fin') returning id into floc;
+  insert into frota.fornecedores (nome) values ('TICKET LOG TESTE') returning id into ftk;
+  insert into frota.contratos (locadora_id, numero_contrato) values (floc, 'TESTE FIN') returning id into fct;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status) values ('ZZT0R01', fha, fct, 1, 'disponivel') returning id into fv1;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status) values ('ZZT0R02', fha, fct, 1, 'disponivel') returning id into fv2;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status) values ('ZZT0R03', fhb, fct, 1, 'disponivel') returning id into fv3;
+  insert into frota.frota_status_diario (dia, veiculo_id, hub_id, status)
+    select d::date, v.id, v.hub_id, 'disponivel' from generate_series('2032-10-01'::date, '2032-10-02', '1 day') d, frota.veiculos v where v.id in (fv1, fv2, fv3);
+  insert into frota.notas_fiscais (fornecedor_id, categoria_id, valor, mes_referencia, pipefy_card_id, aprovacao)
+    values (floc, (select id from frota.categorias_custo where nome = 'LOCAÇÃO VEICULAR'), 300, '2032-10-01', 'TESTE-P1', 'aprovado');
+  insert into frota.notas_fiscais (fornecedor_id, categoria_id, valor, mes_referencia, pipefy_card_id, aprovacao)
+    values (ftk, (select id from frota.categorias_custo where nome = 'COMBUSTÍVEL'), 110, '2032-10-01', 'TESTE-P2', 'aprovado');
+  begin insert into frota.notas_fiscais (fornecedor_id, valor, mes_referencia, pipefy_card_id) values (floc, 1, '2032-10-01', 'TESTE-P1'); x := 'aceitou'; exception when unique_violation then x := 'recusou'; end;
+  casos := casos || text 'notas: mesmo número do Pipe não entra duas vezes'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.financeiro_transacoes_cartao (origem, transacao_id_externo, placa, veiculo_id, hub_id, hub_regra, categoria, subtipo, valor, mes_competencia, arquivo_origem, ocorrencia)
+    values ('ticket_log', 'T1', 'ZZT0R01', fv1, fha, 'cadastro', 'combustivel', 'Abastecimento', 100, '2032-10-01', 'teste', 1),
+           ('ticket_log', 'T1', 'ZZT0R01', fv1, fha, 'cadastro', 'lavagem', 'Lavagem completa', 70, '2032-10-01', 'teste', 1),
+           ('edenred', 'E1', null, null, null, 'sem_hub', 'pedagio', 'Pedágio', 10, '2032-10-01', 'teste', 1),
+           ('edenred', 'E1', null, null, null, 'sem_hub', 'pedagio', 'Estorno Pedágio', -10, '2032-10-01', 'teste', 1),
+           ('edenred', 'E1', null, null, null, 'sem_hub', 'pedagio', 'Pedágio', 10, '2032-10-01', 'teste', 2);
+  casos := casos || text 'cartões: mesmo código com 2 serviços e cobrança/estorno/nova cobrança'; obtidos := obtidos || text 'aceitou'; esperados := esperados || text 'aceitou';
+  -- mesma linha de novo (re-importação) com upsert: não duplica
+  insert into frota.financeiro_transacoes_cartao (origem, transacao_id_externo, hub_regra, categoria, subtipo, valor, mes_competencia, arquivo_origem, ocorrencia)
+    values ('edenred', 'E1', 'sem_hub', 'pedagio', 'Pedágio', 10, '2032-10-01', 'teste', 1)
+    on conflict (origem, transacao_id_externo, subtipo, valor, ocorrencia) do update set arquivo_origem = excluded.arquivo_origem;
+  select count(*)::text into x from frota.financeiro_transacoes_cartao where mes_competencia = '2032-10-01';
+  casos := casos || text 'cartões: importar de novo atualiza, não duplica'; obtidos := obtidos || x; esperados := esperados || text '5';
+  select string_agg(hub || '=' || aluguel || '/' || combustivel || '/' || lavagem || '/' || pedagio_estacionamento, ' ' order by hub) into x
+    from frota.financeiro_fechamento('2032-10-01') where hub like 'TESTE Fin%' or hub = '(sem hub)';
+  casos := casos || text 'fechamento: aluguel rateado pelos carros da locadora (2:1); cartão no hub da placa; NF do cartão fora da matriz'; obtidos := obtidos || x;
+  esperados := esperados || text '(sem hub)=0.00/0.00/0.00/10.00 TESTE Fin A=200.00/100.00/70.00/0.00 TESTE Fin B=100.00/0.00/0.00/0.00';
+  select string_agg(origem || ' ' || extrato || ' x ' || notas || ' = ' || diferenca, '; ' order by origem) into x from frota.financeiro_conciliacao('2032-10-01');
+  casos := casos || text 'conciliação: extrato × NF de cada cartão (estorno desconta)'; obtidos := obtidos || x; esperados := esperados || text 'edenred 10.00 x 0 = 10.00; ticket_log 170.00 x 110 = 60.00';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin perform * from frota.financeiro_fechamento('2032-10-01'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'fechamento: quem não vê o Financeiro não consulta'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select count(*)::text into x from frota.financeiro_transacoes_cartao;
+  casos := casos || text 'cartões: quem não vê o Financeiro não lê'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.financeiro_transacoes_cartao where mes_competencia = '2032-10-01';
+  casos := casos || text 'cartões: quem vê o Financeiro lê'; obtidos := obtidos || x; esperados := esperados || text '5';
+  begin insert into frota.financeiro_transacoes_cartao (origem, transacao_id_externo, hub_regra, categoria, subtipo, valor, mes_competencia, arquivo_origem)
+    values ('edenred', 'E9', 'sem_hub', 'pedagio', 'Pedágio', 1, '2032-10-01', 'teste'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'cartões: só admin grava (operador do Financeiro não)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.financeiro_transacoes_cartao where mes_competencia = '2032-10-01'; get diagnostics x = row_count; x := case when x = '0' then 'recusou' else 'aceitou' end; exception when others then x := 'recusou'; end;
+  casos := casos || text 'cartões: ninguém apaga pelo painel'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select count(*)::text into x from frota.financeiro_fechamento('2032-10-01') where hub like 'TESTE Fin%';
+  casos := casos || text 'fechamento: quem vê o Financeiro consulta (sem precisar do Cadastro da Frota)'; obtidos := obtidos || x; esperados := esperados || text '2';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop

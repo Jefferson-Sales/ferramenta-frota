@@ -342,6 +342,19 @@
   .dsc-pf-titulo{ font-weight:600; margin-bottom:var(--espaco-2); }
   .dsc-passo-form .form-grid{ margin-top:var(--espaco-5); }
   .dsc-passo-form .modal-actions{ margin-top:var(--espaco-2); }
+  .fimp-previa{ border:1px solid var(--line); border-radius:var(--radius); background:var(--surface-2); padding:var(--espaco-6); margin:var(--espaco-4) 0 var(--espaco-6); }
+  .fimp-titulo{ font-weight:600; margin-bottom:var(--espaco-2); }
+  .fimp-blocos{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:var(--espaco-6); margin:var(--espaco-5) 0; }
+  .fimp-bloco ul{ list-style:none; margin:var(--espaco-2) 0 0; padding:0; }
+  .fimp-bloco li{ display:flex; justify-content:space-between; gap:var(--espaco-4); padding:var(--espaco-1) 0; border-bottom:1px solid var(--line); font-size:var(--fs-sm); }
+  .fimp-total td{ font-weight:700; border-top:2px solid var(--line-strong); }
+  #fimp-card .card-head{ flex-wrap:wrap; gap:var(--espaco-4); }
+  #fimp-card .card-head-actions{ flex-wrap:wrap; }
+  #fimp-fechamento td.num, #fimp-fechamento th.num{ white-space:nowrap; }
+  #fimp-importar > .section-desc{ padding:var(--espaco-6) var(--espaco-8) 0; max-width:none; }
+  #fimp-previa, #fimp-fechamento > .ac-hint, #fimp-fechamento > .osd-vazio, #fimp-fechamento > .field-err, #fimp-fechamento .detail-section > h4, #fimp-fechamento .detail-section > .osd-vazio{ display:block; padding:0 var(--espaco-8); }
+  #fimp-fechamento > .osd-vazio{ padding-bottom:var(--espaco-6); }
+  #fimp-importar .fin-filtros input[type=file]{ flex:1 1 220px; min-width:0; font-size:var(--fs-sm); }
   .dsc-anexos{ list-style:none; margin:0 0 var(--espaco-5); padding:0; }
   .dsc-anexos li{ display:flex; align-items:center; justify-content:space-between; gap:var(--espaco-4); flex-wrap:wrap; padding:var(--espaco-4) 0; border-bottom:1px solid var(--line); }
   .dsc-anexos li.descartado .nome{ text-decoration:line-through; color:var(--muted); }
@@ -666,6 +679,21 @@
             <tbody id="fin-nf-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
+      </div>
+
+      <div class="card" id="fimp-card">
+        <div class="card-head"><h2>Fechamento do mês por hub</h2><div class="card-head-actions">
+          <label class="qf-sub">Competência <input type="month" id="fimp-mes" class="filter-select"></label>
+          <button type="button" class="btn qf-mini" id="fimp-ver">Ver fechamento</button></div></div>
+        <div id="fimp-importar" hidden>
+          <p class="section-desc">Importar (só admin): planilha <b>Controle de Notas</b> (.xlsx, aba "CONTROLE DE NOTAS 2026"), extrato <b>Ticket Log</b> (RFCV .xlsx) ou fatura <b>Edenred</b> (.csv). O arquivo é lido aqui no navegador; nome de motorista, matrícula, número do cartão, responsável e dados bancários são descartados antes de qualquer envio. Nada é gravado sem a sua confirmação, e importar o mesmo arquivo de novo não duplica.</p>
+          <div class="fin-filtros">
+            <input type="file" id="fimp-arquivo" accept=".xlsx,.csv" aria-label="Arquivo para importar">
+            <button type="button" class="btn" id="fimp-ler">Ler arquivo</button>
+          </div>
+          <div id="fimp-previa"></div>
+        </div>
+        <div id="fimp-fechamento"><span class="osd-vazio">Escolha a competência e clique em "Ver fechamento".</span></div>
       </div>
 
       <div class="card">
@@ -3969,6 +3997,7 @@
   var STATUS_NF_PILL = { recebida_email:"neutral", pipefy_aberto:"warn", aguardando_pagamento:"warn", paga:"good", atrasada:"crit", contestada:"crit" };
 
   function loadFinanceiro(){
+    fimpPreparar();
     rest("fornecedores?select=id,nome&order=nome").then(function(rows){
       fillSelect("nf-fornecedor", rows, function(f){ return f.nome; }, "Selecione…");
     }).catch(function(){});
@@ -5338,6 +5367,191 @@
     });
     return xlsxCarregando;
   }
+  // ---------------- Financeiro F1: importar planilhas e fechamento por hub (06/11/2026) ----------------
+  // LEITURA de arquivo usa o SheetJS 0.20.3 (a 0.18.5 do jsDelivr tem falhas conhecidas ao LER planilhas de fora).
+  // As regras de leitura (colunas, categorias, hub, datas, valores) estão no regras.js, com teste; aqui só arquivo e rede.
+  var XLSX_LEITURA_URL = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+  var XLSX_LEITURA_SRI = "sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT";
+  var xlsxLeituraCarregando = null;
+  function carregarXlsxLeitura(){
+    if (window.XLSX && window.XLSX.version === "0.20.3") return Promise.resolve(window.XLSX);
+    if (!xlsxLeituraCarregando) xlsxLeituraCarregando = new Promise(function(ok, falha){
+      var s = document.createElement("script");
+      s.src = XLSX_LEITURA_URL; s.integrity = XLSX_LEITURA_SRI; s.crossOrigin = "anonymous";
+      s.onload = function(){ window.XLSX && window.XLSX.version === "0.20.3" ? ok(window.XLSX) : falha(new Error("leitor de planilha não carregou")); };
+      s.onerror = function(){ xlsxLeituraCarregando = null; falha(new Error("não foi possível baixar o leitor de planilha")); };
+      document.head.appendChild(s);
+    });
+    return xlsxLeituraCarregando;
+  }
+  var FIMP = { previa: null };
+  var FIMP_COLS = [["aluguel", "Aluguel"], ["combustivel", "Combustível"], ["pedagio_estacionamento", "Pedágio/Estac."], ["lavagem", "Lavagem"], ["garagem", "Garagem"], ["outras", "Outras"]];
+  var FIMP_CAT = { combustivel: "Combustível", lavagem: "Lavagem", outros: "Outros (pneu, óleo…)", pedagio: "Pedágio", estacionamento: "Estacionamento", taxa_tag: "Taxas de tag" };
+  var FIMP_REGRA = { cadastro: "placa do cadastro", informacao_adicional: "informação adicional do extrato", matriz_sem_placa: "sem placa → MOURISCO", sem_hub: "sem hub (placa fora do cadastro)" };
+  function fimpPreparar(){
+    var mes = document.getElementById("fimp-mes");
+    if (!mes.value){ var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); mes.value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+    document.getElementById("fimp-importar").hidden = !(perfil && perfil.papel === "admin");
+  }
+  function fimpCadastro(){
+    return Promise.all([rest("veiculos?select=id,placa,hub_id"), rest("hubs?select=id,nome")]).then(function(r){
+      var hubNome = {}, hubId = {}; (r[1] || []).forEach(function(h){ hubNome[h.id] = h.nome; hubId[h.nome] = h.id; });
+      var cad = { veiculos: {}, hubs: (r[1] || []).map(function(h){ return h.nome; }), hubId: hubId };
+      (r[0] || []).forEach(function(v){ cad.veiculos[String(v.placa).toUpperCase().replace(/[^A-Z0-9]/g, "")] = { id: v.id, hub: hubNome[v.hub_id] || null }; });
+      return cad;
+    });
+  }
+  function fimpSoma(lista, campo){ var s = {}; lista.forEach(function(x){ s[x[campo]] = (s[x[campo]] || 0) + x.valor; }); return s; }
+  function fimpTabelaSomas(titulo, somas, rotulos){
+    return '<div class="fimp-bloco"><b>' + esc(titulo) + '</b><ul>' + Object.keys(somas).map(function(k){
+      return '<li><span>' + esc((rotulos && rotulos[k]) || (k === "null" || !k ? "(sem hub)" : k)) + '</span><span class="num">' + esc(money(somas[k])) + '</span></li>'; }).join("") + '</ul></div>';
+  }
+  document.getElementById("fimp-ler").addEventListener("click", function(){
+    var arq = document.getElementById("fimp-arquivo").files[0], mes = document.getElementById("fimp-mes").value, host = document.getElementById("fimp-previa");
+    if (!arq){ toast("Escolha o arquivo.", true); return; }
+    if (!mes){ toast("Escolha a competência.", true); return; }
+    FIMP.previa = null; host.innerHTML = '<span class="osd-vazio">Lendo o arquivo…</span>';
+    var csv = /\.csv$/i.test(arq.name);
+    Promise.all([fimpCadastro(), csv ? arq.text() : Promise.all([carregarXlsxLeitura(), arq.arrayBuffer()])]).then(function(r){
+      var cad = r[0], p;
+      if (csv){
+        var ed = Regras.lerEdenred(r[1], cad, arq.name);
+        p = { tipo: "cartao", origem: "Edenred (fatura " + (ed.fatura || "?") + ")", linhas: ed.linhas, avisoMes: ed.mes !== mes ? "A fatura é da competência " + ed.mes + ", não de " + mes + ". Ela será gravada como " + ed.mes + "." : "" };
+      } else {
+        var X = r[1][0], wb = X.read(r[1][1], { type: "array", cellDates: false });
+        var aba = function(n){ return X.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: null, raw: true }); };
+        if (wb.SheetNames.indexOf("CONTROLE DE NOTAS 2026") > -1){
+          var nt = Regras.lerControleNotas(aba("CONTROLE DE NOTAS 2026"), mes);
+          p = { tipo: "notas", origem: "Controle de Notas", notas: nt.notas, semPipe: nt.semPipe, pipesRepetidos: nt.pipesRepetidos };
+        } else {
+          var linhas = aba(wb.SheetNames[0]);
+          if (!(linhas[0] || []).some(function(c){ return Regras.finNorm(c) === "CODIGO TRANSACAO"; })) throw new Error("Arquivo não reconhecido: não é o Controle de Notas nem o extrato da Ticket Log.");
+          p = { tipo: "cartao", origem: "Ticket Log", linhas: Regras.lerTicketLog(linhas, mes, cad, arq.name) };
+        }
+      }
+      p.cad = cad; p.arquivo = arq.name; p.mes = mes;
+      return p.tipo === "notas" ? fimpPrepararNotas(p) : p;
+    }).then(function(p){ FIMP.previa = p; fimpRenderPrevia(); })
+      .catch(function(e){ host.innerHTML = '<div class="field-err">Não foi possível ler: ' + esc(e.message) + '</div>'; });
+  });
+  // notas: liga fornecedor (CNPJ, depois nome), conta e hub aos cadastros
+  function fimpPrepararNotas(p){
+    return Promise.all([rest("fornecedores?select=id,nome,cnpj"), rest("categorias_custo?select=id,nome")]).then(function(r){
+      var porCnpj = {}, porNome = {}, porConta = {};
+      (r[0] || []).forEach(function(f){ var c = String(f.cnpj || "").replace(/\D/g, ""); if (c) porCnpj[c] = f.id; porNome[Regras.finNorm(f.nome)] = f.id; });
+      (r[1] || []).forEach(function(c){ porConta[Regras.finNorm(c.nome)] = c.id; });
+      p.fornecedoresNovos = {};
+      p.notas.forEach(function(n){
+        n.fornecedor_id = (n.cnpj && porCnpj[n.cnpj]) || porNome[Regras.finNorm(n.fornecedor)] || null;
+        if (!n.fornecedor_id) p.fornecedoresNovos[Regras.finNorm(n.fornecedor)] = { nome: n.fornecedor, cnpj: n.cnpj };
+        n.categoria_id = porConta[Regras.finNorm(n.conta)] || null;
+        var h = Regras.hubDoTexto(n.hub_texto, p.cad.hubs); n.hub = h; n.hub_id = h ? p.cad.hubId[h] : null;
+      });
+      return p;
+    });
+  }
+  function fimpRenderPrevia(){
+    var p = FIMP.previa, host = document.getElementById("fimp-previa");
+    var html = '<div class="fimp-previa"><div class="fimp-titulo">Prévia — ' + esc(p.origem) + ' · ' + esc(p.arquivo) + '</div>';
+    if (p.tipo === "cartao"){
+      var tot = p.linhas.reduce(function(a, t){ return a + t.valor; }, 0);
+      var semHub = p.linhas.filter(function(t){ return !t.hub; });
+      html += '<div class="ac-hint">' + p.linhas.length + ' transações · total <b>' + esc(money(tot)) + '</b> · competência ' + esc((p.linhas[0] || {}).mes_competencia ? p.linhas[0].mes_competencia.slice(0, 7) : p.mes) + '</div>' +
+        (p.avisoMes ? '<div class="ac-hint dn-aviso">' + esc(p.avisoMes) + '</div>' : '') +
+        '<div class="fimp-blocos">' + fimpTabelaSomas("Por categoria", fimpSoma(p.linhas, "categoria"), FIMP_CAT) +
+        fimpTabelaSomas("Como o hub foi achado", fimpSoma(p.linhas, "hub_regra"), FIMP_REGRA) + fimpTabelaSomas("Por hub", fimpSoma(p.linhas, "hub")) + '</div>' +
+        (semHub.length ? '<div class="ac-hint dn-aviso">' + semHub.length + (semHub.length === 1 ? ' transação' : ' transações') + ' sem hub (' + esc(money(semHub.reduce(function(a, t){ return a + t.valor; }, 0))) + '), placas fora do cadastro: ' +
+          esc(Array.from(new Set(semHub.map(function(t){ return t.placa || "sem placa"; }))).slice(0, 15).join(", ")) + '. Entram como "(sem hub)" no fechamento.</div>' : '');
+    } else {
+      var totN = p.notas.reduce(function(a, n){ return a + n.valor; }, 0), novos = Object.keys(p.fornecedoresNovos);
+      var semConta = p.notas.filter(function(n){ return !n.categoria_id; }), semHubN = p.notas.filter(function(n){ return !n.hub_id; });
+      html += '<div class="ac-hint">' + p.notas.length + ' notas aprovadas de ' + esc(p.mes) + ' com número do Pipe · total <b>' + esc(money(totN)) + '</b></div>' +
+        (p.semPipe ? '<div class="ac-hint dn-aviso">' + p.semPipe + ' nota(s) aprovada(s) do mês <b>sem número do Pipe</b> ficam de fora (sem o Pipe não há como evitar duplicata). Preencha o Pipe na planilha e importe de novo.</div>' : '') +
+        (p.pipesRepetidos ? '<div class="ac-hint dn-aviso">' + p.pipesRepetidos + ' Pipe(s) repetido(s) na planilha: ficou a última linha de cada.</div>' : '') +
+        '<div class="fimp-blocos">' + fimpTabelaSomas("Por coluna do fechamento", fimpSoma(p.notas, "coluna"), { aluguel: "Aluguel", combustivel: "Combustível", pedagio_estacionamento: "Pedágio/Estac.", lavagem: "Lavagem", garagem: "Garagem", outras: "Outras" }) +
+        fimpTabelaSomas("Por hub (da planilha)", fimpSoma(p.notas, "hub")) + '</div>' +
+        (novos.length ? '<div class="ac-hint">Fornecedores que serão cadastrados: ' + esc(novos.map(function(k){ return p.fornecedoresNovos[k].nome; }).join(", ")) + '.</div>' : '') +
+        (semConta.length ? '<div class="ac-hint dn-aviso">Conta não encontrada no cadastro (entra em "Outras"): ' + esc(Array.from(new Set(semConta.map(function(n){ return n.conta || "vazia"; }))).join(", ")) + '.</div>' : '') +
+        (semHubN.length ? '<div class="ac-hint dn-aviso">Hub não reconhecido: ' + esc(Array.from(new Set(semHubN.map(function(n){ return n.hub_texto || "vazio"; }))).join(", ")) + '.</div>' : '');
+    }
+    var qtd = p.tipo === "cartao" ? p.linhas.length : p.notas.length;
+    html += '<div class="modal-actions"><button type="button" class="btn" id="fimp-cancelar">Descartar prévia</button>' +
+      '<button type="button" class="btn btn-primary" style="width:auto" id="fimp-confirmar"' + (qtd ? "" : " disabled") + '>Confirmar importação (' + qtd + ')</button></div>' +
+      '<div class="ac-hint" id="fimp-progresso"></div></div>';
+    host.innerHTML = html;
+  }
+  // grava em lotes com "upsert" (mesma chave = atualiza; não duplica)
+  function fimpUpsert(tabela, conflito, linhas, aoAvancar){
+    var lotes = []; for (var i = 0; i < linhas.length; i += 500) lotes.push(linhas.slice(i, i + 500));
+    return lotes.reduce(function(prom, lote, k){
+      return prom.then(function(){ return ensureFreshSession(); }).then(function(){
+        return fetch(SUPA_URL + "/rest/v1/" + tabela + "?on_conflict=" + conflito, { method: "POST",
+          headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json",
+            "Content-Profile": SCHEMA, "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(lote) });
+      }).then(function(r){
+        if (!r.ok) return r.text().then(function(t){ var j; try { j = JSON.parse(t); } catch (e) {} throw new Error((j && (j.message || j.details)) || t || ("Erro " + r.status)); });
+        aoAvancar(Math.min((k + 1) * 500, linhas.length), linhas.length);
+      });
+    }, Promise.resolve());
+  }
+  document.getElementById("fimp-previa").addEventListener("click", function(ev){
+    if (ev.target.id === "fimp-cancelar"){ FIMP.previa = null; this.innerHTML = ""; return; }
+    if (ev.target.id !== "fimp-confirmar" || !FIMP.previa) return;
+    var p = FIMP.previa, btn = ev.target, prog = document.getElementById("fimp-progresso");
+    if (!confirm("Gravar " + (p.tipo === "cartao" ? p.linhas.length + " transações" : p.notas.length + " notas") + " de " + p.origem + "?")) return;
+    btn.disabled = true;
+    var avanca = function(f, t){ prog.textContent = "Gravando… " + f + " de " + t; };
+    var trabalho;
+    if (p.tipo === "cartao"){
+      trabalho = fimpUpsert("financeiro_transacoes_cartao", "origem,transacao_id_externo,subtipo,valor,ocorrencia", p.linhas.map(function(t){
+        var o = {}; for (var k in t) if (k !== "hub") o[k] = t[k];
+        o.hub_id = t.hub ? p.cad.hubId[t.hub] || null : null; return o;
+      }), avanca);
+    } else {
+      var novos = Object.keys(p.fornecedoresNovos).map(function(k){ return p.fornecedoresNovos[k]; });
+      trabalho = (novos.length ? rest("fornecedores", { method: "POST", body: novos.map(function(f){ return { nome: f.nome, cnpj: f.cnpj, ativo: true }; }) }) : Promise.resolve([])).then(function(criados){
+        var porNome = {}; (criados || []).forEach(function(f){ porNome[Regras.finNorm(f.nome)] = f.id; });
+        var agora = new Date().toISOString();
+        return fimpUpsert("notas_fiscais", "pipefy_card_id", p.notas.map(function(n){
+          return { pipefy_card_id: n.pipefy_card_id, fornecedor_id: n.fornecedor_id || porNome[Regras.finNorm(n.fornecedor)], categoria_id: n.categoria_id, hub_id: n.hub_id,
+            numero_nota: n.numero_nota && n.numero_nota !== "-" ? n.numero_nota : null, data_vencimento: n.data_vencimento, data_pagamento: n.data_pagamento,
+            mes_referencia: n.mes_referencia, valor: n.valor, forma_pagamento: n.forma_pagamento, aprovacao: "aprovado", origem_carga: "planilha", importado_em: agora };
+        }), avanca);
+      });
+    }
+    trabalho.then(function(){
+      toast("Importação concluída: " + p.origem + ".");
+      prog.textContent = "Gravado. Veja o fechamento abaixo.";
+      FIMP.previa = null; btn.remove();
+      document.getElementById("fimp-mes").value = p.tipo === "cartao" && p.linhas[0] ? p.linhas[0].mes_competencia.slice(0, 7) : p.mes;
+      fimpVerFechamento();
+    }).catch(function(e){ prog.innerHTML = '<span class="field-err">Parou com erro: ' + esc(e.message) + ' — o que já foi gravado fica; importar de novo completa sem duplicar.</span>'; btn.disabled = false; });
+  });
+  function fimpVerFechamento(){
+    var mes = document.getElementById("fimp-mes").value, host = document.getElementById("fimp-fechamento");
+    if (!mes){ toast("Escolha a competência.", true); return; }
+    host.innerHTML = '<span class="osd-vazio">Calculando…</span>';
+    var m = mes + "-01";
+    Promise.all([rest("rpc/financeiro_fechamento", { method: "POST", body: { p_mes: m } }), rest("rpc/financeiro_conciliacao", { method: "POST", body: { p_mes: m } })]).then(function(r){
+      var linhas = r[0] || [], conc = r[1] || [], tot = {};
+      if (!linhas.length){ host.innerHTML = '<span class="osd-vazio">Nada lançado em ' + esc(mes) + '.</span>'; return; }
+      var html = '<div class="table-wrap"><table><thead><tr><th>Hub</th>' + FIMP_COLS.map(function(c){ return '<th class="num">' + esc(c[1]) + '</th>'; }).join("") + '<th class="num">Total</th></tr></thead><tbody>' +
+        linhas.map(function(l){
+          return '<tr><td>' + esc(l.hub) + '</td>' + FIMP_COLS.map(function(c){ tot[c[0]] = (tot[c[0]] || 0) + Number(l[c[0]] || 0); return '<td class="num">' + (Number(l[c[0]]) ? esc(money(l[c[0]])) : '—') + '</td>'; }).join("") +
+            '<td class="num"><b>' + esc(money(l.total)) + '</b></td></tr>';
+        }).join("") +
+        '<tr class="fimp-total"><td>Total</td>' + FIMP_COLS.map(function(c){ return '<td class="num">' + esc(money(tot[c[0]] || 0)) + '</td>'; }).join("") +
+        '<td class="num">' + esc(money(linhas.reduce(function(a, l){ return a + Number(l.total || 0); }, 0))) + '</td></tr></tbody></table></div>' +
+        '<div class="ac-hint">Aluguel rateado pelos carros ativos de cada hub no mês, por locadora. Combustível, lavagem e pedágio vêm dos extratos (placa → hub); as NFs da Ticket Log e da Edenred entram só na conciliação.</div>';
+      html += '<div class="detail-section"><h4>Conciliação extrato × NF</h4>' + (conc.length ? '<div class="table-wrap"><table><thead><tr><th>Cartão</th><th class="num">Extrato</th><th class="num">NFs</th><th class="num">Diferença</th><th class="num">Linhas sem hub</th></tr></thead><tbody>' +
+        conc.map(function(c){ return '<tr><td>' + esc(c.origem === "ticket_log" ? "Ticket Log" : "Edenred") + '</td><td class="num">' + esc(money(c.extrato)) + '</td><td class="num">' + esc(money(c.notas)) + '</td><td class="num">' + esc(money(c.diferenca)) + '</td><td class="num">' + esc(c.linhas_sem_hub) + '</td></tr>'; }).join("") +
+        '</tbody></table></div>' : '<span class="osd-vazio">Sem extratos nem NFs de cartão nessa competência.</span>') + '</div>';
+      host.innerHTML = html;
+    }).catch(function(e){ host.innerHTML = '<div class="field-err">Erro ao calcular: ' + esc(e.message) + '</div>'; });
+  }
+  document.getElementById("fimp-ver").addEventListener("click", fimpVerFechamento);
+
   // Data/hora do Excel (número de série) a partir do relógio de Brasília, independe do fuso do computador.
   function xlsSerial(isoDia, hhmm){
     var p = isoDia.split("-").map(Number), h = hhmm ? hhmm.split(":").map(Number) : [0, 0];

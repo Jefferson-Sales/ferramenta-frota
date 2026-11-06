@@ -405,7 +405,203 @@
     return papel === "opera" && !t.soAdminAbre;
   }
 
+  // ---------- Financeiro F1 (06/11/2026): leitura do Controle de Notas e dos extratos Ticket Log / Edenred ----------
+  // Funções puras: recebem as linhas já lidas do arquivo (o navegador lê com SheetJS) e devolvem o que vai para o banco.
+  // Dados pessoais NUNCA saem daqui: só as colunas listadas em cada leitor são lidas; nome do motorista, matrícula,
+  // número do cartão, responsável e dados bancários ficam no arquivo.
+  // Decisões do Jefferson (06/11/2026): Ticket Log por mês civil da transação; estorno desconta; conserto de pneu e óleo
+  // = "outros"; pedágio sem placa (tag em estoque / aquisição) → MOURISCO; placa fora do cadastro (combustível) → hub da
+  // "INFORMACAO ADIDIONAL 2".
+  function finNorm(s) {
+    return String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  }
+  var COLUNA_PESSOAL = /(NOME MOTORISTA|MOTORISTA|MATRICULA|CARTAO|RESPONSAVEL|CPF|BANCO|AGENCIA|E MAIL|EMAIL)/;
+  function colunaPessoal(nome) { return COLUNA_PESSOAL.test(finNorm(nome)); }
+  var HUB_APELIDOS = { "MATRIZ": "MOURISCO", "SAO BERNARDO": "SAO BERNARDO DO CAMPO", "SBC": "SAO BERNARDO DO CAMPO", "BARRA": "BARRA DA TIJUCA" };
+  // texto livre ("SÃO CRISTOVÃO", "ALPHAVILLE - SP", "MATRIZ") → nome do hub cadastrado, ou null
+  function hubDoTexto(texto, nomesHubs) {
+    var n = finNorm(String(texto == null ? "" : texto).split(" - ")[0]);
+    if (!n || n === "ND") return null;
+    n = HUB_APELIDOS[n] || n;
+    var porNorm = {}; (nomesHubs || []).forEach(function(h){ porNorm[finNorm(h)] = h; });
+    if (porNorm[n]) return porNorm[n];
+    var achados = Object.keys(porNorm).filter(function(k){ return k.indexOf(n) === 0 || n.indexOf(k) === 0; });
+    return achados.length === 1 ? porNorm[achados[0]] : null;
+  }
+  // CONTA da planilha de notas → coluna do fechamento
+  function colunaDaConta(conta) {
+    var n = finNorm(conta);
+    if (n.indexOf("LOCACAO") === 0) return "aluguel";
+    if (n.indexOf("COMBUST") === 0) return "combustivel";
+    if (n.indexOf("PEDAGIO") === 0 || n.indexOf("ESTACIONAMENTO") === 0) return "pedagio_estacionamento";
+    if (n.indexOf("LAVAGEM") === 0) return "lavagem";
+    if (n.indexOf("GARAGEM") === 0) return "garagem";
+    return "outras";
+  }
+  // serviço / tipo de transação → categoria da tabela financeiro_transacoes_cartao
+  function categoriaCartao(origem, subtipo) {
+    var n = finNorm(subtipo);
+    if (origem === "ticket_log") return n.indexOf("ABASTEC") === 0 ? "combustivel" : n.indexOf("LAVAGEM") === 0 ? "lavagem" : "outros";
+    if (n.indexOf("ESTACIONAMENTO") > -1) return "estacionamento";
+    if (n.indexOf("PEDAGIO") > -1) return "pedagio";
+    if (n.indexOf("TAG") > -1) return "taxa_tag";
+    return "outros";
+  }
+  function doisDig(n) { return (n < 10 ? "0" : "") + n; }
+  // número de série do Excel (data/hora como aparece na planilha, horário de Brasília) → "AAAA-MM-DDTHH:MM:SS-03:00"
+  function serialExcelParaISO(serial) {
+    if (typeof serial !== "number" || !isFinite(serial)) return null;
+    var ms = Math.round((serial - 25569) * 86400000 / 1000) * 1000, d = new Date(ms);
+    return d.getUTCFullYear() + "-" + doisDig(d.getUTCMonth() + 1) + "-" + doisDig(d.getUTCDate()) + "T" +
+      doisDig(d.getUTCHours()) + ":" + doisDig(d.getUTCMinutes()) + ":" + doisDig(d.getUTCSeconds()) + "-03:00";
+  }
+  // "09/10/2026" + "14:27:02" → "2026-10-09T14:27:02-03:00"
+  function dataHoraBR(data, hora) {
+    var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(data || "").trim());
+    if (!m) return null;
+    var h = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(String(hora || "").trim()) || [null, "00", "00", "00"];
+    return m[3] + "-" + m[2] + "-" + m[1] + "T" + h[1] + ":" + h[2] + ":" + (h[3] || "00") + "-03:00";
+  }
+  // "-1.234,56" → -1234.56 ; vazio/texto → null
+  function valorBR(t) {
+    var s = String(t == null ? "" : t).replace(/\s|R\$/g, "");
+    if (!s) return null;
+    var n = Number(s.replace(/\./g, "").replace(",", "."));
+    return isNaN(n) ? null : Math.round(n * 100) / 100;
+  }
+  function numOuNull(v) { if (v == null || v === "") return null; var n = Number(v); return isNaN(n) ? null : n; }
+  // 1ª, 2ª… linha com a mesma chave dentro do arquivo (o código da transação se repete de verdade)
+  function marcarOcorrencias(linhas, chave) {
+    var vistos = {};
+    linhas.forEach(function(l){ var k = chave(l); vistos[k] = (vistos[k] || 0) + 1; l.ocorrencia = vistos[k]; });
+    return linhas;
+  }
+  function limparPlaca(p) { return String(p == null ? "" : p).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  function indiceColunas(cab) { var ix = {}; (cab || []).forEach(function(c, i){ if (c != null && ix[finNorm(c)] == null) ix[finNorm(c)] = i; }); return ix; }
+  function exigeColunas(ix, nomes, arquivo) {
+    var faltam = nomes.filter(function(n){ return ix[finNorm(n)] == null; });
+    if (faltam.length) throw new Error(arquivo + ": faltam as colunas " + faltam.join(", ") + ".");
+  }
+  // cadastro = { veiculos: { PLACA: { id, hub } }, hubs: [nomes] } (hub = nome do hub)
+  function hubDaTransacao(placa, textoReserva, cadastro, semPlacaVaiPara) {
+    var v = placa ? cadastro.veiculos[placa] : null;
+    if (v && v.hub) return { veiculo_id: v.id, hub: v.hub, hub_regra: "cadastro" };
+    if (!placa && semPlacaVaiPara) return { veiculo_id: null, hub: semPlacaVaiPara, hub_regra: "matriz_sem_placa" };
+    var h = textoReserva ? hubDoTexto(textoReserva, cadastro.hubs) : null;
+    if (h) return { veiculo_id: v ? v.id : null, hub: h, hub_regra: "informacao_adicional" };
+    return { veiculo_id: v ? v.id : null, hub: null, hub_regra: "sem_hub" };
+  }
+
+  // Ticket Log (RFCV .xlsx): linhas = sheet_to_json(header:1, raw:true); mes = "AAAA-MM". Só as transações do mês civil.
+  function lerTicketLog(linhas, mes, cadastro, arquivo) {
+    var ix = indiceColunas(linhas[0]);
+    exigeColunas(ix, ["CODIGO TRANSACAO", "DATA TRANSACAO", "PLACA", "SERVICO", "VALOR EMISSAO"], "Ticket Log");
+    var c = function(l, nome){ var i = ix[finNorm(nome)]; return i == null ? null : l[i]; };
+    var out = [];
+    for (var r = 1; r < linhas.length; r++) {
+      var l = linhas[r]; if (!l || c(l, "CODIGO TRANSACAO") == null) continue;
+      var iso = serialExcelParaISO(c(l, "DATA TRANSACAO"));
+      if (!iso || iso.slice(0, 7) !== mes) continue;
+      var placa = limparPlaca(c(l, "PLACA")), sub = String(c(l, "SERVICO") || "").trim();
+      var h = hubDaTransacao(placa, c(l, "INFORMACAO ADIDIONAL 2"), cadastro, null);
+      out.push({
+        origem: "ticket_log", transacao_id_externo: String(c(l, "CODIGO TRANSACAO")), data_hora: iso, placa: placa || null,
+        veiculo_id: h.veiculo_id, hub: h.hub, hub_regra: h.hub_regra, categoria: categoriaCartao("ticket_log", sub), subtipo: sub,
+        valor: Math.round((numOuNull(c(l, "VALOR EMISSAO")) || 0) * 100) / 100, litros: numOuNull(c(l, "LITROS")),
+        valor_unitario: numOuNull(c(l, "VL/LITRO")), hodometro_informado: numOuNull(c(l, "HODOMETRO OU HORIMETRO")),
+        tipo_combustivel: c(l, "TIPO COMBUSTIVEL") ? String(c(l, "TIPO COMBUSTIVEL")) : null,
+        estabelecimento: c(l, "NOME ESTABELECIMENTO") ? String(c(l, "NOME ESTABELECIMENTO")).trim() : null,
+        cidade: c(l, "CIDADE") ? String(c(l, "CIDADE")).trim() : null,
+        uf: /^[A-Z]{2}$/.test(String(c(l, "UF") || "").trim()) ? String(c(l, "UF")).trim() : null,
+        fatura_referencia: null, mes_competencia: mes + "-01", arquivo_origem: arquivo || null
+      });
+    }
+    return marcarOcorrencias(out, function(t){ return [t.transacao_id_externo, t.subtipo, t.valor].join("|"); });
+  }
+
+  // Edenred (CSV ";" com vírgula decimal e cabeçalho da fatura nas primeiras linhas). A fatura inteira é uma competência.
+  function campoCSV(s) { var out = [], cur = "", q = false; for (var i = 0; i < s.length; i++) { var ch = s[i]; if (ch === '"') q = !q; else if (ch === ";" && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out; }
+  var MESES_ABREV = { JAN: 1, FEV: 2, MAR: 3, ABR: 4, MAI: 5, JUN: 6, JUL: 7, AGO: 8, SET: 9, OUT: 10, NOV: 11, DEZ: 12 };
+  function lerEdenred(texto, cadastro, arquivo) {
+    var linhas = String(texto || "").replace(/^﻿/, "").split(/\r?\n/);
+    var fatura = null, mes = null, iCab = -1;
+    for (var i = 0; i < linhas.length && i < 30; i++) {
+      var s = linhas[i];
+      var f = /^C[oó]digo da Fatura:\s*(\d+)/i.exec(s); if (f) fatura = f[1];
+      var m = /^M[eê]s de refer[eê]ncia:\s*([a-zç]{3})[a-z.]*\/(\d{4})/i.exec(s); if (m) { var mm = MESES_ABREV[finNorm(m[1])]; if (mm) mes = m[2] + "-" + doisDig(mm); }
+      if (/^C[oó]digo;Data da Transa/i.test(s)) { iCab = i; break; }
+    }
+    if (iCab < 0) throw new Error("Edenred: cabeçalho das transações não encontrado.");
+    if (!mes) throw new Error("Edenred: \"Mês de referência\" não encontrado no cabeçalho da fatura.");
+    var ix = indiceColunas(campoCSV(linhas[iCab]));
+    exigeColunas(ix, ["Código", "Data da Transação", "Hora da Transação", "Tipo de Transação", "Placa", "Valor cobrado(R$)"], "Edenred");
+    var c = function(l, nome){ var k = ix[finNorm(nome)]; return k == null ? "" : String(l[k] == null ? "" : l[k]).trim(); };
+    var out = [];
+    for (var r = iCab + 1; r < linhas.length; r++) {
+      if (!linhas[r].trim()) continue;
+      var l = campoCSV(linhas[r]);
+      var placa = limparPlaca(c(l, "Placa")), sub = c(l, "Tipo de Transação"), cobrado = valorBR(c(l, "Valor cobrado(R$)"));
+      var h = hubDaTransacao(placa, null, cadastro, "MOURISCO");
+      var end = c(l, "Endereço"), uf = (/ - ([A-Z]{2})$/.exec(end) || [])[1] || null;
+      var cidade = uf ? (end.replace(/ - [A-Z]{2}$/, "").split(",").pop() || "").trim() || null : null;
+      out.push({
+        origem: "edenred", transacao_id_externo: c(l, "Código"), data_hora: dataHoraBR(c(l, "Data da Transação"), c(l, "Hora da Transação")),
+        placa: placa || null, veiculo_id: h.veiculo_id, hub: h.hub, hub_regra: h.hub_regra,
+        categoria: categoriaCartao("edenred", sub), subtipo: sub,
+        valor: cobrado == null ? 0 : Math.round(-cobrado * 100) / 100,   // cobrança vem negativa; estorno positivo → desconta
+        litros: null, valor_unitario: null, hodometro_informado: null, tipo_combustivel: null,
+        estabelecimento: c(l, "Estabelecimento") || null, cidade: cidade, uf: uf,
+        fatura_referencia: fatura, mes_competencia: mes + "-01", arquivo_origem: arquivo || null
+      });
+    }
+    return { mes: mes, fatura: fatura, linhas: marcarOcorrencias(out, function(t){ return [t.transacao_id_externo, t.subtipo, t.valor].join("|"); }) };
+  }
+
+  // Controle de Notas (aba "CONTROLE DE NOTAS 2026"): só STATUS = Aprovado, da competência escolhida e com NÚMERO DO PIPE.
+  // Pipe repetido na planilha: fica a última linha (e entra no aviso). A 2ª coluna "CONTA" (bancária) nunca é lida.
+  function lerControleNotas(linhas, mes) {
+    var cab = linhas[0] || [], ix = {};
+    cab.forEach(function(c, i){ var k = finNorm(c); if (c != null && ix[k] == null) ix[k] = i; }); // 1ª "CONTA" = conta contábil
+    exigeColunas(ix, ["FORNECEDOR", "HUB", "CONTA", "VALOR", "MÊS REFERÊNCIA", "ANO", "NÚMERO DO PIPE", "STATUS"], "Controle de Notas");
+    var c = function(l, nome){ var i = ix[finNorm(nome)]; return i == null ? null : l[i]; };
+    var ano = Number(mes.slice(0, 4)), m = Number(mes.slice(5, 7));
+    var porPipe = {}, semPipe = 0, repetidos = 0;
+    for (var r = 1; r < linhas.length; r++) {
+      var l = linhas[r]; if (!l || !c(l, "FORNECEDOR")) continue;
+      if (finNorm(c(l, "STATUS")) !== "APROVADO") continue;
+      if (Number(c(l, "MÊS REFERÊNCIA")) !== m || Number(c(l, "ANO")) !== ano) continue;
+      var pipe = c(l, "NÚMERO DO PIPE") == null ? "" : String(c(l, "NÚMERO DO PIPE")).trim();
+      if (!/^\d+$/.test(pipe)) { semPipe++; continue; }
+      if (porPipe[pipe]) repetidos++;
+      var dv = c(l, "DATA DE VENCIMENTO"), dp = c(l, "DATA DE PAGAMENTO");
+      porPipe[pipe] = {
+        pipefy_card_id: pipe, fornecedor: String(c(l, "FORNECEDOR")).trim(),
+        cnpj: String(c(l, "CNPJ") || "").replace(/\D/g, "") || null,
+        hub_texto: c(l, "HUB") ? String(c(l, "HUB")).trim() : null, conta: String(c(l, "CONTA") || "").trim(),
+        coluna: colunaDaConta(c(l, "CONTA")), numero_nota: c(l, "NOTA FISCAL") != null ? String(c(l, "NOTA FISCAL")).trim() : null,
+        valor: (function(v){ var n = typeof v === "number" ? v : valorBR(v); return Math.round((n || 0) * 100) / 100; })(c(l, "VALOR")),
+        data_vencimento: typeof dv === "number" ? serialExcelParaISO(dv).slice(0, 10) : null,
+        data_pagamento: typeof dp === "number" ? serialExcelParaISO(dp).slice(0, 10) : null,
+        forma_pagamento: c(l, "FORMA DE PAGAMENTO") ? String(c(l, "FORMA DE PAGAMENTO")).trim() : null,
+        mes_referencia: mes + "-01"
+      };
+    }
+    return { notas: Object.keys(porPipe).map(function(k){ return porPipe[k]; }), semPipe: semPipe, pipesRepetidos: repetidos };
+  }
+
   global.Regras = {
+    finNorm: finNorm,
+    colunaPessoal: colunaPessoal,
+    hubDoTexto: hubDoTexto,
+    colunaDaConta: colunaDaConta,
+    categoriaCartao: categoriaCartao,
+    serialExcelParaISO: serialExcelParaISO,
+    dataHoraBR: dataHoraBR,
+    valorBR: valorBR,
+    marcarOcorrencias: marcarOcorrencias,
+    lerTicketLog: lerTicketLog,
+    lerEdenred: lerEdenred,
+    lerControleNotas: lerControleNotas,
     ANEXO_MAX_BYTES: ANEXO_MAX_BYTES,
     ANEXO_TIPOS: ANEXO_TIPOS,
     anexoTipo: anexoTipo,
