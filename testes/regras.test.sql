@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1062,15 +1062,20 @@ begin
   select count(*)::text into x from frota.notas_fiscais_historico where nota_id = nf1;
   casos := casos || text 'NF: quem vê o Financeiro lê o histórico'; obtidos := obtidos || x; esperados := esperados || text '6';
   execute 'reset role';
-  -- recorrência: notas em 3 dos 6 meses antes de 2033-06 (emissão nos dias 8, 10, 12 → dia habitual 10)
-  insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, data_emissao) values
-    (nfor, nhub, 200, '2033-02-01', '2033-02-08'), (nfor, nhub, 220, '2033-03-01', '2033-03-10'), (nfor, nhub, 240, '2033-04-01', '2033-04-12');
+  -- recorrência: notas em 3 dos 6 meses antes de 2033-06 (emissão nos dias 8, 10, 12 → dia habitual 10); só contas da DRE entram
+  insert into frota.categorias_custo (nome, conta_dre) values ('TESTE NF Lavagem', 'lavagem') returning id into ncat_ok;
+  insert into frota.categorias_custo (nome, conta_dre) values ('TESTE NF Lavanderia', 'fora_dre') returning id into ncat_fora;
+  insert into frota.notas_fiscais (fornecedor_id, hub_id, categoria_id, valor, mes_referencia, data_emissao) values
+    (nfor, nhub, ncat_ok, 200, '2033-02-01', '2033-02-08'), (nfor, nhub, ncat_ok, 220, '2033-03-01', '2033-03-10'), (nfor, nhub, ncat_ok, 240, '2033-04-01', '2033-04-12'),
+    (nfor, nhub, ncat_fora, 50, '2033-02-01', '2033-02-05'), (nfor, nhub, ncat_fora, 50, '2033-03-01', '2033-03-05'), (nfor, nhub, ncat_fora, 50, '2033-04-01', '2033-04-05');
   perform set_config('request.jwt.claims', json_build_object('sub', u_nop, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select meses_com_nota || '/' || dia_habitual || '/' || emitiu_no_mes || '/' || situacao into x from frota.nf_recorrencia('2033-06-01') where fornecedor_id = nfor;
-  casos := casos || text 'NF recorrência: fornecedor habitual sem nota no mês (mês futuro = no prazo)'; obtidos := obtidos || x; esperados := esperados || text '4/10/false/no_prazo';
-  insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, data_emissao) values (nfor, nhub, 210, '2033-06-01', '2033-06-09');
-  select emitiu_no_mes || '/' || situacao into x from frota.nf_recorrencia('2033-06-01') where fornecedor_id = nfor;
+  select meses_com_nota || '/' || dia_habitual || '/' || emitiu_no_mes || '/' || situacao into x from frota.nf_recorrencia('2033-06-01') where fornecedor_id = nfor and categoria_id = ncat_ok;
+  casos := casos || text 'NF recorrência: fornecedor habitual sem nota no mês (mês futuro = no prazo)'; obtidos := obtidos || x; esperados := esperados || text '3/10/false/no_prazo';
+  select count(*)::text into x from frota.nf_recorrencia('2033-06-01') where fornecedor_id = nfor and (categoria_id = ncat_fora or categoria_id is null);
+  casos := casos || text 'NF recorrência: conta fora da DRE (Lavanderia) e sem conta não entram na régua'; obtidos := obtidos || x; esperados := esperados || text '0';
+  insert into frota.notas_fiscais (fornecedor_id, hub_id, categoria_id, valor, mes_referencia, data_emissao) values (nfor, nhub, ncat_ok, 210, '2033-06-01', '2033-06-09');
+  select emitiu_no_mes || '/' || situacao into x from frota.nf_recorrencia('2033-06-01') where fornecedor_id = nfor and categoria_id = ncat_ok;
   casos := casos || text 'NF recorrência: com nota no mês = emitiu'; obtidos := obtidos || x; esperados := esperados || text 'true/emitiu';
   select count(*)::text into x from frota.nf_recorrencia('2033-03-01') where fornecedor_id = nfor;
   casos := casos || text 'NF recorrência: menos de 3 meses de histórico não é habitual'; obtidos := obtidos || x; esperados := esperados || text '0';
