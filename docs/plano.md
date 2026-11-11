@@ -287,6 +287,18 @@ Ordem sugerida: **1 → 2 → 3a → 3b → 4** (do mais simples e só de tela p
 - Em aberto: Sinistro e Digitalização sem conta (aparecem como "a classificar").
 - **F4 (11/11/2026, pedido do Jefferson):** quadrante Financeiro da Visão Executiva = DRE da frota mês a mês (`exec_financeiro` chama `financeiro_dre`); clique abre o Fechamento do mês. Meses sem extrato da Ticket Log: NF rateada pela frota ativa. Totais jan–out/2026: 853.793,89 · 969.815,90 · 1.109.854,74 · 1.132.915,22 · 1.233.234,23 · 1.065.295,12 · 1.288.522,39 · 1.341.654,43 · 1.114.446,66 · 1.021.754,80.
 
+## Notas Fiscais 2026 — reformulação do módulo (pedido do Jefferson em 11/11/2026 — PLANO, nada implementado)
+
+**Situação hoje:**  já tem jan–set/2026 de uma carga antiga (1.154 notas, quase todas com Pipe; status //) e out/2026 pela tela Importar. A planilha (cópia de 06/11) tem 1.298 linhas de 2026 (1.262 Aprovado, 10 Cancelado, 26 sem status); a contagem por mês **não bate** com o banco (ex.: set 73 no banco × 108 na planilha; jul 152 × 158; nov ainda não entrou). Colunas da planilha: Fornecedor, Hub, Conta, Descrição, Veículo, Início/Fim do contrato, NF, Emissão, Vencimento, Pagamento, Mês ref., Ano, Valor, Forma de pagto, Beneficiado, CNPJ, Banco, Agência, Conta, Data de envio p/ Financeiro, Nº do Pipe, Dias no prazo, Responsável, Em atraso?, Status, Justificativa, E-mail. A aba "FORNECEDORES RECORRENTES" (101 linhas) lista fornecedor+hub+conta com 3+ notas.
+
+**Etapas (uma por vez, cada uma com testes, conferência no navegador e push com "sim"):**
+- **N1 — Banco:** colunas novas em : ,  (pendente_envio / enviado / pago / recusado — coluna nova em texto com check; o enum antigo  fica sem uso), / (auth.uid, preenchidos pelo gatilho — nunca pelo navegador),  (texto, só do histórico), , . Tabela  imutável (cada troca de etapa: de → para, quem, quando, observação). Funções , , ,  (motivo). : fornecedor+hub+conta com nota em 3 dos últimos 6 meses, dia médio de emissão e se já emitiu no mês. RLS no padrão (lê quem vê Financeiro; grava admin/operador do Financeiro).
+- **N2 — Carga completa jan–nov/2026:** modo "todas as competências" no Importar (mesma leitura no navegador; banco/agência/conta/beneficiado/e-mail nunca saem do arquivo). Chave = Pipe (atualiza, não duplica); Cancelado → ; etapa inicial: pagamento → pago, envio → enviado, senão pendente. Prévia por mês: novas, atualizadas, e **notas do banco que não estão na planilha** (para decidir, nunca apagar). Lavanderia entra (a DRE já ignora); notas da sede seguem para o rateio da DRE.
+- **N3 — Lista com 15 colunas** no padrão da planilha, alerta de vencimento (vencida / vence hoje / a vencer em até 7 dias / paga), filtros (mês, hub, conta, fornecedor, etapa, alerta) e **Exportar Excel/CSV com exatamente o que está filtrado**.
+- **N4 — Topo e ações:** cards do mês (Enviadas qtd e R$, Pendentes de envio, Recusadas, Alertas de vencimento), esteira por etapa (clicável = filtro), régua de recorrência (fornecedor habitual que passou do dia médio sem nota), ações de 1 clique (Registrar envio: Pipe + data; Recusa: motivo; Marcar paga) e cadastro com sugestões (mês de referência = mês da emissão; conta e forma de pagamento habituais do fornecedor).
+
+**Decisões pendentes (Jefferson):** guardar o nome do "Responsável" da planilha no histórico; planilha como fonte da verdade para jan–nov; quem marca "Pago"; o que fazer com notas do banco que não estão na planilha.
+
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
 Usar esta evolução para calibrar qualquer cálculo histórico de frota, disponibilidade, custo e km por hub dos elétricos (não supor 60 carros desde o início do ano):
