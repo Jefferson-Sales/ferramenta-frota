@@ -339,6 +339,7 @@
   igual("data do Excel: 31/10 às 23:59 continua em outubro", R.serialExcelParaISO(46326.9993055556).slice(0, 10), "2026-10-31");
   igual("data e hora em texto (Edenred)", R.dataHoraBR("09/10/2026", "14:27:02"), "2026-10-09T14:27:02-03:00");
   igual("valor com vírgula decimal", [R.valorBR("-10,82"), R.valorBR("1.234,56"), R.valorBR("R$ 80,00"), R.valorBR("")].join(";"), "-10.82;1234.56;80;");
+  igual("valor digitado com ponto no decimal (\"R$ 3.405.00\" = 3.405, não 340.500); \"1.234\" segue milhar", [R.valorBR("R$ 3.405.00"), R.valorBR("1234.5"), R.valorBR("1.234"), R.valorBR("1.234.567")].join(";"), "3405;1234.5;1234;1234567");
   igual("colunas pessoais reconhecidas", ["NOME MOTORISTA", "MATRICULA", "NUMERO CARTAO", "RESPONSAVEL", "BANCO", "AGÊNCIA", "PLACA", "VALOR EMISSAO"].map(R.colunaPessoal).join(","),
         "true,true,true,true,true,true,false,false");
   var cadT = { veiculos: { ABC1D23: { id: "v1", hub: "Alphaville" } }, hubs: HUBSF };
@@ -375,6 +376,19 @@
   igual("Notas: Pipe repetido fica a última linha", nt.pipesRepetidos + " / " + nt.notas.filter(function(n){ return n.pipefy_card_id === "111"; })[0].valor, "1 / 1200");
   igual("Notas: valor em texto \"R$ 80,00\"", nt.notas.filter(function(n){ return n.pipefy_card_id === "222"; })[0].valor, 80);
   igual("Notas: a conta bancária (2ª \"CONTA\") e banco não são lidos", /12345-6|ITAU/.test(JSON.stringify(nt)), false);
+  igual("Notas sem Pipe: lista com fornecedor, hub, NF e valor (não só o contador)", nt.semPipeLista.map(function(n){ return [n.fornecedor, n.hub_texto, n.numero_nota, n.valor].join("/"); }).join(";"), "TICKET LOG/MATRIZ/-/248956.38");
+  igual("Notas sem Pipe: ID temporário no formato TEMP-AAAAMM-xxxxxxxx", /^TEMP-202610-[0-9a-f]{8}$/.test(nt.semPipeLista[0].id_temporario), true);
+  var linhasSP = [["FORNECEDOR", "HUB", "CONTA", "NOTA FISCAL", "MÊS REFERÊNCIA", "ANO", "VALOR", "NÚMERO DO PIPE", "STATUS"],
+    ["ARVAL", "MATRIZ", "LOCAÇÃO VEICULAR", "77", 10, 2026, 55662.85, null, "Aprovado"],
+    ["WEST PLAZA", "BARRA", "GARAGEM", "5", 10, 2026, 1900, "", "Aprovado"],
+    ["WEST PLAZA", "BARRA", "GARAGEM", "5", 10, 2026, 1900, "", "Aprovado"]];
+  var sp1 = R.lerControleNotas(linhasSP, "2026-10"), sp2 = R.lerControleNotas(linhasSP, "2026-10");
+  igual("Notas sem Pipe: o mesmo arquivo gera sempre o mesmo ID (reimportar não duplica)", sp1.semPipeLista.map(function(n){ return n.id_temporario; }).join(","), sp2.semPipeLista.map(function(n){ return n.id_temporario; }).join(","));
+  igual("Notas sem Pipe: duas notas iguais ganham IDs diferentes", sp1.semPipeLista[1].id_temporario !== sp1.semPipeLista[2].id_temporario, true);
+  var comPipe = linhasSP.map(function(l, i){ var c = l.slice(); if (i === 1) c[7] = "998877"; return c; });
+  var cp = R.lerControleNotas(comPipe, "2026-10");
+  igual("Notas sem Pipe: quando o Pipe é preenchido, acha o ID temporário que a nota tinha", R.idsTemporariosCandidatos(cp.notas)["998877"], sp1.semPipeLista[0].id_temporario);
+  igual("Notas sem Pipe: valor diferente = outra nota (não troca o temporário errado)", R.idTemporarioNota({ fornecedor: "ARVAL", numero_nota: "77", valor: 55662.86, mes_referencia: "2026-10-01" }, 1) !== sp1.semPipeLista[0].id_temporario, true);
 
   grupo("Financeiro — rateio por BU (aba \"Rateio\", bloco Motoristas)");
   var abaRateio = [

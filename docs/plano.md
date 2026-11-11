@@ -273,6 +273,8 @@ Ordem sugerida: **1 → 2 → 3a → 3b → 4** (do mais simples e só de tela p
 - **Tela:** o mesmo "Escolher arquivo" do Importar reconhece a aba "Rateio"; prévia com a tabela de %; não confirma se algum hub não somar 100%. Abas "Visão por Hub" / "Visão por BU".
 - **Testes:** 10 casos de tela (`lerRateioBU`) e 12 de banco (seção 22).
 - **Antes de importar o Controle de Notas de outubro:** a nota manual CLICKPARK nº 32 (R$ 4.480, sem Pipe) está na planilha com o Pipe 1455258032 — preencher o Pipe na nota manual (com aprovação) para a carga não duplicar.
+- **Notas sem Pipe (11/11/2026, pedido do Jefferson):** a prévia lista as notas sem Pipe (fornecedor, hub, conta, NF, valor) e permite marcar "importar mesmo assim" com ID temporário TEMP-…; o padrão continua bloqueado. Ao reimportar com o Pipe preenchido, o TEMP recebe o número do Pipe.
+- **Correção do total de notas de 10/2026:** o número de 06/11 (R$ 638.088,72) estava errado. Conferido de forma independente: 57 notas com Pipe = **R$ 718.450,94**. A nota LAVE E PASSE (Brasília) está digitada como "R$ 3.405.00" e era lida como R$ 340.500 — `valorBR` corrigido.
 - **Em aberto:** o rateio de cada mês precisa ser importado com a competência certa (a planilha não diz o mês); reimportar uma planilha sem um hub não apaga o % antigo desse hub (ninguém apaga — corrigir reimportando com o hub).
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)

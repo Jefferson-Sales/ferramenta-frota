@@ -466,6 +466,9 @@
   function valorBR(t) {
     var s = String(t == null ? "" : t).replace(/\s|R\$/g, "");
     if (!s) return null;
+    // sem vírgula e o último ponto seguido de 1–2 dígitos no fim ("3.405.00", "1234.5"): esse ponto é o decimal
+    // (digitação errada que já apareceu no Controle de Notas). "1.234" continua sendo milhar.
+    if (s.indexOf(",") < 0 && /\.\d{1,2}$/.test(s)) { var k = s.lastIndexOf("."); s = s.slice(0, k).replace(/\./g, "") + "," + s.slice(k + 1); }
     var n = Number(s.replace(/\./g, "").replace(",", "."));
     return isNaN(n) ? null : Math.round(n * 100) / 100;
   }
@@ -565,16 +568,14 @@
     exigeColunas(ix, ["FORNECEDOR", "HUB", "CONTA", "VALOR", "MÊS REFERÊNCIA", "ANO", "NÚMERO DO PIPE", "STATUS"], "Controle de Notas");
     var c = function(l, nome){ var i = ix[finNorm(nome)]; return i == null ? null : l[i]; };
     var ano = Number(mes.slice(0, 4)), m = Number(mes.slice(5, 7));
-    var porPipe = {}, semPipe = 0, repetidos = 0;
+    var porPipe = {}, semPipeLista = [], repetidos = 0, ocorr = {};
     for (var r = 1; r < linhas.length; r++) {
       var l = linhas[r]; if (!l || !c(l, "FORNECEDOR")) continue;
       if (finNorm(c(l, "STATUS")) !== "APROVADO") continue;
       if (Number(c(l, "MÊS REFERÊNCIA")) !== m || Number(c(l, "ANO")) !== ano) continue;
       var pipe = c(l, "NÚMERO DO PIPE") == null ? "" : String(c(l, "NÚMERO DO PIPE")).trim();
-      if (!/^\d+$/.test(pipe)) { semPipe++; continue; }
-      if (porPipe[pipe]) repetidos++;
       var dv = c(l, "DATA DE VENCIMENTO"), dp = c(l, "DATA DE PAGAMENTO");
-      porPipe[pipe] = {
+      var nota = {
         pipefy_card_id: pipe, fornecedor: String(c(l, "FORNECEDOR")).trim(),
         cnpj: String(c(l, "CNPJ") || "").replace(/\D/g, "") || null,
         hub_texto: c(l, "HUB") ? String(c(l, "HUB")).trim() : null, conta: String(c(l, "CONTA") || "").trim(),
@@ -585,8 +586,39 @@
         forma_pagamento: c(l, "FORMA DE PAGAMENTO") ? String(c(l, "FORMA DE PAGAMENTO")).trim() : null,
         mes_referencia: mes + "-01"
       };
+      if (!/^\d+$/.test(pipe)) {
+        // sem Pipe: vai para a lista de conferência com um ID temporário fixo (só entra se o usuário marcar)
+        var ass = assinaturaNota(nota); ocorr[ass] = (ocorr[ass] || 0) + 1;
+        nota.pipefy_card_id = null; nota.id_temporario = idTemporarioNota(nota, ocorr[ass]);
+        semPipeLista.push(nota); continue;
+      }
+      if (porPipe[pipe]) repetidos++;
+      nota.pipefy_card_id = pipe;
+      porPipe[pipe] = nota;
     }
-    return { notas: Object.keys(porPipe).map(function(k){ return porPipe[k]; }), semPipe: semPipe, pipesRepetidos: repetidos };
+    return { notas: Object.keys(porPipe).map(function(k){ return porPipe[k]; }), semPipe: semPipeLista.length, semPipeLista: semPipeLista, pipesRepetidos: repetidos };
+  }
+
+  // ID temporário de nota sem Pipe: "TEMP-AAAAMM-xxxxxxxx", calculado de fornecedor + NF + valor (+ ocorrência, se houver
+  // duas iguais). É sempre o mesmo para a mesma nota: reimportar não duplica e, quando o Pipe for preenchido na planilha,
+  // a nota temporária é achada por ele e recebe o número do Pipe (ver idsTemporariosCandidatos).
+  function assinaturaNota(n) {
+    return [finNorm(n.fornecedor), finNorm(n.numero_nota == null || n.numero_nota === "-" ? "" : n.numero_nota), (Number(n.valor) || 0).toFixed(2)].join("|");
+  }
+  function hash32(s) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ("0000000" + h.toString(16)).slice(-8);
+  }
+  function idTemporarioNota(n, ocorrencia) {
+    var mes = String(n.mes_referencia || "").slice(0, 7).replace("-", "");
+    return "TEMP-" + mes + "-" + hash32(assinaturaNota(n) + "|" + (ocorrencia || 1));
+  }
+  // notas COM Pipe da carga → IDs temporários que elas teriam (1ª, 2ª… nota igual), para trocar o TEMP pelo Pipe
+  function idsTemporariosCandidatos(notas) {
+    var ocorr = {}, out = {};
+    (notas || []).forEach(function(n){ var a = assinaturaNota(n); ocorr[a] = (ocorr[a] || 0) + 1; out[n.pipefy_card_id] = idTemporarioNota(n, ocorr[a]); });
+    return out;
   }
 
   // "Fechamento Mensal - Operações" (aba "Rateio"), bloco "Motoristas": HUB + uma coluna por BU com o %.
@@ -640,6 +672,8 @@
     lerEdenred: lerEdenred,
     lerControleNotas: lerControleNotas,
     lerRateioBU: lerRateioBU,
+    idTemporarioNota: idTemporarioNota,
+    idsTemporariosCandidatos: idsTemporariosCandidatos,
     ANEXO_MAX_BYTES: ANEXO_MAX_BYTES,
     ANEXO_TIPOS: ANEXO_TIPOS,
     anexoTipo: anexoTipo,

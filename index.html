@@ -355,6 +355,8 @@
   #fimp-previa, #fimp-fechamento > .ac-hint, #fimp-fechamento > .osd-vazio, #fimp-fechamento > .field-err, #fimp-fechamento .detail-section > h4, #fimp-fechamento .detail-section > .osd-vazio{ display:block; padding:0 var(--espaco-8); }
   #fimp-fechamento > .osd-vazio{ padding-bottom:var(--espaco-6); }
   .fimp-abas{ margin:var(--espaco-4) var(--espaco-8) var(--espaco-5); }
+  .fimp-sempipe{ border:1px solid var(--warning-forte); border-radius:var(--raio-md); padding:var(--espaco-5); margin:var(--espaco-5) 0; background:var(--surface); }
+  .fimp-sempipe input[type=checkbox]{ width:auto; margin:0; }
   #fimp-importar .fin-filtros input[type=file]{ flex:1 1 220px; min-width:0; font-size:var(--fs-sm); }
   .dsc-anexos{ list-style:none; margin:0 0 var(--espaco-5); padding:0; }
   .dsc-anexos li{ display:flex; align-items:center; justify-content:space-between; gap:var(--espaco-4); flex-wrap:wrap; padding:var(--espaco-4) 0; border-bottom:1px solid var(--line); }
@@ -5427,7 +5429,7 @@
         var aba = function(n){ return X.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: null, raw: true }); };
         if (wb.SheetNames.indexOf("CONTROLE DE NOTAS 2026") > -1){
           var nt = Regras.lerControleNotas(aba("CONTROLE DE NOTAS 2026"), mes);
-          p = { tipo: "notas", origem: "Controle de Notas", notas: nt.notas, semPipe: nt.semPipe, pipesRepetidos: nt.pipesRepetidos };
+          p = { tipo: "notas", origem: "Controle de Notas", notas: nt.notas, semPipe: nt.semPipe, semPipeLista: nt.semPipeLista, pipesRepetidos: nt.pipesRepetidos };
         } else if (wb.SheetNames.indexOf("Rateio") > -1){
           var rt = Regras.lerRateioBU(aba("Rateio"), mes, cad.hubs);
           p = { tipo: "rateio", origem: "Rateio por BU (bloco Motoristas)", rateio: rt };
@@ -5444,12 +5446,27 @@
   });
   // notas: liga fornecedor (CNPJ, depois nome), conta e hub aos cadastros
   function fimpPrepararNotas(p){
-    return Promise.all([rest("fornecedores?select=id,nome,cnpj"), rest("categorias_custo?select=id,nome")]).then(function(r){
+    var pipes = p.notas.map(function(n){ return n.pipefy_card_id; });
+    return Promise.all([rest("fornecedores?select=id,nome,cnpj"), rest("categorias_custo?select=id,nome"),
+      rest("notas_fiscais?select=id,pipefy_card_id&pipefy_card_id=like.TEMP-*"),
+      pipes.length ? rest("notas_fiscais?select=pipefy_card_id&pipefy_card_id=in.(" + pipes.join(",") + ")") : Promise.resolve([])]).then(function(r){
       var porCnpj = {}, porNome = {}, porConta = {};
       (r[0] || []).forEach(function(f){ var c = String(f.cnpj || "").replace(/\D/g, ""); if (c) porCnpj[c] = f.id; porNome[Regras.finNorm(f.nome)] = f.id; });
       (r[1] || []).forEach(function(c){ porConta[Regras.finNorm(c.nome)] = c.id; });
-      p.fornecedoresNovos = {};
+      // nota que chegou com Pipe e que já foi importada antes com ID temporário: o TEMP recebe o número do Pipe
+      var temps = {}, jaTem = {}, cand = Regras.idsTemporariosCandidatos(p.notas);
+      (r[2] || []).forEach(function(t){ temps[t.pipefy_card_id] = t.id; });
+      (r[3] || []).forEach(function(t){ jaTem[t.pipefy_card_id] = true; });
+      p.promover = []; p.tempsConflito = [];
       p.notas.forEach(function(n){
+        var tid = cand[n.pipefy_card_id]; if (!tid || !temps[tid]) return;
+        if (jaTem[n.pipefy_card_id]) p.tempsConflito.push({ temp: tid, pipe: n.pipefy_card_id, fornecedor: n.fornecedor, valor: n.valor });
+        else p.promover.push({ id: temps[tid], temp: tid, pipe: n.pipefy_card_id, fornecedor: n.fornecedor, valor: n.valor });
+      });
+      p.semPipeLista = p.semPipeLista || [];
+      p.temporariasJaGravadas = p.semPipeLista.filter(function(n){ return temps[n.id_temporario]; }).length;
+      p.fornecedoresNovos = {};
+      p.notas.concat(p.semPipeLista).forEach(function(n){
         n.fornecedor_id = (n.cnpj && porCnpj[n.cnpj]) || porNome[Regras.finNorm(n.fornecedor)] || null;
         if (!n.fornecedor_id) p.fornecedoresNovos[Regras.finNorm(n.fornecedor)] = { nome: n.fornecedor, cnpj: n.cnpj };
         n.categoria_id = porConta[Regras.finNorm(n.conta)] || null;
@@ -5482,14 +5499,18 @@
         (!rt.temTotal ? '<div class="ac-hint dn-aviso">A planilha não tem a linha "Total": MOURISCO e "(sem hub)" vão aparecer como "(sem rateio)".</div>' : '') +
         (p.cad.hubs.filter(function(h){ return !porHub[h]; }).length ? '<div class="ac-hint">Hubs fora da planilha usam a linha Total: ' + esc(p.cad.hubs.filter(function(h){ return !porHub[h]; }).join(", ")) + '.</div>' : '');
     } else {
-      var totN = p.notas.reduce(function(a, n){ return a + n.valor; }, 0), novos = Object.keys(p.fornecedoresNovos);
-      var semConta = p.notas.filter(function(n){ return !n.categoria_id; }), semHubN = p.notas.filter(function(n){ return !n.hub_id; });
-      html += '<div class="ac-hint">' + p.notas.length + ' notas aprovadas de ' + esc(p.mes) + ' com número do Pipe · total <b>' + esc(money(totN)) + '</b></div>' +
-        (p.semPipe ? '<div class="ac-hint dn-aviso">' + p.semPipe + ' nota(s) aprovada(s) do mês <b>sem número do Pipe</b> ficam de fora (sem o Pipe não há como evitar duplicata). Preencha o Pipe na planilha e importe de novo.</div>' : '') +
+      var carga = fimpNotasDaCarga(p), temp = fimpTemporarias(p), totN = p.notas.reduce(function(a, n){ return a + n.valor; }, 0), novos = fimpFornecedoresNovos(p);
+      var semConta = carga.filter(function(n){ return !n.categoria_id; }), semHubN = carga.filter(function(n){ return !n.hub_id; });
+      html += '<div class="ac-hint">' + p.notas.length + ' notas aprovadas de ' + esc(p.mes) + ' com número do Pipe · total <b>' + esc(money(totN)) + '</b>' + (temp.length ? ' + ' + temp.length + ' com ID temporário (' + esc(money(temp.reduce(function(a, n){ return a + n.valor; }, 0))) + ') = <b>' + esc(money(totN + temp.reduce(function(a, n){ return a + n.valor; }, 0))) + '</b>' : '') + '</div>' +
+        fimpSemPipeHtml(p) +
+        (p.promover.length ? '<div class="ac-hint">' + p.promover.length + (p.promover.length === 1 ? ' nota importada antes com ID temporário recebe' : ' notas importadas antes com ID temporário recebem') + ' agora o número do Pipe (não duplica): ' +
+          esc(p.promover.map(function(x){ return x.fornecedor + " " + money(x.valor) + " → Pipe " + x.pipe; }).join("; ")) + '.</div>' : '') +
+        (p.tempsConflito.length ? '<div class="ac-hint dn-aviso">Atenção: ' + esc(p.tempsConflito.map(function(x){ return x.fornecedor + " " + money(x.valor) + " (" + x.temp + ")"; }).join("; ")) +
+          ' — a nota temporária e a do Pipe ' + (p.tempsConflito.length === 1 ? 'já existem' : 'já existem') + ' no banco. A temporária fica duplicada; peça a correção antes de fechar o mês.</div>' : '') +
         (p.pipesRepetidos ? '<div class="ac-hint dn-aviso">' + p.pipesRepetidos + ' Pipe(s) repetido(s) na planilha: ficou a última linha de cada.</div>' : '') +
-        '<div class="fimp-blocos">' + fimpTabelaSomas("Por coluna do fechamento", fimpSoma(p.notas, "coluna"), { aluguel: "Aluguel", combustivel: "Combustível", pedagio_estacionamento: "Pedágio/Estac.", lavagem: "Lavagem", garagem: "Garagem", outras: "Outras" }) +
-        fimpTabelaSomas("Por hub (da planilha)", fimpSoma(p.notas, "hub")) + '</div>' +
-        (novos.length ? '<div class="ac-hint">Fornecedores que serão cadastrados: ' + esc(novos.map(function(k){ return p.fornecedoresNovos[k].nome; }).join(", ")) + '.</div>' : '') +
+        '<div class="fimp-blocos">' + fimpTabelaSomas("Por coluna do fechamento", fimpSoma(carga, "coluna"), { aluguel: "Aluguel", combustivel: "Combustível", pedagio_estacionamento: "Pedágio/Estac.", lavagem: "Lavagem", garagem: "Garagem", outras: "Outras" }) +
+        fimpTabelaSomas("Por hub (da planilha)", fimpSoma(carga, "hub")) + '</div>' +
+        (novos.length ? '<div class="ac-hint">Fornecedores que serão cadastrados: ' + esc(novos.map(function(f){ return f.nome; }).join(", ")) + '.</div>' : '') +
         (semConta.length ? '<div class="ac-hint dn-aviso">Conta não encontrada no cadastro (entra em "Outras"): ' + esc(Array.from(new Set(semConta.map(function(n){ return n.conta || "vazia"; }))).join(", ")) + '.</div>' : '') +
         (semHubN.length ? '<div class="ac-hint dn-aviso">Hub não reconhecido: ' + esc(Array.from(new Set(semHubN.map(function(n){ return n.hub_texto || "vazio"; }))).join(", ")) + '.</div>' : '');
     }
@@ -5499,7 +5520,30 @@
       '<div class="ac-hint" id="fimp-progresso"></div></div>';
     host.innerHTML = html;
   }
-  function fimpQtd(p){ return p.tipo === "cartao" ? p.linhas.length : p.tipo === "rateio" ? p.rateio.linhas.length : p.notas.length; }
+  function fimpQtd(p){ return p.tipo === "cartao" ? p.linhas.length : p.tipo === "rateio" ? p.rateio.linhas.length : p.notas.length + fimpTemporarias(p).length; }
+  function fimpNotasDaCarga(p){ return p.notas.concat(fimpTemporarias(p)); }
+  // só cadastra fornecedor de nota que vai entrar (as sem Pipe não marcadas ficam de fora)
+  function fimpFornecedoresNovos(p){
+    var vistos = {};
+    return fimpNotasDaCarga(p).filter(function(n){ var k = Regras.finNorm(n.fornecedor); if (n.fornecedor_id || vistos[k]) return false; vistos[k] = true; return true; })
+      .map(function(n){ return p.fornecedoresNovos[Regras.finNorm(n.fornecedor)]; });
+  }
+  function fimpTemporarias(p){ return (p.semPipeLista || []).filter(function(n){ return p.marcadas && p.marcadas[n.id_temporario]; }); }
+  // notas aprovadas do mês sem número do Pipe: lista para conferir na planilha; por padrão ficam de fora
+  function fimpSemPipeHtml(p){
+    var l = p.semPipeLista || []; if (!l.length) return "";
+    p.marcadas = p.marcadas || {};
+    var tot = l.reduce(function(a, n){ return a + n.valor; }, 0), todas = l.every(function(n){ return p.marcadas[n.id_temporario]; });
+    return '<div class="fimp-sempipe"><div class="fimp-titulo">' + l.length + (l.length === 1 ? ' nota aprovada' : ' notas aprovadas') + ' do mês sem número do Pipe · ' + esc(money(tot)) + '</div>' +
+      '<div class="ac-hint">Por padrão ficam de fora até o Pipe ser preenchido na planilha. Se precisar fechar o mês antes, marque as que devem entrar com um <b>ID temporário</b> (TEMP-…). ' +
+      'Quando o Pipe for preenchido e a planilha for importada de novo, a nota temporária recebe o número do Pipe, sem duplicar, desde que fornecedor, NF e valor continuem iguais.</div>' +
+      '<div class="table-wrap"><table><thead><tr><th><input type="checkbox" id="fimp-sp-todas" aria-label="Marcar todas"' + (todas ? " checked" : "") + '></th><th>Fornecedor</th><th>Hub</th><th>Conta</th><th>NF</th><th class="num">Valor</th></tr></thead><tbody>' +
+      l.map(function(n){
+        return '<tr><td><input type="checkbox" class="fimp-sp" data-temp="' + esc(n.id_temporario) + '" aria-label="Importar mesmo assim"' + (p.marcadas[n.id_temporario] ? " checked" : "") + '></td><td>' + esc(n.fornecedor) + '</td><td>' + esc(n.hub_texto || "—") + '</td><td>' + esc(n.conta || "—") +
+          '</td><td>' + esc(n.numero_nota && n.numero_nota !== "-" ? n.numero_nota : "—") + '</td><td class="num">' + esc(money(n.valor)) + '</td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      (p.temporariasJaGravadas ? '<div class="ac-hint">' + p.temporariasJaGravadas + ' dessas já foram importadas antes com ID temporário.</div>' : '') + '</div>';
+  }
   // grava em lotes com "upsert" (mesma chave = atualiza; não duplica)
   function fimpUpsert(tabela, conflito, linhas, aoAvancar){
     var lotes = []; for (var i = 0; i < linhas.length; i += 500) lotes.push(linhas.slice(i, i + 500));
@@ -5515,11 +5559,19 @@
       });
     }, Promise.resolve());
   }
+  document.getElementById("fimp-previa").addEventListener("change", function(ev){
+    var p = FIMP.previa; if (!p || p.tipo !== "notas") return;
+    if (ev.target.id === "fimp-sp-todas") (p.semPipeLista || []).forEach(function(n){ p.marcadas[n.id_temporario] = ev.target.checked; });
+    else if (ev.target.classList.contains("fimp-sp")) p.marcadas[ev.target.getAttribute("data-temp")] = ev.target.checked;
+    else return;
+    fimpRenderPrevia();
+  });
   document.getElementById("fimp-previa").addEventListener("click", function(ev){
     if (ev.target.id === "fimp-cancelar"){ FIMP.previa = null; this.innerHTML = ""; return; }
     if (ev.target.id !== "fimp-confirmar" || !FIMP.previa) return;
     var p = FIMP.previa, btn = ev.target, prog = document.getElementById("fimp-progresso");
-    if (!confirm("Gravar " + fimpQtd(p) + (p.tipo === "cartao" ? " transações" : p.tipo === "rateio" ? " percentuais de rateio (" + p.mes + ")" : " notas") + " de " + p.origem + "?")) return;
+    var nTemp = p.tipo === "notas" ? fimpTemporarias(p).length : 0;
+    if (!confirm("Gravar " + fimpQtd(p) + (p.tipo === "cartao" ? " transações" : p.tipo === "rateio" ? " percentuais de rateio (" + p.mes + ")" : " notas" + (nTemp ? " (" + nTemp + " com ID temporário, sem Pipe)" : "")) + " de " + p.origem + "?")) return;
     btn.disabled = true;
     var avanca = function(f, t){ prog.textContent = "Gravando… " + f + " de " + t; };
     var trabalho;
@@ -5534,15 +5586,20 @@
         o.hub_id = t.hub ? p.cad.hubId[t.hub] || null : null; return o;
       }), avanca);
     } else {
-      var novos = Object.keys(p.fornecedoresNovos).map(function(k){ return p.fornecedoresNovos[k]; });
+      var novos = fimpFornecedoresNovos(p);
       trabalho = (novos.length ? rest("fornecedores", { method: "POST", body: novos.map(function(f){ return { nome: f.nome, cnpj: f.cnpj, ativo: true }; }) }) : Promise.resolve([])).then(function(criados){
         var porNome = {}; (criados || []).forEach(function(f){ porNome[Regras.finNorm(f.nome)] = f.id; });
         var agora = new Date().toISOString();
-        return fimpUpsert("notas_fiscais", "pipefy_card_id", p.notas.map(function(n){
-          return { pipefy_card_id: n.pipefy_card_id, fornecedor_id: n.fornecedor_id || porNome[Regras.finNorm(n.fornecedor)], categoria_id: n.categoria_id, hub_id: n.hub_id,
+        // 1º: notas que estavam com ID temporário e agora vieram com Pipe recebem o número (uma a uma, por id)
+        return p.promover.reduce(function(prom, x){
+          return prom.then(function(){ return rest("notas_fiscais?id=eq." + encodeURIComponent(x.id) + "&pipefy_card_id=eq." + encodeURIComponent(x.temp), { method: "PATCH", body: { pipefy_card_id: x.pipe } }); });
+        }, Promise.resolve()).then(function(){
+         return fimpUpsert("notas_fiscais", "pipefy_card_id", p.notas.concat(fimpTemporarias(p)).map(function(n){
+          return { pipefy_card_id: n.pipefy_card_id || n.id_temporario, fornecedor_id: n.fornecedor_id || porNome[Regras.finNorm(n.fornecedor)], categoria_id: n.categoria_id, hub_id: n.hub_id,
             numero_nota: n.numero_nota && n.numero_nota !== "-" ? n.numero_nota : null, data_vencimento: n.data_vencimento, data_pagamento: n.data_pagamento,
             mes_referencia: n.mes_referencia, valor: n.valor, forma_pagamento: n.forma_pagamento, aprovacao: "aprovado", origem_carga: "planilha", importado_em: agora };
-        }), avanca);
+         }), avanca);
+        });
       });
     }
     trabalho.then(function(){
