@@ -284,7 +284,8 @@ Ordem sugerida: **1 → 2 → 3a → 3b → 4** (do mais simples e só de tela p
 - Taxa Ticket Log (R$ 10.504,93) em Combustível pelo gasto Ticket Log; NF Edenred 26046 (R$ 667,44), tags da sede (R$ 351,62) e pedágios de placa fora do cadastro (R$ 786,71) em Pedágio/Estac. pela frota ativa; ARVAL pela frota ativa.
 - **Outubro/2026 fechado:** R$ 1.021.754,81 — Imunizações R$ 463.821,07 (45,4%), Lab R$ 540.085,23 (52,9%), Infusão R$ 17.848,41 (1,7%).
 - Testes: seção 23 do banco (4 casos). Migration: `sql/2026-11-11-f3-dre-frota.sql`.
-- Em aberto: Sinistro e Digitalização sem conta (aparecem como "a classificar"); o quadrante Financeiro da Visão Executiva ainda soma todas as notas (inclusive canceladas e fora da DRE).
+- Em aberto: Sinistro e Digitalização sem conta (aparecem como "a classificar").
+- **F4 (11/11/2026, pedido do Jefferson):** quadrante Financeiro da Visão Executiva = DRE da frota mês a mês (`exec_financeiro` chama `financeiro_dre`); clique abre o Fechamento do mês. Meses sem extrato da Ticket Log: NF rateada pela frota ativa. Totais jan–out/2026: 853.793,89 · 969.815,90 · 1.109.854,74 · 1.132.915,22 · 1.233.234,23 · 1.065.295,12 · 1.288.522,39 · 1.341.654,43 · 1.114.446,66 · 1.021.754,80.
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 

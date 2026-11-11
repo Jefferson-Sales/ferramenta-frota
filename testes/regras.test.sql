@@ -460,24 +460,25 @@ begin
   j := frota.exec_eletricos('2031-03-01', '2031-03-31', hub4) -> 'aluguel';
   casos := casos || text 'aluguel com filtro de hub: NF não tem hub, fica o contrato do hub'; obtidos := obtidos || ((j->>'meses_nf') || ' / ' || (j->>'periodo')); esperados := esperados || text '0 / 6000';
 
-  -- ============================================ 13. VISÃO EXECUTIVA — FINANCEIRO (exec_financeiro)
+  -- ============================================ 13. VISÃO EXECUTIVA — FINANCEIRO (exec_financeiro = DRE da frota mês a mês, desde 11/11/2026)
   -- notas em 2032 (sem dado real nesse ano): competência é o mes_referencia, não o vencimento
-  insert into frota.categorias_custo (nome) values ('TESTE Categoria') returning id into cat_t;
-  insert into frota.notas_fiscais (fornecedor_id, categoria_id, hub_id, mes_referencia, data_vencimento, valor) values
-    (forn, cat_t, hub4, '2032-05-01', '2032-06-10', 100),   -- competência maio, vence em junho
-    (forn, cat_t, hub4, '2032-05-01', '2032-05-20', 50),
-    (forn, cat_t, null, '2032-06-01', '2032-06-10', 30),    -- sem hub
-    (forn, cat_t, hub4, '2032-04-01', '2032-04-10', 999);   -- antes de p_desde
+  insert into frota.categorias_custo (nome, conta_dre) values ('TESTE Categoria', 'manutencao') returning id into cat_t;
+  insert into frota.notas_fiscais (fornecedor_id, categoria_id, hub_id, mes_referencia, data_vencimento, valor, aprovacao) values
+    (forn, cat_t, hub4, '2032-05-01', '2032-06-10', 100, null),   -- competência maio, vence em junho
+    (forn, cat_t, hub4, '2032-05-01', '2032-05-20', 50, null),
+    (forn, cat_t, hub4, '2032-05-01', '2032-05-20', 70, 'cancelado'),   -- cancelada: fora
+    (forn, (select id from frota.categorias_custo where nome = 'LAVANDERIA'), hub4, '2032-05-01', '2032-05-20', 40, null), -- fora da DRE
+    (forn, cat_t, null, '2032-06-01', '2032-06-10', 30, null),    -- sem hub: rateada pela frota ativa
+    (forn, cat_t, hub4, '2032-04-01', '2032-04-10', 999, null);   -- antes de p_desde
   j := frota.exec_financeiro('2032-05-01');
-  select string_agg((e->>'mes') || '=' || (e->>'valor') || ' (' || (e->>'qtd') || ')', ', ' order by e->>'mes') into x
-    from jsonb_array_elements(j->'linhas') e where e->>'categoria_id' = cat_t::text;
-  casos := casos || text 'exec_financeiro: soma por mês de competência a partir de p_desde'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text '2032-05=150 (2), 2032-06=30 (1)';
+  select string_agg(m || '=' || round(v), ', ' order by m) into x
+    from (select e->>'mes' m, sum((e->>'valor')::numeric) v from jsonb_array_elements(j->'linhas') e group by 1) s;
+  casos := casos || text 'exec_financeiro: total por mês igual à DRE (sem cancelada nem lavanderia; nota sem hub rateada)'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text '2032-05=150, 2032-06=30';
   j := frota.exec_financeiro('2032-05-01', hub4);
-  select string_agg((e->>'mes') || '=' || (e->>'valor'), ', ' order by e->>'mes') into x
-    from jsonb_array_elements(j->'linhas') e where e->>'categoria_id' = cat_t::text;
-  casos := casos || text 'exec_financeiro: com hub, nota sem hub fica de fora (e é contada em sem_hub)'; obtidos := obtidos || (coalesce(x, 'nada') || ' / sem_hub>=1: ' || ((j->>'sem_hub')::int >= 1)::text); esperados := esperados || text '2032-05=150 / sem_hub>=1: true';
-  select (e->>'orcado_mensal') is null into x from jsonb_array_elements(frota.exec_financeiro('2032-05-01')->'categorias') e where e->>'id' = cat_t::text;
-  casos := casos || text 'exec_financeiro: devolve as categorias (orçado vazio até a D1)'; obtidos := obtidos || x; esperados := esperados || text 'true';
+  select string_agg((e->>'mes') || '=' || (e->>'categoria') || ' ' || (e->>'valor'), ', ' order by e->>'mes') into x
+    from jsonb_array_elements(j->'linhas') e where e->>'mes' = '2032-05';
+  casos := casos || text 'exec_financeiro: com hub, o valor do hub na DRE, por conta'; obtidos := obtidos || coalesce(x, 'nada'); esperados := esperados || text '2032-05=Manutenção 150.00';
+  casos := casos || text 'exec_financeiro: avisa que segue a regra da DRE'; obtidos := obtidos || (j->>'regra'); esperados := esperados || text 'dre';
 
   -- ============================================ 14. VISÃO EXECUTIVA — MULTAS (exec_multas)
   -- data da infração em Brasília; o nome do motorista ("Motorista (planilha): …") nunca vira motivo
