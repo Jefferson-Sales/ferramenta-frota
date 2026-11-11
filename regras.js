@@ -589,6 +589,43 @@
     return { notas: Object.keys(porPipe).map(function(k){ return porPipe[k]; }), semPipe: semPipe, pipesRepetidos: repetidos };
   }
 
+  // "Fechamento Mensal - Operações" (aba "Rateio"), bloco "Motoristas": HUB + uma coluna por BU com o %.
+  // A planilha não tem mês (vem da tela). Linha "Total" → hub null (vale para MOURISCO e "(sem hub)", decisão do Jefferson
+  // de 11/11/2026). % pode vir como fração (0,40) ou número (40). Cada hub precisa somar 100% (tolerância 0,1 ponto).
+  function lerRateioBU(linhas, mes, nomesHubs) {
+    var lin = -1, col = -1;
+    for (var r = 0; r < linhas.length && lin < 0; r++) {
+      (linhas[r] || []).forEach(function(v, i){ if (lin < 0 && finNorm(v) === "MOTORISTAS") { lin = r; col = i; } });
+    }
+    if (lin < 0) throw new Error('Rateio: não achei o bloco "Motoristas" na aba.');
+    var cab = linhas[lin + 1] || [];
+    if (finNorm(cab[col]) !== "HUB") throw new Error('Rateio: a linha abaixo de "Motoristas" deveria começar com "HUB".');
+    var bus = [];
+    for (var c = col + 1; c < cab.length && cab[c] != null && String(cab[c]).trim(); c++) {
+      bus.push({ col: c, nome: String(cab[c]).replace(/\(\s*%\s*\)/g, "").replace(/%/g, "").trim() });
+    }
+    if (!bus.length) throw new Error("Rateio: nenhuma coluna de BU ao lado de HUB.");
+    var out = [], naoEncontrados = [], somaErrada = [], vistos = {};
+    for (var k = lin + 2; k < linhas.length; k++) {
+      var l = linhas[k] || [], txt = l[col] == null ? "" : String(l[col]).trim();
+      if (!txt) break;
+      var total = finNorm(txt) === "TOTAL", hub = total ? null : hubDoTexto(txt, nomesHubs);
+      if (!total && !hub) { naoEncontrados.push(txt); continue; }
+      var chave = hub || "(Total)";
+      if (vistos[chave]) throw new Error("Rateio: o hub " + chave + " aparece duas vezes.");
+      vistos[chave] = true;
+      var pcts = bus.map(function(b){ var v = l[b.col]; var n = typeof v === "number" ? v : valorBR(String(v == null ? "" : v).replace("%", "")); return n == null || isNaN(n) ? 0 : n; });
+      var escala = pcts.some(function(p){ return p > 1.0001; }) ? 100 : 1;
+      var soma = 0;
+      pcts.forEach(function(p, i){
+        var pct = Math.round(p / escala * 1e6) / 1e6; soma += pct;
+        out.push({ mes_competencia: mes + "-01", hub: hub, bu_nome: bus[i].nome, percentual: pct });
+      });
+      if (Math.abs(soma - 1) > 0.001) somaErrada.push(chave + " (" + (Math.round(soma * 10000) / 100) + "%)");
+    }
+    return { linhas: out, bus: bus.map(function(b){ return b.nome; }), naoEncontrados: naoEncontrados, somaErrada: somaErrada, temTotal: !!vistos["(Total)"] };
+  }
+
   global.Regras = {
     finNorm: finNorm,
     colunaPessoal: colunaPessoal,
@@ -602,6 +639,7 @@
     lerTicketLog: lerTicketLog,
     lerEdenred: lerEdenred,
     lerControleNotas: lerControleNotas,
+    lerRateioBU: lerRateioBU,
     ANEXO_MAX_BYTES: ANEXO_MAX_BYTES,
     ANEXO_TIPOS: ANEXO_TIPOS,
     anexoTipo: anexoTipo,

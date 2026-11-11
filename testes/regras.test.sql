@@ -901,6 +901,51 @@ begin
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 
+  -- ============================================ 22. FINANCEIRO F2: RATEIO POR BU (aba "Rateio", bloco Motoristas)
+  -- usa os dados da seção 21: hub A = 370 (200 aluguel + 100 combustível + 70 lavagem), hub B = 100, (sem hub) = 10
+  perform set_config('request.jwt.claims', json_build_object('sub', u_adm, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select string_agg(bu || '=' || total, ' ' order by bu) into x from frota.financeiro_fechamento_bu('2032-10-01');
+  casos := casos || text 'BU: mês sem rateio importado → tudo em "(sem rateio)", sem perder valor'; obtidos := obtidos || x; esperados := esperados || text '(sem rateio)=480.00';
+  insert into frota.financeiro_rateio_bu (mes_competencia, hub_id, bu_nome, percentual, arquivo_origem) values
+    ('2032-10-01', fha, 'TESTE X', 0.6, 'teste'), ('2032-10-01', fha, 'TESTE Y', 0.4, 'teste'),
+    ('2032-10-01', null, 'TESTE X', 0.5, 'teste'), ('2032-10-01', null, 'TESTE Y', 0.5, 'teste');
+  -- importar de novo (upsert), inclusive a linha Total (hub vazio): atualiza, não duplica
+  insert into frota.financeiro_rateio_bu (mes_competencia, hub_id, bu_nome, percentual, arquivo_origem) values
+    ('2032-10-01', null, 'TESTE X', 0.5, 'teste 2'), ('2032-10-01', fha, 'TESTE X', 0.6, 'teste 2')
+    on conflict (mes_competencia, hub_id, bu_nome) do update set percentual = excluded.percentual, arquivo_origem = excluded.arquivo_origem;
+  select count(*) || '/' || count(*) filter (where arquivo_origem = 'teste 2') into x from frota.financeiro_rateio_bu where mes_competencia = '2032-10-01';
+  casos := casos || text 'BU: reimportar (inclusive a linha Total, hub vazio) atualiza e não duplica'; obtidos := obtidos || x; esperados := esperados || text '4/2';
+  select string_agg(bu || '=' || total, ' ' order by bu) into x from frota.financeiro_fechamento_bu('2032-10-01');
+  casos := casos || text 'BU: hub A pelos % dele; hub B e (sem hub) pela linha Total'; obtidos := obtidos || x; esperados := esperados || text 'TESTE X=277.00 TESTE Y=203.00';
+  select string_agg(coalesce(h.nome, 'Total') || '=' || c.soma_pct || '/' || c.fecha_100, ' ' order by h.nome nulls last) into x
+    from frota.v_rateio_bu_conferencia c left join frota.hubs h on h.id = c.hub_id where c.mes_competencia = '2032-10-01';
+  casos := casos || text 'BU: conferência dos 100% por hub'; obtidos := obtidos || x; esperados := esperados || text 'TESTE Fin A=100.00/true Total=100.00/true';
+  begin insert into frota.financeiro_rateio_bu (mes_competencia, hub_id, bu_nome, percentual) values ('2032-10-01', fhb, 'TESTE X', 1.5); x := 'aceitou'; exception when check_violation then x := 'recusou'; end;
+  casos := casos || text 'BU: percentual acima de 100% é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin insert into frota.financeiro_rateio_bu (mes_competencia, hub_id, bu_nome, percentual) values ('2032-10-15', fhb, 'TESTE X', 0.5); x := 'aceitou'; exception when check_violation then x := 'recusou'; end;
+  casos := casos || text 'BU: competência tem que ser o dia 1 do mês'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.financeiro_rateio_bu where mes_competencia = '2032-10-01';
+  casos := casos || text 'BU: quem vê o Financeiro lê o rateio'; obtidos := obtidos || x; esperados := esperados || text '4';
+  select count(*)::text into x from frota.financeiro_fechamento_bu('2032-10-01');
+  casos := casos || text 'BU: quem vê o Financeiro consulta a matriz por BU'; obtidos := obtidos || x; esperados := esperados || text '2';
+  begin insert into frota.financeiro_rateio_bu (mes_competencia, hub_id, bu_nome, percentual) values ('2032-10-01', fhb, 'TESTE X', 0.5); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'BU: só admin grava rateio'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.financeiro_rateio_bu where mes_competencia = '2032-10-01'; get diagnostics x = row_count; x := case when x = '0' then 'recusou' else 'aceitou' end; exception when others then x := 'recusou'; end;
+  casos := casos || text 'BU: ninguém apaga rateio pelo painel'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin perform * from frota.financeiro_fechamento_bu('2032-10-01'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'BU: quem não vê o Financeiro não consulta a matriz por BU'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select count(*)::text into x from frota.financeiro_rateio_bu;
+  casos := casos || text 'BU: quem não vê o Financeiro não lê o rateio'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop
     if obtidos[i] is not distinct from esperados[i] then

@@ -258,13 +258,22 @@ Ordem sugerida: **1 → 2 → 3a → 3b → 4** (do mais simples e só de tela p
 - Funções de gatilho antigas ainda executáveis por `anon`/`authenticated` (revogar o EXECUTE, como já é feito nas novas) e 5 funções sem `search_path` fixo.
 - Proteção contra senhas vazadas desligada no Auth (liga no painel do Supabase).
 
-## Financeiro F1 — Controle de Notas + extratos Ticket Log/Edenred + rateio por hub (pedido do Jefferson em 06/11/2026 — DDL aprovado e aplicado em 06/11/2026; tela Importar pronta, aguardando push)
+## Financeiro F1 — Controle de Notas + extratos Ticket Log/Edenred + rateio por hub (pedido do Jefferson em 06/11/2026 — DDL aprovado e aplicado em 06/11/2026; tela Importar no ar desde 11/11/2026 (push do c9242ad))
 
 - **DDL proposto (não aplicado):** `sql/2026-11-06-f1-financeiro-cartoes-PROPOSTA.sql`. Em vez de criar `financeiro_notas`, ajusta a `notas_fiscais` que já existe (1.165 notas, usada pela Visão Executiva): Pipe vira chave única (carga idempotente), colunas `aprovacao`/`origem_carga`. Tabela nova `financeiro_transacoes_cartao` (sem nome, matrícula, nº do cartão nem responsável), view `v_fechamento_hub` (security_invoker) e função `financeiro_conciliacao(mês)`.
 - **Dry-run 10/2026 (06/11/2026, só leitura):** pedágio/estacionamento da fatura 570123 = **R$ 61.577,54 = NF 300202 da Edenred (bate no centavo)**. Ticket Log no mês-calendário = R$ 237.127,08 × NF R$ 248.956,38 (−R$ 11.829,30): a NF não segue o mês-calendário — a janela de 23/09 a 26/10 chega a R$ 112,70 da NF; falta saber o ciclo de fatura da Ticket Log. Matriz total R$ 932.111,21; R$ 786,71 de pedágio com placa fora do cadastro.
 - **Achados:** códigos de transação se repetem de verdade (chave composta); estorno entra negativo; Ticket Log tem "Conserto de pneu" (categoria `outros`); a planilha de notas tem 4 Pipes repetidos e 108 notas aprovadas que ainda não estão no banco; aluguel está lançado no hub do contrato (Barra Funda/MOURISCO), não rateado pelos carros.
 - **Aplicado em 06/11/2026:** DDL (`sql/2026-11-06-f1-financeiro-cartoes.sql`, com `financeiro_fechamento` e aluguel rateado por locadora), regras de leitura no `regras.js` (26 testes) e banco (seção 21, 11 testes). As mesmas funções rodadas nos arquivos reais: Ticket Log 10/2026 = 3.315 transações, **R$ 238.451,45** (bate com o Jefferson); Edenred = 4.648, **R$ 61.577,54**; notas aprovadas de 10/2026 com Pipe = 57 (R$ 638.088,72). **As 4 sem Pipe ficam de fora e são importantes:** TICKET LOG R$ 248.956,38 (a NF da conciliação), ARVAL R$ 55.662,85 (aluguel), WEST PLAZA R$ 1.900 e PNEUS MORETTO R$ 80 — preencher o Pipe na planilha e reimportar.
 - **Como importar (proposta):** botão "Importar extrato/planilha" no Financeiro (só admin) — lê o arquivo no navegador (SheetJS, como o Excel da Visão diária), descarta as colunas pessoais ali mesmo, mostra a prévia (o dry-run) e só grava com "Confirmar". Regras de categoria e hub em `regras.js` com teste.
+
+## Financeiro F2 — rateio por BU (pedido e aprovação do Jefferson em 11/11/2026 — aplicado)
+
+- **Fonte:** "10. Fechamento Mensal - Operações.xlsx", aba "Rateio", bloco "Motoristas" (colunas F a I: HUB, Imunizações %, Lab %, Infusão %). 11 hubs + linha Total; cada hub soma 100%; sem dado pessoal. A planilha não tem mês: vale a competência da tela.
+- **Banco:** `financeiro_rateio_bu` + `v_rateio_bu_conferencia` + `financeiro_fechamento_bu(mês)` (`sql/2026-11-11-f2-rateio-bu.sql`). Linha "Total" gravada com hub vazio e usada para MOURISCO e "(sem hub)" (decisão do Jefferson). Mês sem rateio → "(sem rateio)".
+- **Tela:** o mesmo "Escolher arquivo" do Importar reconhece a aba "Rateio"; prévia com a tabela de %; não confirma se algum hub não somar 100%. Abas "Visão por Hub" / "Visão por BU".
+- **Testes:** 10 casos de tela (`lerRateioBU`) e 12 de banco (seção 22).
+- **Antes de importar o Controle de Notas de outubro:** a nota manual CLICKPARK nº 32 (R$ 4.480, sem Pipe) está na planilha com o Pipe 1455258032 — preencher o Pipe na nota manual (com aprovação) para a carga não duplicar.
+- **Em aberto:** o rateio de cada mês precisa ser importado com a competência certa (a planilha não diz o mês); reimportar uma planilha sem um hub não apaga o % antigo desse hub (ninguém apaga — corrigir reimportando com o hub).
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 

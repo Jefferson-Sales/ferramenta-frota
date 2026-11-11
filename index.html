@@ -354,6 +354,7 @@
   #fimp-importar > .section-desc{ padding:var(--espaco-6) var(--espaco-8) 0; max-width:none; }
   #fimp-previa, #fimp-fechamento > .ac-hint, #fimp-fechamento > .osd-vazio, #fimp-fechamento > .field-err, #fimp-fechamento .detail-section > h4, #fimp-fechamento .detail-section > .osd-vazio{ display:block; padding:0 var(--espaco-8); }
   #fimp-fechamento > .osd-vazio{ padding-bottom:var(--espaco-6); }
+  .fimp-abas{ margin:var(--espaco-4) var(--espaco-8) var(--espaco-5); }
   #fimp-importar .fin-filtros input[type=file]{ flex:1 1 220px; min-width:0; font-size:var(--fs-sm); }
   .dsc-anexos{ list-style:none; margin:0 0 var(--espaco-5); padding:0; }
   .dsc-anexos li{ display:flex; align-items:center; justify-content:space-between; gap:var(--espaco-4); flex-wrap:wrap; padding:var(--espaco-4) 0; border-bottom:1px solid var(--line); }
@@ -686,12 +687,16 @@
           <label class="qf-sub">Competência <input type="month" id="fimp-mes" class="filter-select"></label>
           <button type="button" class="btn qf-mini" id="fimp-ver">Ver fechamento</button></div></div>
         <div id="fimp-importar" hidden>
-          <p class="section-desc">Importar (só admin): planilha <b>Controle de Notas</b> (.xlsx, aba "CONTROLE DE NOTAS 2026"), extrato <b>Ticket Log</b> (RFCV .xlsx) ou fatura <b>Edenred</b> (.csv). O arquivo é lido aqui no navegador; nome de motorista, matrícula, número do cartão, responsável e dados bancários são descartados antes de qualquer envio. Nada é gravado sem a sua confirmação, e importar o mesmo arquivo de novo não duplica.</p>
+          <p class="section-desc">Importar (só admin): planilha <b>Controle de Notas</b> (.xlsx, aba "CONTROLE DE NOTAS 2026"), extrato <b>Ticket Log</b> (RFCV .xlsx), fatura <b>Edenred</b> (.csv) ou <b>Fechamento Mensal - Operações</b> (.xlsx, aba "Rateio", bloco "Motoristas": % de cada BU por hub). O arquivo é lido aqui no navegador; nome de motorista, matrícula, número do cartão, responsável e dados bancários são descartados antes de qualquer envio. Nada é gravado sem a sua confirmação, e importar o mesmo arquivo de novo não duplica.</p>
           <div class="fin-filtros">
             <input type="file" id="fimp-arquivo" accept=".xlsx,.csv" aria-label="Arquivo para importar">
             <button type="button" class="btn" id="fimp-ler">Ler arquivo</button>
           </div>
           <div id="fimp-previa"></div>
+        </div>
+        <div class="qf-abas fimp-abas" role="tablist" aria-label="Visões do fechamento">
+          <button type="button" role="tab" class="qf-aba on" data-fimp-visao="hub" aria-selected="true">Visão por Hub</button>
+          <button type="button" role="tab" class="qf-aba" data-fimp-visao="bu" aria-selected="false">Visão por BU</button>
         </div>
         <div id="fimp-fechamento"><span class="osd-vazio">Escolha a competência e clique em "Ver fechamento".</span></div>
       </div>
@@ -5423,6 +5428,9 @@
         if (wb.SheetNames.indexOf("CONTROLE DE NOTAS 2026") > -1){
           var nt = Regras.lerControleNotas(aba("CONTROLE DE NOTAS 2026"), mes);
           p = { tipo: "notas", origem: "Controle de Notas", notas: nt.notas, semPipe: nt.semPipe, pipesRepetidos: nt.pipesRepetidos };
+        } else if (wb.SheetNames.indexOf("Rateio") > -1){
+          var rt = Regras.lerRateioBU(aba("Rateio"), mes, cad.hubs);
+          p = { tipo: "rateio", origem: "Rateio por BU (bloco Motoristas)", rateio: rt };
         } else {
           var linhas = aba(wb.SheetNames[0]);
           if (!(linhas[0] || []).some(function(c){ return Regras.finNorm(c) === "CODIGO TRANSACAO"; })) throw new Error("Arquivo não reconhecido: não é o Controle de Notas nem o extrato da Ticket Log.");
@@ -5462,6 +5470,17 @@
         fimpTabelaSomas("Como o hub foi achado", fimpSoma(p.linhas, "hub_regra"), FIMP_REGRA) + fimpTabelaSomas("Por hub", fimpSoma(p.linhas, "hub")) + '</div>' +
         (semHub.length ? '<div class="ac-hint dn-aviso">' + semHub.length + (semHub.length === 1 ? ' transação' : ' transações') + ' sem hub (' + esc(money(semHub.reduce(function(a, t){ return a + t.valor; }, 0))) + '), placas fora do cadastro: ' +
           esc(Array.from(new Set(semHub.map(function(t){ return t.placa || "sem placa"; }))).slice(0, 15).join(", ")) + '. Entram como "(sem hub)" no fechamento.</div>' : '');
+    } else if (p.tipo === "rateio"){
+      var rt = p.rateio, porHub = {}, ordem = [];
+      rt.linhas.forEach(function(l){ var h = l.hub || "Total (MOURISCO e sem hub)"; if (!porHub[h]){ porHub[h] = {}; ordem.push(h); } porHub[h][l.bu_nome] = l.percentual; });
+      var pctTxt = function(v){ return v == null ? "—" : (v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%"; };
+      html += '<div class="ac-hint">' + (ordem.length - (rt.temTotal ? 1 : 0)) + ' hubs + linha Total · BUs: <b>' + esc(rt.bus.join(", ")) + '</b> · competência ' + esc(p.mes) + ' (a planilha não tem mês: vale a da tela)</div>' +
+        '<div class="table-wrap"><table><thead><tr><th>Hub</th>' + rt.bus.map(function(b){ return '<th class="num">' + esc(b) + '</th>'; }).join("") + '</tr></thead><tbody>' +
+        ordem.map(function(h){ return '<tr><td>' + esc(h) + '</td>' + rt.bus.map(function(b){ return '<td class="num">' + esc(pctTxt(porHub[h][b])) + '</td>'; }).join("") + '</tr>'; }).join("") + '</tbody></table></div>' +
+        (rt.somaErrada.length ? '<div class="field-err">Não soma 100%: ' + esc(rt.somaErrada.join(", ")) + '. Corrija a planilha e leia de novo.</div>' : '') +
+        (rt.naoEncontrados.length ? '<div class="ac-hint dn-aviso">Hub não reconhecido (fica de fora): ' + esc(rt.naoEncontrados.join(", ")) + '.</div>' : '') +
+        (!rt.temTotal ? '<div class="ac-hint dn-aviso">A planilha não tem a linha "Total": MOURISCO e "(sem hub)" vão aparecer como "(sem rateio)".</div>' : '') +
+        (p.cad.hubs.filter(function(h){ return !porHub[h]; }).length ? '<div class="ac-hint">Hubs fora da planilha usam a linha Total: ' + esc(p.cad.hubs.filter(function(h){ return !porHub[h]; }).join(", ")) + '.</div>' : '');
     } else {
       var totN = p.notas.reduce(function(a, n){ return a + n.valor; }, 0), novos = Object.keys(p.fornecedoresNovos);
       var semConta = p.notas.filter(function(n){ return !n.categoria_id; }), semHubN = p.notas.filter(function(n){ return !n.hub_id; });
@@ -5474,12 +5493,13 @@
         (semConta.length ? '<div class="ac-hint dn-aviso">Conta não encontrada no cadastro (entra em "Outras"): ' + esc(Array.from(new Set(semConta.map(function(n){ return n.conta || "vazia"; }))).join(", ")) + '.</div>' : '') +
         (semHubN.length ? '<div class="ac-hint dn-aviso">Hub não reconhecido: ' + esc(Array.from(new Set(semHubN.map(function(n){ return n.hub_texto || "vazio"; }))).join(", ")) + '.</div>' : '');
     }
-    var qtd = p.tipo === "cartao" ? p.linhas.length : p.notas.length;
+    var qtd = fimpQtd(p), bloqueado = !qtd || (p.tipo === "rateio" && p.rateio.somaErrada.length > 0);
     html += '<div class="modal-actions"><button type="button" class="btn" id="fimp-cancelar">Descartar prévia</button>' +
-      '<button type="button" class="btn btn-primary" style="width:auto" id="fimp-confirmar"' + (qtd ? "" : " disabled") + '>Confirmar importação (' + qtd + ')</button></div>' +
+      '<button type="button" class="btn btn-primary" style="width:auto" id="fimp-confirmar"' + (bloqueado ? " disabled" : "") + '>Confirmar importação (' + qtd + ')</button></div>' +
       '<div class="ac-hint" id="fimp-progresso"></div></div>';
     host.innerHTML = html;
   }
+  function fimpQtd(p){ return p.tipo === "cartao" ? p.linhas.length : p.tipo === "rateio" ? p.rateio.linhas.length : p.notas.length; }
   // grava em lotes com "upsert" (mesma chave = atualiza; não duplica)
   function fimpUpsert(tabela, conflito, linhas, aoAvancar){
     var lotes = []; for (var i = 0; i < linhas.length; i += 500) lotes.push(linhas.slice(i, i + 500));
@@ -5499,11 +5519,16 @@
     if (ev.target.id === "fimp-cancelar"){ FIMP.previa = null; this.innerHTML = ""; return; }
     if (ev.target.id !== "fimp-confirmar" || !FIMP.previa) return;
     var p = FIMP.previa, btn = ev.target, prog = document.getElementById("fimp-progresso");
-    if (!confirm("Gravar " + (p.tipo === "cartao" ? p.linhas.length + " transações" : p.notas.length + " notas") + " de " + p.origem + "?")) return;
+    if (!confirm("Gravar " + fimpQtd(p) + (p.tipo === "cartao" ? " transações" : p.tipo === "rateio" ? " percentuais de rateio (" + p.mes + ")" : " notas") + " de " + p.origem + "?")) return;
     btn.disabled = true;
     var avanca = function(f, t){ prog.textContent = "Gravando… " + f + " de " + t; };
     var trabalho;
-    if (p.tipo === "cartao"){
+    if (p.tipo === "rateio"){
+      trabalho = fimpUpsert("financeiro_rateio_bu", "mes_competencia,hub_id,bu_nome", p.rateio.linhas.map(function(l){
+        return { mes_competencia: l.mes_competencia, hub_id: l.hub ? p.cad.hubId[l.hub] || null : null, bu_nome: l.bu_nome, percentual: l.percentual, arquivo_origem: p.arquivo };
+      }), avanca);
+      FIMP.visao = "bu";
+    } else if (p.tipo === "cartao"){
       trabalho = fimpUpsert("financeiro_transacoes_cartao", "origem,transacao_id_externo,subtipo,valor,ocorrencia", p.linhas.map(function(t){
         var o = {}; for (var k in t) if (k !== "hub") o[k] = t[k];
         o.hub_id = t.hub ? p.cad.hubId[t.hub] || null : null; return o;
@@ -5532,18 +5557,22 @@
     var mes = document.getElementById("fimp-mes").value, host = document.getElementById("fimp-fechamento");
     if (!mes){ toast("Escolha a competência.", true); return; }
     host.innerHTML = '<span class="osd-vazio">Calculando…</span>';
-    var m = mes + "-01";
-    Promise.all([rest("rpc/financeiro_fechamento", { method: "POST", body: { p_mes: m } }), rest("rpc/financeiro_conciliacao", { method: "POST", body: { p_mes: m } })]).then(function(r){
+    var m = mes + "-01", porBU = FIMP.visao === "bu";
+    fimpMarcarAba();
+    Promise.all([rest(porBU ? "rpc/financeiro_fechamento_bu" : "rpc/financeiro_fechamento", { method: "POST", body: { p_mes: m } }), rest("rpc/financeiro_conciliacao", { method: "POST", body: { p_mes: m } })]).then(function(r){
       var linhas = r[0] || [], conc = r[1] || [], tot = {};
       if (!linhas.length){ host.innerHTML = '<span class="osd-vazio">Nada lançado em ' + esc(mes) + '.</span>'; return; }
-      var html = '<div class="table-wrap"><table><thead><tr><th>Hub</th>' + FIMP_COLS.map(function(c){ return '<th class="num">' + esc(c[1]) + '</th>'; }).join("") + '<th class="num">Total</th></tr></thead><tbody>' +
+      var semRateio = porBU && linhas.some(function(l){ return l.bu === "(sem rateio)"; });
+      var html = (semRateio ? '<div class="ac-hint dn-aviso">Sem rateio por BU importado para ' + esc(mes) + ' (ou faltando hub): o valor aparece em "(sem rateio)". Importe o "Fechamento Mensal - Operações" com essa competência.</div>' : '') +
+        '<div class="table-wrap"><table><thead><tr><th>' + (porBU ? "BU" : "Hub") + '</th>' + FIMP_COLS.map(function(c){ return '<th class="num">' + esc(c[1]) + '</th>'; }).join("") + '<th class="num">Total</th></tr></thead><tbody>' +
         linhas.map(function(l){
-          return '<tr><td>' + esc(l.hub) + '</td>' + FIMP_COLS.map(function(c){ tot[c[0]] = (tot[c[0]] || 0) + Number(l[c[0]] || 0); return '<td class="num">' + (Number(l[c[0]]) ? esc(money(l[c[0]])) : '—') + '</td>'; }).join("") +
+          return '<tr><td>' + esc(porBU ? l.bu : l.hub) + '</td>' + FIMP_COLS.map(function(c){ tot[c[0]] = (tot[c[0]] || 0) + Number(l[c[0]] || 0); return '<td class="num">' + (Number(l[c[0]]) ? esc(money(l[c[0]])) : '—') + '</td>'; }).join("") +
             '<td class="num"><b>' + esc(money(l.total)) + '</b></td></tr>';
         }).join("") +
         '<tr class="fimp-total"><td>Total</td>' + FIMP_COLS.map(function(c){ return '<td class="num">' + esc(money(tot[c[0]] || 0)) + '</td>'; }).join("") +
         '<td class="num">' + esc(money(linhas.reduce(function(a, l){ return a + Number(l.total || 0); }, 0))) + '</td></tr></tbody></table></div>' +
-        '<div class="ac-hint">Aluguel rateado pelos carros ativos de cada hub no mês, por locadora. Combustível, lavagem e pedágio vêm dos extratos (placa → hub); as NFs da Ticket Log e da Edenred entram só na conciliação.</div>';
+        '<div class="ac-hint">Aluguel rateado pelos carros ativos de cada hub no mês, por locadora. Combustível, lavagem e pedágio vêm dos extratos (placa → hub); as NFs da Ticket Log e da Edenred entram só na conciliação.' +
+        (porBU ? ' Por BU: o custo de cada hub é dividido pelos % de motoristas daquele hub (aba "Rateio"); MOURISCO e "(sem hub)" usam a linha Total.' : '') + '</div>';
       html += '<div class="detail-section"><h4>Conciliação extrato × NF</h4>' + (conc.length ? '<div class="table-wrap"><table><thead><tr><th>Cartão</th><th class="num">Extrato</th><th class="num">NFs</th><th class="num">Diferença</th><th class="num">Linhas sem hub</th></tr></thead><tbody>' +
         conc.map(function(c){ return '<tr><td>' + esc(c.origem === "ticket_log" ? "Ticket Log" : "Edenred") + '</td><td class="num">' + esc(money(c.extrato)) + '</td><td class="num">' + esc(money(c.notas)) + '</td><td class="num">' + esc(money(c.diferenca)) + '</td><td class="num">' + esc(c.linhas_sem_hub) + '</td></tr>'; }).join("") +
         '</tbody></table></div>' : '<span class="osd-vazio">Sem extratos nem NFs de cartão nessa competência.</span>') + '</div>';
@@ -5551,6 +5580,12 @@
     }).catch(function(e){ host.innerHTML = '<div class="field-err">Erro ao calcular: ' + esc(e.message) + '</div>'; });
   }
   document.getElementById("fimp-ver").addEventListener("click", fimpVerFechamento);
+  function fimpMarcarAba(){
+    document.querySelectorAll("[data-fimp-visao]").forEach(function(b){ var on = b.getAttribute("data-fimp-visao") === (FIMP.visao || "hub"); b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); });
+  }
+  document.querySelectorAll("[data-fimp-visao]").forEach(function(b){
+    b.addEventListener("click", function(){ FIMP.visao = b.getAttribute("data-fimp-visao"); fimpVerFechamento(); });
+  });
 
   // Data/hora do Excel (número de série) a partir do relógio de Brasília, independe do fuso do computador.
   function xlsSerial(isoDia, hhmm){

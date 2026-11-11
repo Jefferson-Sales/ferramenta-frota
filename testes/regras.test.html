@@ -376,6 +376,29 @@
   igual("Notas: valor em texto \"R$ 80,00\"", nt.notas.filter(function(n){ return n.pipefy_card_id === "222"; })[0].valor, 80);
   igual("Notas: a conta bancária (2ª \"CONTA\") e banco não são lidos", /12345-6|ITAU/.test(JSON.stringify(nt)), false);
 
+  grupo("Financeiro — rateio por BU (aba \"Rateio\", bloco Motoristas)");
+  var abaRateio = [
+    [null, null, null, null, null, "Outro bloco"],
+    [null, "Motoristas", null, null, null, null],
+    [null, "HUB", "Imunizações (%)", "Lab (%)", "Infusão (%)", null],
+    [null, "Alphaville", 0.4013541909876255, 0.5738968013074948, 0.02474900770487976],
+    [null, "Barra", 0.38113309840065057, 0.6062618595825426, 0.012605042016806723],
+    [null, "Curitiba", 0.5, 0.5, 0],
+    [null, "Total", 0.4356578405303172, 0.5460656904235797, 0.018257743155687053],
+    [null, null, null, null, null],
+    [null, "Fora do bloco", 1, 0, 0]];
+  var rb = R.lerRateioBU(abaRateio, "2026-10", HUBSF);
+  igual("Rateio: acha o bloco \"Motoristas\" e as BUs (sem o \"(%)\")", rb.bus.join(","), "Imunizações,Lab,Infusão");
+  igual("Rateio: uma linha por hub × BU (Total incluído; para na linha vazia)", rb.linhas.length, 9);
+  igual("Rateio: \"Barra\" = Barra da Tijuca", rb.linhas.filter(function(l){ return l.hub === "Barra da Tijuca"; }).length, 3);
+  igual("Rateio: linha Total vira hub vazio (vale para MOURISCO e sem hub)", rb.temTotal + " / " + rb.linhas.filter(function(l){ return l.hub === null; }).map(function(l){ return l.percentual; }).join(","), "true / 0.435658,0.546066,0.018258");
+  igual("Rateio: hub fora do cadastro fica de fora e é avisado", rb.naoEncontrados.join(","), "Curitiba");
+  igual("Rateio: competência vem da tela", rb.linhas[0].mes_competencia, "2026-10-01");
+  igual("Rateio: % em número (40) também é aceito", R.lerRateioBU([["Motoristas", null], ["HUB", "Lab %", "Infusão %"], ["Alphaville", 40, 60]], "2026-10", HUBSF).linhas.map(function(l){ return l.percentual; }).join(","), "0.4,0.6");
+  igual("Rateio: hub que não soma 100% é apontado", R.lerRateioBU([["Motoristas"], ["HUB", "Lab", "Infusão"], ["Alphaville", 0.5, 0.3]], "2026-10", HUBSF).somaErrada.join(","), "Alphaville (80%)");
+  igual("Rateio: sem o bloco \"Motoristas\" → erro claro", (function(){ try { R.lerRateioBU([["HUB", "Lab"]], "2026-10", HUBSF); return "aceitou"; } catch (e) { return e.message; } })(), 'Rateio: não achei o bloco "Motoristas" na aba.');
+  igual("Rateio: hub repetido → erro", (function(){ try { R.lerRateioBU([["Motoristas"], ["HUB", "Lab"], ["Alphaville", 1], ["ALPHAVILLE", 1]], "2026-10", HUBSF); return "aceitou"; } catch (e) { return e.message; } })(), "Rateio: o hub Alphaville aparece duas vezes.");
+
   // ---------------------------------------------------------------- mostra
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c]; }); };
   document.getElementById("saida").innerHTML = grupos.map(function(g){
