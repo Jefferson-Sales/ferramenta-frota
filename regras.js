@@ -629,7 +629,9 @@
     for (var r = 0; r < linhas.length && lin < 0; r++) {
       (linhas[r] || []).forEach(function(v, i){ if (lin < 0 && finNorm(v) === "MOTORISTAS") { lin = r; col = i; } });
     }
-    if (lin < 0) throw new Error('Rateio: não achei o bloco "Motoristas" na aba.');
+    // sem o título "Motoristas": layout conhecido da planilha (cabeçalho HUB em F2, dados F3:I13, Total na 14)
+    if (lin < 0 && finNorm((linhas[1] || [])[5]) === "HUB") { lin = 0; col = 5; }
+    if (lin < 0) throw new Error('Rateio: não achei o bloco "Motoristas" (nem o cabeçalho HUB em F2) na aba.');
     var cab = linhas[lin + 1] || [];
     if (finNorm(cab[col]) !== "HUB") throw new Error('Rateio: a linha abaixo de "Motoristas" deveria começar com "HUB".');
     var bus = [];
@@ -646,8 +648,14 @@
       var chave = hub || "(Total)";
       if (vistos[chave]) throw new Error("Rateio: o hub " + chave + " aparece duas vezes.");
       vistos[chave] = true;
-      var pcts = bus.map(function(b){ var v = l[b.col]; var n = typeof v === "number" ? v : valorBR(String(v == null ? "" : v).replace("%", "")); return n == null || isNaN(n) ? 0 : n; });
-      var escala = pcts.some(function(p){ return p > 1.0001; }) ? 100 : 1;
+      // número da célula (fração 0,40 quando formatada como %) ou texto ("40,14%", "0,4014", "40.14")
+      var comPct = false;
+      var pcts = bus.map(function(b){
+        var v = l[b.col]; if (typeof v === "number") return v;
+        var s = String(v == null ? "" : v); if (s.indexOf("%") > -1) comPct = true;
+        var n = valorBR(s.replace(/%/g, "")); return n == null || isNaN(n) ? 0 : n;
+      });
+      var escala = comPct || pcts.some(function(p){ return p > 1.0001; }) ? 100 : 1;
       var soma = 0;
       pcts.forEach(function(p, i){
         var pct = Math.round(p / escala * 1e6) / 1e6; soma += pct;

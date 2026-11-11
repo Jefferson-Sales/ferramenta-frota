@@ -410,7 +410,11 @@
   igual("Rateio: competência vem da tela", rb.linhas[0].mes_competencia, "2026-10-01");
   igual("Rateio: % em número (40) também é aceito", R.lerRateioBU([["Motoristas", null], ["HUB", "Lab %", "Infusão %"], ["Alphaville", 40, 60]], "2026-10", HUBSF).linhas.map(function(l){ return l.percentual; }).join(","), "0.4,0.6");
   igual("Rateio: hub que não soma 100% é apontado", R.lerRateioBU([["Motoristas"], ["HUB", "Lab", "Infusão"], ["Alphaville", 0.5, 0.3]], "2026-10", HUBSF).somaErrada.join(","), "Alphaville (80%)");
-  igual("Rateio: sem o bloco \"Motoristas\" → erro claro", (function(){ try { R.lerRateioBU([["HUB", "Lab"]], "2026-10", HUBSF); return "aceitou"; } catch (e) { return e.message; } })(), 'Rateio: não achei o bloco "Motoristas" na aba.');
+  igual("Rateio: sem o bloco \"Motoristas\" → erro claro", (function(){ try { R.lerRateioBU([["HUB", "Lab"]], "2026-10", HUBSF); return "aceitou"; } catch (e) { return e.message; } })(), 'Rateio: não achei o bloco "Motoristas" (nem o cabeçalho HUB em F2) na aba.');
+  var semTitulo = [[null, null, null, null, null, null], [null, null, null, null, null, "HUB", "Imunizações (%)", "Lab (%)", "Infusão (%)"], [null, null, null, null, null, "Alphaville", 0.4, 0.55, 0.05], [null, null, null, null, null, "Total", 0.43, 0.55, 0.02]];
+  igual("Rateio: sem o título \"Motoristas\", lê o intervalo fixo F2:I14 (HUB em F2)", R.lerRateioBU(semTitulo, "2026-10", HUBSF).linhas.length + " / " + R.lerRateioBU(semTitulo, "2026-10", HUBSF).temTotal, "6 / true");
+  igual("Rateio: % em texto com vírgula (\"40,14%\") vira fração", R.lerRateioBU([["Motoristas"], ["HUB", "Imunizações (%)", "Lab (%)", "Infusão (%)"], ["Alphaville", "40,14%", "57,39%", "2,47%"]], "2026-10", HUBSF).linhas.map(function(l){ return l.percentual; }).join(","), "0.4014,0.5739,0.0247");
+  igual("Rateio: \"0,5%\" com o símbolo é meio por cento, não 50%", R.lerRateioBU([["Motoristas"], ["HUB", "Lab", "Infusão"], ["Alphaville", "99,5%", "0,5%"]], "2026-10", HUBSF).linhas.map(function(l){ return l.percentual; }).join(","), "0.995,0.005");
   igual("Rateio: hub repetido → erro", (function(){ try { R.lerRateioBU([["Motoristas"], ["HUB", "Lab"], ["Alphaville", 1], ["ALPHAVILLE", 1]], "2026-10", HUBSF); return "aceitou"; } catch (e) { return e.message; } })(), "Rateio: o hub Alphaville aparece duas vezes.");
 
   // ---------------------------------------------------------------- mostra

@@ -5430,8 +5430,8 @@
         if (wb.SheetNames.indexOf("CONTROLE DE NOTAS 2026") > -1){
           var nt = Regras.lerControleNotas(aba("CONTROLE DE NOTAS 2026"), mes);
           p = { tipo: "notas", origem: "Controle de Notas", notas: nt.notas, semPipe: nt.semPipe, semPipeLista: nt.semPipeLista, pipesRepetidos: nt.pipesRepetidos };
-        } else if (wb.SheetNames.indexOf("Rateio") > -1){
-          var rt = Regras.lerRateioBU(aba("Rateio"), mes, cad.hubs);
+        } else if (wb.SheetNames.some(function(n){ return /rateio/i.test(n); })){
+          var rt = Regras.lerRateioBU(aba(wb.SheetNames.filter(function(n){ return /rateio/i.test(n); })[0]), mes, cad.hubs);
           p = { tipo: "rateio", origem: "Rateio por BU (bloco Motoristas)", rateio: rt };
         } else {
           var linhas = aba(wb.SheetNames[0]);
