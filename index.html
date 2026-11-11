@@ -354,6 +354,9 @@
   #fimp-importar > .section-desc{ padding:var(--espaco-6) var(--espaco-8) 0; max-width:none; }
   #fimp-previa, #fimp-fechamento > .ac-hint, #fimp-fechamento > .osd-vazio, #fimp-fechamento > .field-err, #fimp-fechamento .detail-section > h4, #fimp-fechamento .detail-section > .osd-vazio{ display:block; padding:0 var(--espaco-8); }
   #fimp-fechamento > .osd-vazio{ padding-bottom:var(--espaco-6); }
+  #fimp-fechamento .fimp-blocos{ padding:0 var(--espaco-8) var(--espaco-6); }
+  .fimp-info-alerta b{ color:var(--warning); }
+  .fimp-bloco li .num{ white-space:nowrap; }
   .fimp-abas{ margin:var(--espaco-4) var(--espaco-8) var(--espaco-5); }
   .fimp-sempipe{ border:1px solid var(--warning-forte); border-radius:var(--raio-md); padding:var(--espaco-5); margin:var(--espaco-5) 0; background:var(--surface); }
   .fimp-sempipe input[type=checkbox]{ width:auto; margin:0; }
@@ -685,7 +688,7 @@
       </div>
 
       <div class="card" id="fimp-card">
-        <div class="card-head"><h2>Fechamento do mês por hub</h2><div class="card-head-actions">
+        <div class="card-head"><h2>Fechamento do mês (DRE da frota)</h2><div class="card-head-actions">
           <label class="qf-sub">Competência <input type="month" id="fimp-mes" class="filter-select"></label>
           <button type="button" class="btn qf-mini" id="fimp-ver">Ver fechamento</button></div></div>
         <div id="fimp-importar" hidden>
@@ -5392,7 +5395,7 @@
     return xlsxLeituraCarregando;
   }
   var FIMP = { previa: null };
-  var FIMP_COLS = [["aluguel", "Aluguel"], ["combustivel", "Combustível"], ["pedagio_estacionamento", "Pedágio/Estac."], ["lavagem", "Lavagem"], ["garagem", "Garagem"], ["outras", "Outras"]];
+  var FIMP_COLS = [["aluguel", "Aluguel"], ["combustivel", "Combustível"], ["pedagio_estacionamento", "Pedágio/Estac."], ["lavagem", "Lavagem"], ["garagem", "Garagem"], ["manutencao", "Manutenção"]];
   var FIMP_CAT = { combustivel: "Combustível", lavagem: "Lavagem", outros: "Outros (pneu, óleo…)", pedagio: "Pedágio", estacionamento: "Estacionamento", taxa_tag: "Taxas de tag" };
   var FIMP_REGRA = { cadastro: "placa do cadastro", informacao_adicional: "informação adicional do extrato", matriz_sem_placa: "sem placa → MOURISCO", sem_hub: "sem hub (placa fora do cadastro)" };
   function fimpPreparar(){
@@ -5508,7 +5511,7 @@
         (p.tempsConflito.length ? '<div class="ac-hint dn-aviso">Atenção: ' + esc(p.tempsConflito.map(function(x){ return x.fornecedor + " " + money(x.valor) + " (" + x.temp + ")"; }).join("; ")) +
           ' — a nota temporária e a do Pipe ' + (p.tempsConflito.length === 1 ? 'já existem' : 'já existem') + ' no banco. A temporária fica duplicada; peça a correção antes de fechar o mês.</div>' : '') +
         (p.pipesRepetidos ? '<div class="ac-hint dn-aviso">' + p.pipesRepetidos + ' Pipe(s) repetido(s) na planilha: ficou a última linha de cada.</div>' : '') +
-        '<div class="fimp-blocos">' + fimpTabelaSomas("Por coluna do fechamento", fimpSoma(carga, "coluna"), { aluguel: "Aluguel", combustivel: "Combustível", pedagio_estacionamento: "Pedágio/Estac.", lavagem: "Lavagem", garagem: "Garagem", outras: "Outras" }) +
+        '<div class="fimp-blocos">' + fimpTabelaSomas("Por conta da planilha", fimpSoma(carga, "conta")) +
         fimpTabelaSomas("Por hub (da planilha)", fimpSoma(carga, "hub")) + '</div>' +
         (novos.length ? '<div class="ac-hint">Fornecedores que serão cadastrados: ' + esc(novos.map(function(f){ return f.nome; }).join(", ")) + '.</div>' : '') +
         (semConta.length ? '<div class="ac-hint dn-aviso">Conta não encontrada no cadastro (entra em "Outras"): ' + esc(Array.from(new Set(semConta.map(function(n){ return n.conta || "vazia"; }))).join(", ")) + '.</div>' : '') +
@@ -5616,8 +5619,9 @@
     host.innerHTML = '<span class="osd-vazio">Calculando…</span>';
     var m = mes + "-01", porBU = FIMP.visao === "bu";
     fimpMarcarAba();
-    Promise.all([rest(porBU ? "rpc/financeiro_fechamento_bu" : "rpc/financeiro_fechamento", { method: "POST", body: { p_mes: m } }), rest("rpc/financeiro_conciliacao", { method: "POST", body: { p_mes: m } })]).then(function(r){
-      var linhas = r[0] || [], conc = r[1] || [], tot = {};
+    Promise.all([rest(porBU ? "rpc/financeiro_dre_bu" : "rpc/financeiro_dre", { method: "POST", body: { p_mes: m } }), rest("rpc/financeiro_conciliacao", { method: "POST", body: { p_mes: m } }),
+      rest("rpc/financeiro_dre_informativo", { method: "POST", body: { p_mes: m } })]).then(function(r){
+      var linhas = r[0] || [], conc = r[1] || [], info = r[2] || [], tot = {};
       if (!linhas.length){ host.innerHTML = '<span class="osd-vazio">Nada lançado em ' + esc(mes) + '.</span>'; return; }
       var semRateio = porBU && linhas.some(function(l){ return l.bu === "(sem rateio)"; });
       var html = (semRateio ? '<div class="ac-hint dn-aviso">Sem rateio por BU importado para ' + esc(mes) + ' (ou faltando hub): o valor aparece em "(sem rateio)". Importe o "Fechamento Mensal - Operações" com essa competência.</div>' : '') +
@@ -5628,15 +5632,28 @@
         }).join("") +
         '<tr class="fimp-total"><td>Total</td>' + FIMP_COLS.map(function(c){ return '<td class="num">' + esc(money(tot[c[0]] || 0)) + '</td>'; }).join("") +
         '<td class="num">' + esc(money(linhas.reduce(function(a, l){ return a + Number(l.total || 0); }, 0))) + '</td></tr></tbody></table></div>' +
-        '<div class="ac-hint">Aluguel rateado pelos carros ativos de cada hub no mês, por locadora. Combustível, lavagem e pedágio vêm dos extratos (placa → hub); as NFs da Ticket Log e da Edenred entram só na conciliação.' +
-        (porBU ? ' Por BU: o custo de cada hub é dividido pelos % de motoristas daquele hub (aba "Rateio"); MOURISCO e "(sem hub)" usam a linha Total.' : '') + '</div>';
+        '<div class="ac-hint">DRE da frota: 6 contas, só os hubs operacionais (a sede fica zerada). Aluguel pelos carros ativos de cada hub, por locadora (locadora sem carro identificado, pela frota ativa). Combustível de nota na sede vai para os hubs com nota de posto local no mês; a taxa de gestão da Ticket Log, pelo gasto Ticket Log de cada hub. Tags, pedágios sem hub e a diferença da Edenred, pela frota ativa.' +
+        (porBU ? ' Por BU: cada hub dividido pelos % de motoristas dele (aba "Rateio").' : '') + '</div>';
       html += '<div class="detail-section"><h4>Conciliação extrato × NF</h4>' + (conc.length ? '<div class="table-wrap"><table><thead><tr><th>Cartão</th><th class="num">Extrato</th><th class="num">NFs</th><th class="num">Diferença</th><th class="num">Linhas sem hub</th></tr></thead><tbody>' +
         conc.map(function(c){ return '<tr><td>' + esc(c.origem === "ticket_log" ? "Ticket Log" : "Edenred") + '</td><td class="num">' + esc(money(c.extrato)) + '</td><td class="num">' + esc(money(c.notas)) + '</td><td class="num">' + esc(money(c.diferenca)) + '</td><td class="num">' + esc(c.linhas_sem_hub) + '</td></tr>'; }).join("") +
-        '</tbody></table></div>' : '<span class="osd-vazio">Sem extratos nem NFs de cartão nessa competência.</span>') + '</div>';
+        '</tbody></table></div>' : '<span class="osd-vazio">Sem extratos nem NFs de cartão nessa competência.</span>') + '</div>' + fimpInformativoHtml(info);
       host.innerHTML = html;
     }).catch(function(e){ host.innerHTML = '<div class="field-err">Erro ao calcular: ' + esc(e.message) + '</div>'; });
   }
   document.getElementById("fimp-ver").addEventListener("click", fimpVerFechamento);
+  // quadros fora da matriz: o que não entra na DRE da frota, o que falta classificar e as diferenças de cartão já distribuídas
+  function fimpInformativoHtml(info){
+    var grupos = [["a_classificar", "A classificar (fora da DRE até ter conta)", true], ["fora_dre", "Fora da DRE da frota (informativo)", false], ["distribuido", "Diferenças de cartão já distribuídas na DRE", false]];
+    var html = "";
+    grupos.forEach(function(g){
+      var itens = info.filter(function(i){ return i.tipo === g[0] && Number(i.valor) !== 0; });
+      if (!itens.length) return;
+      html += '<div class="fimp-bloco fimp-info' + (g[2] ? ' fimp-info-alerta' : "") + '"><b>' + esc(g[1]) + '</b><ul>' + itens.map(function(i){
+        return '<li><span>' + esc(i.item) + (i.qtd ? ' (' + esc(i.qtd) + (Number(i.qtd) === 1 ? " nota)" : " notas)") : "") + '</span><span class="num">' + esc(money(i.valor)) + '</span></li>';
+      }).join("") + '</ul></div>';
+    });
+    return html ? '<div class="detail-section"><h4>Fora da matriz</h4><div class="fimp-blocos">' + html + '</div></div>' : "";
+  }
   function fimpMarcarAba(){
     document.querySelectorAll("[data-fimp-visao]").forEach(function(b){ var on = b.getAttribute("data-fimp-visao") === (FIMP.visao || "hub"); b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); });
   }

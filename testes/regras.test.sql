@@ -36,6 +36,7 @@ declare
   ms1 uuid; ms2 uuid; ms3 uuid; vs1 uuid; vs2 uuid; vs3 uuid; vs4 uuid; mus1 uuid; mus2 uuid; dss1 uuid; dss2 uuid;
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
+  dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -943,6 +944,61 @@ begin
   casos := casos || text 'BU: quem não vê o Financeiro não consulta a matriz por BU'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   select count(*)::text into x from frota.financeiro_rateio_bu;
   casos := casos || text 'BU: quem não vê o Financeiro não lê o rateio'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 23. FINANCEIRO F3: DRE DA FROTA (6 contas, sede zerada, rateios automáticos)
+  -- 11/2032: hub A e B operacionais, S = sede. 1 carro da locadora L em A e 1 em B (foto de 1 dia).
+  insert into frota.hubs (nome) values ('TESTE DRE A') returning id into dha;
+  insert into frota.hubs (nome) values ('TESTE DRE B') returning id into dhb;
+  insert into frota.hubs (nome, sede) values ('TESTE DRE Sede', true) returning id into dhs;
+  insert into frota.fornecedores (nome) values ('TESTE Locadora DRE') returning id into dloc;
+  insert into frota.fornecedores (nome) values ('TESTE Locadora Sem Carro') returning id into dlx;
+  insert into frota.fornecedores (nome) values ('TICKET LOG TESTE DRE') returning id into dtk;
+  insert into frota.fornecedores (nome) values ('EDENRED TESTE DRE') returning id into ded;
+  insert into frota.fornecedores (nome) values ('TESTE Posto Local') returning id into dpo;
+  insert into frota.contratos (locadora_id, numero_contrato) values (dloc, 'TESTE DRE') returning id into dct;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status) values ('ZZT0D01', dha, dct, 1, 'disponivel') returning id into dv1;
+  insert into frota.veiculos (placa, hub_id, contrato_id, km_atual, status) values ('ZZT0D02', dhb, dct, 1, 'disponivel') returning id into dv2;
+  insert into frota.frota_status_diario (dia, veiculo_id, hub_id, status) values ('2032-11-01', dv1, dha, 'disponivel'), ('2032-11-01', dv2, dhb, 'disponivel');
+  insert into frota.notas_fiscais (fornecedor_id, categoria_id, hub_id, valor, mes_referencia, pipefy_card_id, aprovacao) values
+    (dloc, (select id from frota.categorias_custo where nome = 'LOCAÇÃO VEICULAR'), dhs, 200, '2032-11-01', 'TESTE-D1', 'aprovado'),
+    (dlx,  (select id from frota.categorias_custo where nome = 'LOCAÇÃO VEICULAR'), dhs, 100, '2032-11-01', 'TESTE-D2', 'aprovado'),
+    (dtk,  (select id from frota.categorias_custo where nome = 'COMBUSTÍVEL'), dhs, 440, '2032-11-01', 'TESTE-D3', 'aprovado'),
+    (dpo,  (select id from frota.categorias_custo where nome = 'COMBUSTÍVEL'), dhb, 50, '2032-11-01', 'TESTE-D4', 'aprovado'),
+    (dpo,  (select id from frota.categorias_custo where nome = 'COMBUSTÍVEL'), dhs, 100, '2032-11-01', 'TESTE-D5', 'aprovado'),
+    (ded,  (select id from frota.categorias_custo where nome = 'PEDAGIO E ESTACIONAMENTO EXTERNO'), dhs, 40, '2032-11-01', 'TESTE-D6', 'aprovado'),
+    (dpo,  (select id from frota.categorias_custo where nome = 'MANUTENÇÃO VEICULAR'), dha, 70, '2032-11-01', 'TESTE-D7', 'aprovado'),
+    (dpo,  (select id from frota.categorias_custo where nome = 'LAVANDERIA'), dha, 999, '2032-11-01', 'TESTE-D8', 'aprovado'),
+    (dpo,  (select id from frota.categorias_custo where nome = 'SINISTRO'), dhb, 55, '2032-11-01', 'TESTE-D9', 'aprovado');
+  -- aluguel L 200 → 100/100; locadora sem carro 100 → frota 50/50; Ticket Log 300 (A) e 100 (B), NF 440 → taxa 40 → 30/10;
+  -- posto local só em B (50) → combustível da sede (100) vai todo para B; Edenred sem hub 20 + sede 10 + diferença da NF (40 − 30) 10 → frota 20/20
+  insert into frota.financeiro_transacoes_cartao (origem, transacao_id_externo, hub_id, hub_regra, categoria, subtipo, valor, mes_competencia, arquivo_origem) values
+    ('ticket_log', 'DT1', dha, 'cadastro', 'combustivel', 'Abastecimento', 300, '2032-11-01', 'teste'),
+    ('ticket_log', 'DT2', dhb, 'cadastro', 'combustivel', 'Abastecimento', 100, '2032-11-01', 'teste'),
+    ('edenred', 'DE1', null, 'sem_hub', 'pedagio', 'Pedágio', 20, '2032-11-01', 'teste'),
+    ('edenred', 'DE2', dhs, 'matriz_sem_placa', 'taxa_tag', 'Mensalidade Tag em estoque', 10, '2032-11-01', 'teste');
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select string_agg(hub || '=' || aluguel || '/' || combustivel || '/' || pedagio_estacionamento || '/' || manutencao || '/' || total, ' ' order by hub) into x
+    from frota.financeiro_dre('2032-11-01') where hub like 'TESTE DRE%';
+  casos := casos || text 'DRE: sede zerada; aluguel por locadora e frota; VERSA no hub com posto; taxas Ticket Log e Edenred; manutenção no hub'; obtidos := obtidos || x;
+  esperados := esperados || text 'TESTE DRE A=150.00/330.00/20.00/70.00/570.00 TESTE DRE B=150.00/260.00/20.00/0.00/430.00';
+  select string_agg(item || '=' || valor, '; ' order by item) into x from frota.financeiro_dre_informativo('2032-11-01');
+  casos := casos || text 'DRE: fora da matriz (lavanderia, a classificar) e diferenças distribuídas'; obtidos := obtidos || x;
+  esperados := esperados || text 'Edenred: NF − extrato (distribuído em Pedágio/Estac. pela frota ativa)=10.00; LAVANDERIA=999.00; SINISTRO=55.00; Ticket Log: taxa de gestão (NF − extrato, distribuída em Combustível pelo gasto Ticket Log)=40.00';
+  execute 'reset role';
+  insert into frota.financeiro_rateio_bu (mes_competencia, hub_id, bu_nome, percentual) values
+    ('2032-11-01', dha, 'TESTE X', 0.5), ('2032-11-01', dha, 'TESTE Y', 0.5), ('2032-11-01', null, 'TESTE X', 1), ('2032-11-01', null, 'TESTE Y', 0);
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select string_agg(bu || '=' || total || '/' || manutencao, ' ' order by bu) into x from frota.financeiro_dre_bu('2032-11-01') where bu like 'TESTE%';
+  casos := casos || text 'DRE por BU: hub A pelos % dele, hub B pela linha Total, com a coluna Manutenção'; obtidos := obtidos || x; esperados := esperados || text 'TESTE X=715.00/35.00 TESTE Y=285.00/35.00';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_mvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin perform * from frota.financeiro_dre('2032-11-01'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
+  casos := casos || text 'DRE: quem não vê o Financeiro não consulta'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 

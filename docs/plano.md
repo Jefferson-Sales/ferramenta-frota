@@ -277,6 +277,15 @@ Ordem sugerida: **1 → 2 → 3a → 3b → 4** (do mais simples e só de tela p
 - **Correção do total de notas de 10/2026:** o número de 06/11 (R$ 638.088,72) estava errado. Conferido de forma independente: 57 notas com Pipe = **R$ 718.450,94**. A nota LAVE E PASSE (Brasília) está digitada como "R$ 3.405.00" e era lida como R$ 340.500 — `valorBR` corrigido.
 - **Em aberto:** o rateio de cada mês precisa ser importado com a competência certa (a planilha não diz o mês); reimportar uma planilha sem um hub não apaga o % antigo desse hub (ninguém apaga — corrigir reimportando com o hub).
 
+## Financeiro F3 — DRE da frota (regras do Jefferson, 11/11/2026 — aplicado)
+
+- 6 contas (Aluguel, Combustível, Pedágio/Estac., Lavagem, Garagem, Manutenção); "Outras" extinta; sede (MOURISCO) zerada; Lavanderia sai da frota; Telemetria e Multas só informativas; Preparação da Frota em Manutenção.
+- VERSA FUEL dinâmica: vai para os hubs com nota de posto local no mês (10/2026: Barra Funda, Tatuapé, Vila Olímpia), pelo valor dessas notas.
+- Taxa Ticket Log (R$ 10.504,93) em Combustível pelo gasto Ticket Log; NF Edenred 26046 (R$ 667,44), tags da sede (R$ 351,62) e pedágios de placa fora do cadastro (R$ 786,71) em Pedágio/Estac. pela frota ativa; ARVAL pela frota ativa.
+- **Outubro/2026 fechado:** R$ 1.021.754,81 — Imunizações R$ 463.821,07 (45,4%), Lab R$ 540.085,23 (52,9%), Infusão R$ 17.848,41 (1,7%).
+- Testes: seção 23 do banco (4 casos). Migration: `sql/2026-11-11-f3-dre-frota.sql`.
+- Em aberto: Sinistro e Digitalização sem conta (aparecem como "a classificar"); o quadrante Financeiro da Visão Executiva ainda soma todas as notas (inclusive canceladas e fora da DRE).
+
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
 Usar esta evolução para calibrar qualquer cálculo histórico de frota, disponibilidade, custo e km por hub dos elétricos (não supor 60 carros desde o início do ano):
