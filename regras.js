@@ -560,43 +560,107 @@
     return { mes: mes, fatura: fatura, linhas: marcarOcorrencias(out, function(t){ return [t.transacao_id_externo, t.subtipo, t.valor].join("|"); }) };
   }
 
-  // Controle de Notas (aba "CONTROLE DE NOTAS 2026"): só STATUS = Aprovado, da competência escolhida e com NÚMERO DO PIPE.
-  // Pipe repetido na planilha: fica a última linha (e entra no aviso). A 2ª coluna "CONTA" (bancária) nunca é lida.
-  function lerControleNotas(linhas, mes) {
+  // ---------------- Controle de Notas (planilha "Controle de NFS enviadas") ----------------
+  // Lê TODAS as linhas (todas as competências) e devolve cada nota já saneada. As colunas de beneficiado, banco, agência,
+  // conta bancária (2ª "CONTA") e e-mail nunca são lidas; o CNPJ só é usado com 14 dígitos (CPF de pessoa física é descartado).
+  // Saneamento automático (aprovado pelo Jefferson em 11/11/2026), registrado em nota.saneado para a prévia mostrar:
+  //  - data em texto com ano quebrado ("30/03/0202", "08//10/226") → ano da competência;
+  //  - competência com ano anterior ao da emissão (jan/2026 marcada 2025) → mês/ano da emissão;
+  //  - envio ao Financeiro mais de 3 dias antes da emissão → +1 mês, se assim cair entre emissão − 3 dias e hoje (03/10 → 03/11);
+  //  - Pipe com sobra no fim ("1457659709.") → só os números; Pipe sem número ("AGUARDANDO…") → sem Pipe;
+  //  - conta "Enegia/Energia Carregador" → COMBUSTÍVEL (energia de tração dos elétricos).
+  // Etapa: pagamento até hoje → pago; pagamento futuro → enviado + data_pagamento_prevista; Pipe + envio → enviado; senão pendente.
+  // Mesmo Pipe em várias linhas (uma NF cobrindo vários meses/contas): todas entram, numeradas em pipe_parte (maior valor = 1).
+  var CONTA_APELIDOS = { "ENEGIA CARREGADOR": "COMBUSTÍVEL", "ENERGIA CARREGADOR": "COMBUSTÍVEL" };
+  function isoMaisDias(iso, d) { var t = new Date(iso + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); }
+  function isoMaisMes(iso) {
+    var a = Number(iso.slice(0, 4)), m = Number(iso.slice(5, 7)) + 1, d = Number(iso.slice(8, 10));
+    if (m > 12) { m = 1; a++; }
+    var fim = new Date(Date.UTC(a, m, 0)).getUTCDate();
+    return a + "-" + doisDig(m) + "-" + doisDig(Math.min(d, fim));
+  }
+  function isoValida(a, m, d) { var t = new Date(Date.UTC(a, m - 1, d)); return t.getUTCFullYear() === a && t.getUTCMonth() === m - 1 && t.getUTCDate() === d; }
+  // célula de data da planilha → { iso, saneado } ; anoRef = ano da competência (para ano digitado errado)
+  function dataDaPlanilha(v, anoRef) {
+    if (v == null || v === "") return { iso: null };
+    if (typeof v === "number") return { iso: serialExcelParaISO(v).slice(0, 10) };
+    var s = String(v).trim(), m = /^(\d{1,2})\s*\/+\s*(\d{1,2})\s*\/+\s*(\d{1,4})$/.exec(s);
+    if (!s) return { iso: null };
+    if (!m) return { iso: null, invalida: s };
+    var d = Number(m[1]), mes = Number(m[2]), a = Number(m[3]), sane = false;
+    if (!(a >= 2024 && a <= 2028)) { a = anoRef; sane = true; }
+    if (!isoValida(a, mes, d)) return { iso: null, invalida: s };
+    return { iso: a + "-" + doisDig(mes) + "-" + doisDig(d), saneado: sane ? "\"" + s + "\" → " + doisDig(d) + "/" + doisDig(mes) + "/" + a : "\"" + s + "\" (texto) → data" };
+  }
+  function lerControleNotasTodas(linhas, hoje) {
     var cab = linhas[0] || [], ix = {};
     cab.forEach(function(c, i){ var k = finNorm(c); if (c != null && ix[k] == null) ix[k] = i; }); // 1ª "CONTA" = conta contábil
     exigeColunas(ix, ["FORNECEDOR", "HUB", "CONTA", "VALOR", "MÊS REFERÊNCIA", "ANO", "NÚMERO DO PIPE", "STATUS"], "Controle de Notas");
     var c = function(l, nome){ var i = ix[finNorm(nome)]; return i == null ? null : l[i]; };
-    var ano = Number(mes.slice(0, 4)), m = Number(mes.slice(5, 7));
-    var porPipe = {}, semPipeLista = [], repetidos = 0, ocorr = {};
+    var txt = function(v){ return v == null || String(v).trim() === "" ? null : String(v).trim(); };
+    var envioCol = Object.keys(ix).filter(function(k){ return k.indexOf("DATA DE ENVIO") === 0; })[0];
+    var notas = [], semPipeLista = [], cancSemPipe = 0, avisos = [];
     for (var r = 1; r < linhas.length; r++) {
-      var l = linhas[r]; if (!l || !c(l, "FORNECEDOR")) continue;
-      if (finNorm(c(l, "STATUS")) !== "APROVADO") continue;
-      if (Number(c(l, "MÊS REFERÊNCIA")) !== m || Number(c(l, "ANO")) !== ano) continue;
-      var pipe = c(l, "NÚMERO DO PIPE") == null ? "" : String(c(l, "NÚMERO DO PIPE")).trim();
-      var dv = c(l, "DATA DE VENCIMENTO"), dp = c(l, "DATA DE PAGAMENTO");
-      var nota = {
-        pipefy_card_id: pipe, fornecedor: String(c(l, "FORNECEDOR")).trim(),
-        cnpj: String(c(l, "CNPJ") || "").replace(/\D/g, "") || null,
-        hub_texto: c(l, "HUB") ? String(c(l, "HUB")).trim() : null, conta: String(c(l, "CONTA") || "").trim(),
-        coluna: colunaDaConta(c(l, "CONTA")), numero_nota: c(l, "NOTA FISCAL") != null ? String(c(l, "NOTA FISCAL")).trim() : null,
-        valor: (function(v){ var n = typeof v === "number" ? v : valorBR(v); return Math.round((n || 0) * 100) / 100; })(c(l, "VALOR")),
-        data_vencimento: typeof dv === "number" ? serialExcelParaISO(dv).slice(0, 10) : null,
-        data_pagamento: typeof dp === "number" ? serialExcelParaISO(dp).slice(0, 10) : null,
-        forma_pagamento: c(l, "FORMA DE PAGAMENTO") ? String(c(l, "FORMA DE PAGAMENTO")).trim() : null,
-        mes_referencia: mes + "-01"
-      };
-      if (!/^\d+$/.test(pipe)) {
-        // sem Pipe: vai para a lista de conferência com um ID temporário fixo (só entra se o usuário marcar)
-        var ass = assinaturaNota(nota); ocorr[ass] = (ocorr[ass] || 0) + 1;
-        nota.pipefy_card_id = null; nota.id_temporario = idTemporarioNota(nota, ocorr[ass]);
-        semPipeLista.push(nota); continue;
+      var l = linhas[r]; if (!l || !txt(c(l, "FORNECEDOR"))) continue;
+      var st = finNorm(c(l, "STATUS")), saneado = [];
+      var aprovacao = st === "APROVADO" ? "aprovado" : st === "CANCELADO" ? "cancelado" : null;
+      var ano = Number(c(l, "ANO")), mes = Number(c(l, "MÊS REFERÊNCIA"));
+      if (!(ano >= 2000) || !(mes >= 1 && mes <= 12) || Math.floor(mes) !== mes) { avisos.push({ linha: r + 1, motivo: "competência inválida (" + c(l, "MÊS REFERÊNCIA") + "/" + c(l, "ANO") + "): fica de fora" }); continue; }
+      var data = function(rotulo, v){ var x = dataDaPlanilha(v, ano); if (x.saneado) saneado.push(rotulo + ": " + x.saneado); if (x.invalida) saneado.push(rotulo + ": \"" + x.invalida + "\" não é data (fica vazia)"); return x.iso; };
+      var emis = data("emissão", c(l, "DATA DE EMISSÃO")), venc = data("vencimento", c(l, "DATA DE VENCIMENTO")), pag = data("pagamento", c(l, "DATA DE PAGAMENTO"));
+      var env = envioCol ? data("envio", l[ix[envioCol]]) : null;
+      if (emis && ano < Number(emis.slice(0, 4))) {
+        saneado.push("competência " + doisDig(mes) + "/" + ano + " → " + emis.slice(5, 7) + "/" + emis.slice(0, 4) + " (mês da emissão)");
+        ano = Number(emis.slice(0, 4)); mes = Number(emis.slice(5, 7));
       }
-      if (porPipe[pipe]) repetidos++;
-      nota.pipefy_card_id = pipe;
-      porPipe[pipe] = nota;
+      if (env && emis && env < isoMaisDias(emis, -3)) {
+        var env2 = isoMaisMes(env);
+        if (env2 >= isoMaisDias(emis, -3) && env2 <= hoje) { saneado.push("envio " + env + " → " + env2 + " (mês digitado errado)"); env = env2; }
+      }
+      var pipeBruto = txt(c(l, "NÚMERO DO PIPE")), pipe = pipeBruto ? pipeBruto.replace(/[^\d]+$/, "") : "";
+      if (!/^\d+$/.test(pipe)) { if (pipeBruto) saneado.push("Pipe \"" + pipeBruto + "\" não é número → sem Pipe"); pipe = ""; }
+      else if (pipe !== pipeBruto) saneado.push("Pipe \"" + pipeBruto + "\" → " + pipe);
+      var conta = txt(c(l, "CONTA")) || "", contaN = finNorm(conta);
+      if (CONTA_APELIDOS[contaN]) { saneado.push("conta \"" + conta + "\" → " + CONTA_APELIDOS[contaN]); conta = CONTA_APELIDOS[contaN]; }
+      var cnpj = String(c(l, "CNPJ") || "").replace(/\D/g, "");
+      var vb = c(l, "VALOR"), valor = Math.round(((typeof vb === "number" ? vb : valorBR(vb)) || 0) * 100) / 100;
+      if (typeof vb === "string" && vb.trim()) saneado.push("valor \"" + vb.trim() + "\" → " + valor.toFixed(2));
+      var nf = txt(c(l, "NOTA FISCAL"));
+      var nota = {
+        linha: r + 1, pipefy_card_id: pipe || null, pipe_parte: 1, fornecedor: txt(c(l, "FORNECEDOR")), cnpj: cnpj.length === 14 ? cnpj : null,
+        hub_texto: txt(c(l, "HUB")), conta: conta, coluna: colunaDaConta(conta), numero_nota: nf,
+        valor: valor, data_emissao: emis, data_vencimento: venc, data_envio_financeiro: env,
+        data_pagamento: pag && pag <= hoje ? pag : null, data_pagamento_prevista: pag && pag > hoje ? pag : null,
+        forma_pagamento: txt(c(l, "FORMA DE PAGAMENTO")), mes_referencia: ano + "-" + doisDig(mes) + "-01", aprovacao: aprovacao,
+        responsavel_planilha: txt(c(l, "RESPONSÁVEL")), descricao: txt(c(l, "DESCRIÇÃO")), veiculo_texto: txt(c(l, "VEÍCULO")),
+        justificativa_atraso: txt(c(l, "JUSTIFICATIVA")), saneado: saneado
+      };
+      nota.etapa = nota.data_pagamento ? "pago" : (pipe && env) ? "enviado" : "pendente_envio";
+      if (!aprovacao) avisos.push({ linha: r + 1, motivo: "status \"" + (c(l, "STATUS") || "vazio") + "\" (não é Aprovado nem Cancelado): fica de fora" });
+      else if (pipe) notas.push(nota);
+      else if (aprovacao === "aprovado") semPipeLista.push(nota);
+      else cancSemPipe++;
     }
-    return { notas: Object.keys(porPipe).map(function(k){ return porPipe[k]; }), semPipe: semPipeLista.length, semPipeLista: semPipeLista, pipesRepetidos: repetidos };
+    // partes do mesmo Pipe: maior valor = 1 (depois competência, conta, NF, linha) — a mesma a cada leitura
+    var grupos = {}, cmp = function(a, b){ return a < b ? -1 : a > b ? 1 : 0; };
+    notas.forEach(function(n){ (grupos[n.pipefy_card_id] = grupos[n.pipefy_card_id] || []).push(n); });
+    var comPartes = Object.keys(grupos).filter(function(p){ return grupos[p].length > 1; });
+    comPartes.forEach(function(p){
+      grupos[p].sort(function(a, b){ return b.valor - a.valor || cmp(a.mes_referencia, b.mes_referencia) || cmp(finNorm(a.conta), finNorm(b.conta)) ||
+        cmp(String(a.numero_nota), String(b.numero_nota)) || a.linha - b.linha; });
+      grupos[p].forEach(function(n, i){ n.pipe_parte = i + 1; });
+    });
+    // sem Pipe: ID temporário (como na leitura por mês: ocorrência dentro da competência, em ordem de linha)
+    var ocorr = {};
+    semPipeLista.forEach(function(n){ var k = n.mes_referencia + "|" + assinaturaNota(n); ocorr[k] = (ocorr[k] || 0) + 1; n.id_temporario = idTemporarioNota(n, ocorr[k]); });
+    return { notas: notas, semPipeLista: semPipeLista, canceladasSemPipe: cancSemPipe, avisos: avisos, pipesComPartes: comPartes };
+  }
+  // leitura de UMA competência (importação mensal): só aprovadas daquele mês; as partes do Pipe são contadas na planilha inteira
+  function lerControleNotas(linhas, mes, hoje) {
+    var t = lerControleNotasTodas(linhas, hoje || "9999-12-31"), m = mes + "-01";
+    var notas = t.notas.filter(function(n){ return n.mes_referencia === m && n.aprovacao === "aprovado"; });
+    var sp = t.semPipeLista.filter(function(n){ return n.mes_referencia === m; });
+    return { notas: notas, semPipe: sp.length, semPipeLista: sp, pipesRepetidos: notas.filter(function(n){ return n.pipe_parte > 1; }).length };
   }
 
   // ID temporário de nota sem Pipe: "TEMP-AAAAMM-xxxxxxxx", calculado de fornecedor + NF + valor (+ ocorrência, se houver
@@ -679,6 +743,8 @@
     lerTicketLog: lerTicketLog,
     lerEdenred: lerEdenred,
     lerControleNotas: lerControleNotas,
+    lerControleNotasTodas: lerControleNotasTodas,
+    dataDaPlanilha: dataDaPlanilha,
     lerRateioBU: lerRateioBU,
     idTemporarioNota: idTemporarioNota,
     idsTemporariosCandidatos: idsTemporariosCandidatos,

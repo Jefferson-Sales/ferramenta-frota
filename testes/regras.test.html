@@ -372,8 +372,8 @@
     ["TICKET LOG", "MATRIZ", "COMBUSTÍVEL", "-", 10, 2026, 248956.38, null, null, null, null, "Aprovado"],
     ["OFICINA C", "BARRA", "GARAGEM", "3", 10, 2026, 500, null, null, null, "333", "Cancelado"],
     ["OFICINA D", "BARRA", "GARAGEM", "4", 9, 2026, 500, null, null, null, "444", "Aprovado"]], "2026-10");
-  igual("Notas: só aprovadas, do mês e com Pipe (sem Pipe é contado à parte)", nt.notas.length + " / sem Pipe " + nt.semPipe, "2 / sem Pipe 1");
-  igual("Notas: Pipe repetido fica a última linha", nt.pipesRepetidos + " / " + nt.notas.filter(function(n){ return n.pipefy_card_id === "111"; })[0].valor, "1 / 1200");
+  igual("Notas: só aprovadas, do mês e com Pipe (sem Pipe é contado à parte)", nt.notas.length + " / sem Pipe " + nt.semPipe, "3 / sem Pipe 1");
+  igual("Notas: Pipe repetido guarda as duas linhas, em partes (maior valor = parte 1)", nt.pipesRepetidos + " / " + nt.notas.filter(function(n){ return n.pipefy_card_id === "111"; }).map(function(n){ return n.pipe_parte + ":" + n.valor; }).join(","), "1 / 2:1000,1:1200");
   igual("Notas: valor em texto \"R$ 80,00\"", nt.notas.filter(function(n){ return n.pipefy_card_id === "222"; })[0].valor, 80);
   igual("Notas: a conta bancária (2ª \"CONTA\") e banco não são lidos", /12345-6|ITAU/.test(JSON.stringify(nt)), false);
   igual("Notas sem Pipe: lista com fornecedor, hub, NF e valor (não só o contador)", nt.semPipeLista.map(function(n){ return [n.fornecedor, n.hub_texto, n.numero_nota, n.valor].join("/"); }).join(";"), "TICKET LOG/MATRIZ/-/248956.38");
@@ -389,6 +389,46 @@
   var cp = R.lerControleNotas(comPipe, "2026-10");
   igual("Notas sem Pipe: quando o Pipe é preenchido, acha o ID temporário que a nota tinha", R.idsTemporariosCandidatos(cp.notas)["998877"], sp1.semPipeLista[0].id_temporario);
   igual("Notas sem Pipe: valor diferente = outra nota (não troca o temporário errado)", R.idTemporarioNota({ fornecedor: "ARVAL", numero_nota: "77", valor: 55662.86, mes_referencia: "2026-10-01" }, 1) !== sp1.semPipeLista[0].id_temporario, true);
+
+  grupo("Notas — carga de todas as competências (N2) e saneamento");
+  // serial do Excel: 46055 = 2026-02-02 ; 46327 = 2026-11-01 ; 46330 = 2026-11-04 ; 46298 = 2026-10-03 ; 46337 = 2026-11-11 ; 46346 = 2026-11-20
+  var CAB = ["FORNECEDOR", "HUB", "CONTA", "DESCRIÇÃO", "VEÍCULO", "NOTA FISCAL", "DATA DE EMISSÃO", "DATA DE VENCIMENTO", "Data de Pagamento", "MÊS REFERÊNCIA", "ANO", "VALOR",
+    "FORMA DE PAGAMENTO", "BENEFICIADO", "CNPJ", "BANCO", "AGÊNCIA", "CONTA", "DATA DE ENVIO P/FINANCEIRO", "NÚMERO DO PIPE", "RESPONSÁVEL", "STATUS", "JUSTIFICATIVA", "E-mail"];
+  var lt = function(o){ var l = CAB.map(function(){ return null; }); for (var k in o) l[CAB.indexOf(k)] = o[k]; return l; };
+  var base = { "FORNECEDOR": "OFICINA X", "HUB": "BARRA FUNDA", "CONTA": "MANUTENÇÃO VEICULAR", "NOTA FISCAL": 10, "MÊS REFERÊNCIA": 10, "ANO": 2026, "VALOR": 100, "STATUS": "Aprovado",
+    "BENEFICIADO": "Fulano de Tal", "BANCO": "ITAU", "AGÊNCIA": "0001", "CONTA_B": null, "E-mail": "fulano@x.com", "CNPJ": "123.456.789-09", "RESPONSÁVEL": "Ana" };
+  var mk = function(extra){ var o = {}; for (var k in base) if (k !== "CONTA_B") o[k] = base[k]; for (var j in extra) o[j] = extra[j]; return lt(o); };
+  var T = R.lerControleNotasTodas([CAB,
+    mk({ "NÚMERO DO PIPE": 900, "DATA DE EMISSÃO": 46327, "DATA DE ENVIO P/FINANCEIRO": 46330, "Data de Pagamento": 46337 }),                // pago (11/11 = hoje)
+    mk({ "NÚMERO DO PIPE": 901, "DATA DE EMISSÃO": 46327, "DATA DE ENVIO P/FINANCEIRO": 46330, "Data de Pagamento": 46346 }),                // agendado
+    mk({ "NÚMERO DO PIPE": 902, "DATA DE EMISSÃO": 46327 }),                                                                                  // sem envio
+    mk({ "NÚMERO DO PIPE": "903.", "DATA DE EMISSÃO": "31//10/226", "DATA DE ENVIO P/FINANCEIRO": 46298 }),                                 // Pipe com ponto, data quebrada, envio 03/10 → 03/11
+    mk({ "NÚMERO DO PIPE": "AGUARDANDO COMPRAS HOMOLOGAR", "NOTA FISCAL": 77 }),
+    mk({ "NÚMERO DO PIPE": 904, "MÊS REFERÊNCIA": 1, "ANO": 2025, "DATA DE EMISSÃO": 46055 }),                                              // 2025 → 02/2026 (mês da emissão)
+    mk({ "NÚMERO DO PIPE": 905, "CONTA": "Enegia Carregador", "VALOR": 50, "MÊS REFERÊNCIA": 9 }),
+    mk({ "NÚMERO DO PIPE": 905, "CONTA": "GARAGEM", "VALOR": 3750, "MÊS REFERÊNCIA": 10 }),
+    mk({ "NÚMERO DO PIPE": 906, "STATUS": "Cancelado" }),
+    mk({ "NÚMERO DO PIPE": 907, "STATUS": null })], "2026-11-11");
+  var nP = function(p, parte){ return T.notas.filter(function(n){ return n.pipefy_card_id === p && n.pipe_parte === (parte || 1); })[0]; };
+  igual("N2: pagamento até hoje = Pago", nP("900").etapa + " " + nP("900").data_pagamento, "pago 2026-11-11");
+  igual("N2: pagamento futuro = Enviado, data guardada como previsão", [nP("901").etapa, String(nP("901").data_pagamento), nP("901").data_pagamento_prevista].join(" "), "enviado null 2026-11-20");
+  igual("N2: com Pipe e sem envio = Pendente de envio", nP("902").etapa, "pendente_envio");
+  igual("N2: Pipe \"903.\" vira 903", !!nP("903"), true);
+  igual("N2: data em texto com ano quebrado → ano da competência", nP("903").data_emissao, "2026-10-31");
+  igual("N2: envio 03/10 com emissão 31/10 (texto quebrado) → 03/11", nP("903").data_envio_financeiro, "2026-11-03");
+  igual("N2: saneamentos ficam anotados na nota", nP("903").saneado.length, 3);
+  igual("N2: Pipe sem número (\"AGUARDANDO…\") vai para a lista sem Pipe", T.semPipeLista.length + " " + T.semPipeLista[0].numero_nota, "1 77");
+  igual("N2: competência 2025 com emissão em 2026 → mês da emissão", nP("904").mes_referencia, "2026-02-01");
+  igual("N2: \"Enegia Carregador\" → COMBUSTÍVEL", nP("905", 2).conta + " / " + nP("905", 2).coluna, "COMBUSTÍVEL / combustivel");
+  igual("N2: mesmo Pipe em 2 linhas = 2 partes (maior valor = 1)", nP("905", 1).valor + " " + nP("905", 2).valor + " " + T.pipesComPartes.join(","), "3750 50 905");
+  igual("N2: Cancelado entra com aprovação cancelado", nP("906").aprovacao, "cancelado");
+  igual("N2: status vazio fica de fora, com aviso da linha", T.avisos.map(function(a){ return a.linha; }).join(","), "11");
+  igual("N2: CPF na coluna CNPJ é descartado", nP("900").cnpj, null);
+  igual("N2: beneficiado, banco, agência, conta bancária e e-mail não são lidos", /Fulano|ITAU|fulano@/.test(JSON.stringify(T)), false);
+  igual("N2: Responsável da planilha guardado (só histórico)", nP("900").responsavel_planilha + " / linha " + nP("900").linha, "Ana / linha 2");
+  igual("N2: leitura por mês usa a mesma regra (outubro: 2 aprovadas com Pipe)", R.lerControleNotas([CAB].concat([
+    mk({ "NÚMERO DO PIPE": 900 }), mk({ "NÚMERO DO PIPE": 901 }), mk({ "NÚMERO DO PIPE": 902, "MÊS REFERÊNCIA": 9 }), mk({ "NÚMERO DO PIPE": 906, "STATUS": "Cancelado" })]), "2026-10").notas.length, 2);
+  igual("N2: dataDaPlanilha recusa data impossível", R.dataDaPlanilha("31/02/2026", 2026).iso, null);
 
   grupo("Financeiro — rateio por BU (aba \"Rateio\", bloco Motoristas)");
   var abaRateio = [

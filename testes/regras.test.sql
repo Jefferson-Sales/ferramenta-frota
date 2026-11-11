@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1079,6 +1079,29 @@ begin
   casos := casos || text 'NF recorrência: com nota no mês = emitiu'; obtidos := obtidos || x; esperados := esperados || text 'true/emitiu';
   select count(*)::text into x from frota.nf_recorrencia('2033-03-01') where fornecedor_id = nfor;
   casos := casos || text 'NF recorrência: menos de 3 meses de histórico não é habitual'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 25. NOTAS FISCAIS N2: PIPE EM PARTES, CARGA DA PLANILHA E PAGAMENTO AGENDADO
+  u_n2 := gen_random_uuid();
+  insert into auth.users (id, email, aud, role) values (u_n2, 'teste.n2op@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values (u_n2, 'TESTE Operador N2', 'admin', '{}', '{}');
+  perform set_config('request.jwt.claims', json_build_object('sub', u_n2, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, pipefy_card_id, pipe_parte, origem_carga) values (nfor, nhub, 3750, '2033-08-01', '9900001', 1, 'planilha') returning id into n2a;
+  begin insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, pipefy_card_id, pipe_parte, origem_carga) values (nfor, nhub, 1700, '2033-07-01', '9900001', 2, 'planilha') returning id into n2b; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'N2: mesmo Pipe com outra parte é aceito'; obtidos := obtidos || x; esperados := esperados || text 'aceitou';
+  begin insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, pipefy_card_id, pipe_parte) values (nfor, nhub, 1, '2033-07-01', '9900001', 2); x := 'aceitou'; exception when unique_violation then x := 'recusou'; end;
+  casos := casos || text 'N2: mesmo Pipe e mesma parte é recusado (não duplica)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.notas_fiscais set etapa = 'enviado', data_envio_financeiro = '2033-08-05', importado_em = now() + interval '1 second' where id = n2a;
+  select coalesce(enviado_por::text, 'vazio') || '/' || (select origem || ':' || observacao from frota.notas_fiscais_historico where nota_id = n2a and etapa_para = 'enviado') into x from frota.notas_fiscais where id = n2a;
+  casos := casos || text 'N2: etapa vinda da planilha não carimba "enviado por"; histórico = importacao'; obtidos := obtidos || x; esperados := esperados || text 'vazio/importacao:Carga da planilha';
+  update frota.notas_fiscais set data_pagamento_prevista = '2033-09-10' where id = n2a;
+  perform frota.nf_marcar_paga(n2a, '2026-11-01');
+  select etapa || '/' || coalesce(data_pagamento_prevista::text, 'limpa') || '/' || (pago_por = u_n2)::text into x from frota.notas_fiscais where id = n2a;
+  casos := casos || text 'N2: marcar paga pela tela limpa a previsão e grava quem marcou'; obtidos := obtidos || x; esperados := esperados || text 'pago/limpa/true';
+  begin perform frota.nf_registrar_envio(n2b, '9900001'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'N2: registrar envio com Pipe de outra nota é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 
