@@ -37,6 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1000,6 +1001,79 @@ begin
   execute 'set local role authenticated';
   begin perform * from frota.financeiro_dre('2032-11-01'); x := 'aceitou'; exception when others then x := case when sqlerrm like 'Sem permissão%' then 'recusou' else sqlerrm end; end;
   casos := casos || text 'DRE: quem não vê o Financeiro não consulta'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 24. NOTAS FISCAIS N1: ESTEIRA (pendente → enviado → pago | recusado), HISTÓRICO E RECORRÊNCIA
+  u_nop := gen_random_uuid(); u_nvis := gen_random_uuid();
+  insert into auth.users (id, email, aud, role) values (u_nop, 'teste.nfop@zzt.invalid', 'authenticated', 'authenticated'), (u_nvis, 'teste.nfvis@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (u_nop, 'TESTE Operador NF', 'operador', '{financeiro}', '{financeiro}'), (u_nvis, 'TESTE Visualizador NF', 'visualizador', '{financeiro}', '{}');
+  insert into frota.fornecedores (nome) values ('TESTE Fornecedor NF') returning id into nfor;
+  insert into frota.hubs (nome) values ('TESTE NF Hub') returning id into nhub;
+  perform set_config('request.jwt.claims', json_build_object('sub', u_nop, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, data_emissao) values (nfor, nhub, 100, '2033-01-01', '2033-01-10') returning id into nf1;
+  select etapa || '/' || (criado_por = u_nop)::text into x from frota.notas_fiscais where id = nf1;
+  casos := casos || text 'NF: nasce pendente de envio, criado_por = login'; obtidos := obtidos || x; esperados := esperados || text 'pendente_envio/true';
+  begin perform frota.nf_registrar_envio(nf1, 'abc'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: envio sem Pipe numérico é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform frota.nf_registrar_envio(nf1, '990001', '2033-01-12');
+  select etapa || '/' || pipefy_card_id || '/' || data_envio_financeiro || '/' || (enviado_por = u_nop)::text into x from frota.notas_fiscais where id = nf1;
+  casos := casos || text 'NF: registrar envio grava Pipe, data e quem enviou'; obtidos := obtidos || x; esperados := esperados || text 'enviado/990001/2033-01-12/true';
+  begin perform frota.nf_recusar(nf1, 'ok'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: recusa sem motivo (≥ 5 letras) é recusada'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform frota.nf_recusar(nf1, 'Valor diferente do boleto');
+  select etapa || '/' || motivo_recusa into x from frota.notas_fiscais where id = nf1;
+  casos := casos || text 'NF: recusa do Financeiro com motivo'; obtidos := obtidos || x; esperados := esperados || text 'recusado/Valor diferente do boleto';
+  perform frota.nf_registrar_envio(nf1, '990001', '2033-01-15');
+  select etapa || '/' || coalesce(motivo_recusa, 'limpo') into x from frota.notas_fiscais where id = nf1;
+  casos := casos || text 'NF: reenvio depois da recusa limpa o motivo (fica no histórico)'; obtidos := obtidos || x; esperados := esperados || text 'enviado/limpo';
+  begin perform frota.nf_marcar_paga(nf1, null); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: pago sem data é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin perform frota.nf_marcar_paga(nf1, current_date + 30); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: pago com data no futuro é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform frota.nf_marcar_paga(nf1, '2026-11-01');
+  select etapa || '/' || data_pagamento || '/' || (pago_por = u_nop)::text into x from frota.notas_fiscais where id = nf1;
+  casos := casos || text 'NF: marcar paga grava data e quem marcou'; obtidos := obtidos || x; esperados := esperados || text 'pago/2026-11-01/true';
+  begin perform frota.nf_registrar_envio(nf1, '990001'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: nota paga não volta a enviado sem reabrir'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin perform frota.nf_reabrir(nf1, 'x'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: reabrir sem motivo é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform frota.nf_reabrir(nf1, 'Pagamento lançado na nota errada');
+  select etapa || '/' || coalesce(data_pagamento::text, 'sem data') into x from frota.notas_fiscais where id = nf1;
+  casos := casos || text 'NF: reabrir nota paga volta a enviado e limpa o pagamento'; obtidos := obtidos || x; esperados := esperados || text 'enviado/sem data';
+  select string_agg(coalesce(etapa_de, '-') || '>' || etapa_para, ' ' order by feito_em, etapa_para) into x from frota.notas_fiscais_historico where nota_id = nf1;
+  casos := casos || text 'NF: histórico guarda cada passo'; obtidos := obtidos || x;
+  esperados := esperados || text '->pendente_envio pendente_envio>enviado enviado>recusado recusado>enviado enviado>pago pago>enviado';
+  select count(*) filter (where feito_por_nome = 'TESTE Operador NF')::text || '/' || count(*)::text into x from frota.notas_fiscais_historico where nota_id = nf1;
+  casos := casos || text 'NF: histórico com o nome de quem fez (do login)'; obtidos := obtidos || x; esperados := esperados || text '6/6';
+  select observacao into x from frota.notas_fiscais_historico where nota_id = nf1 and etapa_de = 'pago';
+  casos := casos || text 'NF: motivo da reabertura vai para o histórico'; obtidos := obtidos || x; esperados := esperados || text 'Reaberta: Pagamento lançado na nota errada';
+  begin update frota.notas_fiscais set etapa = 'pago' where id = nf1; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: mudar direto para pago sem data é recusado (mesma regra fora das funções)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  begin update frota.notas_fiscais_historico set observacao = 'mexi' where nota_id = nf1; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: histórico não pode ser alterado (nem pelo dono do banco)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_nvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin perform frota.nf_recusar(nf1, 'Visualizador tentando'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'NF: quem só vê o Financeiro não mexe na esteira'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select count(*)::text into x from frota.notas_fiscais_historico where nota_id = nf1;
+  casos := casos || text 'NF: quem vê o Financeiro lê o histórico'; obtidos := obtidos || x; esperados := esperados || text '6';
+  execute 'reset role';
+  -- recorrência: notas em 3 dos 6 meses antes de 2033-06 (emissão nos dias 8, 10, 12 → dia habitual 10)
+  insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, data_emissao) values
+    (nfor, nhub, 200, '2033-02-01', '2033-02-08'), (nfor, nhub, 220, '2033-03-01', '2033-03-10'), (nfor, nhub, 240, '2033-04-01', '2033-04-12');
+  perform set_config('request.jwt.claims', json_build_object('sub', u_nop, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select meses_com_nota || '/' || dia_habitual || '/' || emitiu_no_mes || '/' || situacao into x from frota.nf_recorrencia('2033-06-01') where fornecedor_id = nfor;
+  casos := casos || text 'NF recorrência: fornecedor habitual sem nota no mês (mês futuro = no prazo)'; obtidos := obtidos || x; esperados := esperados || text '4/10/false/no_prazo';
+  insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, data_emissao) values (nfor, nhub, 210, '2033-06-01', '2033-06-09');
+  select emitiu_no_mes || '/' || situacao into x from frota.nf_recorrencia('2033-06-01') where fornecedor_id = nfor;
+  casos := casos || text 'NF recorrência: com nota no mês = emitiu'; obtidos := obtidos || x; esperados := esperados || text 'true/emitiu';
+  select count(*)::text into x from frota.nf_recorrencia('2033-03-01') where fornecedor_id = nfor;
+  casos := casos || text 'NF recorrência: menos de 3 meses de histórico não é habitual'; obtidos := obtidos || x; esperados := esperados || text '0';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 

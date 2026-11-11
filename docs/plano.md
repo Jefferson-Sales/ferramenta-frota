@@ -297,7 +297,9 @@ Ordem sugerida: **1 → 2 → 3a → 3b → 4** (do mais simples e só de tela p
 - **N3 — Lista com 15 colunas** no padrão da planilha, alerta de vencimento (vencida / vence hoje / vence em até 7 dias / paga), filtros (mês, hub, conta, fornecedor, etapa, alerta) e **Exportar Excel/CSV com exatamente o que está filtrado**.
 - **N4 — Topo e ações:** cards do mês (Enviadas qtd e R$, Pendentes de envio, Recusadas, Alertas de vencimento), esteira por etapa (clicável = filtro), régua de recorrência (fornecedor habitual que passou do dia médio sem nota), ações de 1 clique (Registrar envio: Pipe + data; Recusa: motivo; Marcar paga) e cadastro com sugestões (mês de referência = mês da emissão; conta e forma de pagamento habituais do fornecedor).
 
-**Decisões pendentes (Jefferson):** guardar o nome do "Responsável" da planilha no histórico; planilha como fonte da verdade para jan–nov; quem marca "Pago"; o que fazer com notas do banco que não estão na planilha.
+**Decisões do Jefferson (11/11/2026):** manter o nome do "Responsável" da planilha nas notas antigas (novas = login); a planilha prevalece para jan–nov/2026; a Frota marca "Pago" com a data quando o Financeiro confirmar; notas do banco fora da planilha ficam e aparecem na prévia (não apagar nem cancelar).
+
+**N1 entregue (11/11/2026):** migration `sql/2026-11-11-n1-notas-esteira.sql` aplicada; seção 24 do teste de banco (22 casos). As 1.225 notas existentes ficaram em "pendente_envio" até a N2 trazer a etapa real. Recorrência com dados reais em 11/11: 11 combinações atrasadas e 48 no prazo (novembro ainda não carregado; inclui lavanderias, que podem sair da régua por estarem fora da DRE).
 
 ## Carros elétricos — as 3 levas da EvoMob (informado pelo Jefferson em 27/10/2026)
 
