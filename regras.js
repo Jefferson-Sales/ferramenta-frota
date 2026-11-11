@@ -663,6 +663,71 @@
     return { notas: notas, semPipe: sp.length, semPipeLista: sp, pipesRepetidos: notas.filter(function(n){ return n.pipe_parte > 1; }).length };
   }
 
+  // ---------------- Lista de notas (N3, 11/11/2026) ----------------
+  // Etiqueta de vencimento (regra aprovada pelo Jefferson em 11/11/2026):
+  //  - cancelada e paga não alertam;
+  //  - pendente de envio (e recusada, que voltou para a Frota corrigir): alerta sempre;
+  //  - enviada sem pagamento: só alerta se o vencimento for a partir de ALERTA_NF_DESDE (antes disso a planilha quase
+  //    nunca registrou o pagamento, e 1.200 notas antigas viravam "vencida").
+  // Faixas: vencida (passou), vence hoje, vence em até 7 dias; depois disso, sem alerta.
+  var ALERTA_NF_DESDE = "2026-11-01";
+  var NF_ETAPAS = { pendente_envio: "Pendente de envio", enviado: "Enviado", pago: "Pago", recusado: "Recusado" };
+  var NF_ALERTAS = { vencida: "Vencida", vence_hoje: "Vence hoje", vence_7: "Vence em até 7 dias", paga: "Paga", cancelada: "Cancelada" };
+  function diasEntre(de, ate) { return Math.round((Date.parse(ate + "T12:00:00Z") - Date.parse(de + "T12:00:00Z")) / 864e5); }
+  function alertaVencimentoNota(n, hoje) {
+    if (n.aprovacao === "cancelado") return { chave: "cancelada", texto: NF_ALERTAS.cancelada, tom: "neutral" };
+    if (n.etapa === "pago") return { chave: "paga", texto: NF_ALERTAS.paga, tom: "good" };
+    var v = n.data_vencimento ? String(n.data_vencimento).slice(0, 10) : null;
+    if (!v) return null;
+    if (n.etapa === "enviado" && v < ALERTA_NF_DESDE) return null;
+    var d = diasEntre(hoje, v);
+    if (d < 0) return { chave: "vencida", texto: NF_ALERTAS.vencida + " há " + (-d) + (d === -1 ? " dia" : " dias"), tom: "crit", dias: d };
+    if (d === 0) return { chave: "vence_hoje", texto: NF_ALERTAS.vence_hoje, tom: "warn", dias: 0 };
+    if (d <= 7) return { chave: "vence_7", texto: "Vence em " + d + (d === 1 ? " dia" : " dias"), tom: "warn", dias: d };
+    return null;
+  }
+  // filtros da lista: { mes "AAAA-MM", hub_id, categoria_id, etapa, alerta ("" | "com_alerta" | chave), busca (fornecedor, NF ou Pipe), canceladas }
+  function filtrarNotas(lista, f, hoje) {
+    f = f || {};
+    var busca = finNorm(f.busca || "");
+    return (lista || []).filter(function(n){
+      if (!f.canceladas && n.aprovacao === "cancelado") return false;
+      if (f.mes && String(n.mes_referencia || "").slice(0, 7) !== f.mes) return false;
+      if (f.hub_id && n.hub_id !== f.hub_id) return false;
+      if (f.categoria_id && n.categoria_id !== f.categoria_id) return false;
+      if (f.etapa && n.etapa !== f.etapa) return false;
+      if (f.alerta) {
+        var a = alertaVencimentoNota(n, hoje), k = a ? a.chave : "";
+        if (f.alerta === "com_alerta" ? ["vencida", "vence_hoje", "vence_7"].indexOf(k) < 0 : k !== f.alerta) return false;
+      }
+      if (busca && [n.fornecedor, n.numero_nota, n.pipefy_card_id].map(finNorm).join(" | ").indexOf(busca) < 0) return false;
+      return true;
+    });
+  }
+  function dataBR(iso) { return iso ? String(iso).slice(8, 10) + "/" + String(iso).slice(5, 7) + "/" + String(iso).slice(0, 4) : ""; }
+  // Excel/CSV da lista: exatamente as notas filtradas, nestas colunas (sem dado bancário — ele nem existe no banco).
+  var NF_COLUNAS_EXPORT = ["Competência", "Fornecedor", "Hub", "Conta", "Descrição", "Veículo", "Nota fiscal", "Emissão", "Vencimento", "Alerta",
+    "Valor", "Forma de pagamento", "Envio ao Financeiro", "Nº do Pipe", "Etapa", "Pagamento", "Pagamento previsto", "Aprovação", "Responsável", "Justificativa"];
+  function linhasExportacaoNotas(lista, hoje) {
+    return [NF_COLUNAS_EXPORT].concat((lista || []).map(function(n){
+      var a = alertaVencimentoNota(n, hoje), pipe = n.pipefy_card_id || "";
+      return [String(n.mes_referencia || "").slice(0, 7), n.fornecedor || "", n.hub || "", n.conta || "", n.descricao || "", n.veiculo_texto || "",
+        n.numero_nota || "", dataBR(n.data_emissao), dataBR(n.data_vencimento), a ? a.texto : "", Number(n.valor) || 0, n.forma_pagamento || "",
+        dataBR(n.data_envio_financeiro), /^TEMP-/.test(pipe) ? "sem Pipe (" + pipe + ")" : pipe + (n.pipe_parte > 1 ? " (parte " + n.pipe_parte + ")" : ""),
+        NF_ETAPAS[n.etapa] || n.etapa || "", dataBR(n.data_pagamento), dataBR(n.data_pagamento_prevista),
+        n.aprovacao === "cancelado" ? "Cancelada" : "Aprovada", n.responsavel || "", n.justificativa_atraso || ""];
+    }));
+  }
+  // CSV para Excel em português: ponto e vírgula, vírgula decimal, aspas quando precisa, BOM para os acentos
+  function csvDeLinhas(linhas) {
+    var cel = function(v){
+      if (typeof v === "number") return v.toFixed(2).replace(".", ",");
+      var s = String(v == null ? "" : v);
+      return /[";\n\r]/.test(s) ? "\"" + s.replace(/"/g, "\"\"") + "\"" : s;
+    };
+    return "﻿" + linhas.map(function(l){ return l.map(cel).join(";"); }).join("\r\n");
+  }
+
   // ID temporário de nota sem Pipe: "TEMP-AAAAMM-xxxxxxxx", calculado de fornecedor + NF + valor (+ ocorrência, se houver
   // duas iguais). É sempre o mesmo para a mesma nota: reimportar não duplica e, quando o Pipe for preenchido na planilha,
   // a nota temporária é achada por ele e recebe o número do Pipe (ver idsTemporariosCandidatos).
@@ -744,6 +809,13 @@
     lerEdenred: lerEdenred,
     lerControleNotas: lerControleNotas,
     lerControleNotasTodas: lerControleNotasTodas,
+    ALERTA_NF_DESDE: ALERTA_NF_DESDE,
+    NF_ETAPAS: NF_ETAPAS,
+    alertaVencimentoNota: alertaVencimentoNota,
+    filtrarNotas: filtrarNotas,
+    NF_COLUNAS_EXPORT: NF_COLUNAS_EXPORT,
+    linhasExportacaoNotas: linhasExportacaoNotas,
+    csvDeLinhas: csvDeLinhas,
     dataDaPlanilha: dataDaPlanilha,
     lerRateioBU: lerRateioBU,
     idTemporarioNota: idTemporarioNota,

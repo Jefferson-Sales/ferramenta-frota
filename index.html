@@ -361,6 +361,16 @@
   .fimp-sempipe{ border:1px solid var(--warning-forte); border-radius:var(--raio-md); padding:var(--espaco-5); margin:var(--espaco-5) 0; background:var(--surface); }
   .fimp-sempipe input[type=checkbox], .fimp-todas input[type=checkbox]{ width:auto; margin:0; }
   .fimp-todas{ display:flex; align-items:center; gap:var(--espaco-2); }
+  .nfl-filtros input[type=search]{ flex:1 1 200px; min-width:0; }
+  .nfl-canc input{ width:auto; margin:0; }
+  #nfl-card .card-head, #nfl-card .card-head-actions{ flex-wrap:wrap; gap:var(--espaco-3); }
+  .nfl-filtros label{ flex-wrap:wrap; min-width:0; max-width:100%; }
+  .nfl-filtros .filter-select{ max-width:100%; min-width:0; }
+  .nfl-tabela td.num{ white-space:nowrap; }
+  .nfl-tabela td{ vertical-align:top; }
+  .nfl-tabela .nfl-desc{ max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nfl-tabela .nfl-sub{ display:block; margin-top:var(--espaco-1); font-size:var(--fs-xs); color:var(--muted); white-space:nowrap; }
+  .nfl-tabela .pill{ margin-top:var(--espaco-1); }
   .fimp-detalhe{ margin:var(--espaco-4) 0; }
   .fimp-detalhe summary{ cursor:pointer; font-weight:600; }
   .fimp-detalhe ul{ margin:var(--espaco-2) 0 0; padding-left:var(--espaco-8); font-size:var(--fs-sm); }
@@ -676,18 +686,25 @@
       <div class="topline"><h1>Financeiro</h1></div>
       <p class="section-desc">Fornecedores, notas fiscais e alertas de envio — substituindo o fluxo manual por e-mail e planilha.</p>
 
-      <div class="card">
-        <div class="card-head"><h2>Notas fiscais</h2><div class="card-head-actions"><span class="count" id="fin-nf-count"></span><button class="inline-add-trigger" data-open-modal="modal-nota" data-edit="financeiro">+ Nova nota fiscal</button></div></div>
-        <div class="fin-filtros">
-          <label>Linha de conta <select id="fin-f-cat" class="filter-select"><option value="">Todas</option></select></label>
+      <div class="card" id="nfl-card">
+        <div class="card-head"><h2>Notas fiscais</h2><div class="card-head-actions"><span class="count" id="fin-nf-count"></span>
+          <button type="button" class="btn qf-mini" id="nfl-xlsx">Baixar Excel</button><button type="button" class="btn qf-mini" id="nfl-csv">Baixar CSV</button>
+          <button class="inline-add-trigger" data-open-modal="modal-nota" data-edit="financeiro">+ Nova nota fiscal</button></div></div>
+        <div class="fin-filtros nfl-filtros">
           <label>Competência <input type="month" id="fin-f-mes" class="filter-select"></label>
+          <label>Hub <select id="nfl-f-hub" class="filter-select"><option value="">Todos</option></select></label>
+          <label>Conta <select id="fin-f-cat" class="filter-select"><option value="">Todas</option></select></label>
+          <label>Etapa <select id="nfl-f-etapa" class="filter-select"><option value="">Todas</option><option value="pendente_envio">Pendente de envio</option><option value="enviado">Enviado</option><option value="pago">Pago</option><option value="recusado">Recusado</option></select></label>
+          <label>Vencimento <select id="nfl-f-alerta" class="filter-select"><option value="">Todos</option><option value="com_alerta">Com alerta</option><option value="vencida">Vencidas</option><option value="vence_hoje">Vencem hoje</option><option value="vence_7">Vencem em até 7 dias</option><option value="paga">Pagas</option></select></label>
+          <input type="search" id="nfl-f-busca" class="filter-select" placeholder="Fornecedor, NF ou Pipe" aria-label="Buscar por fornecedor, nota fiscal ou Pipe">
+          <label class="nfl-canc"><input type="checkbox" id="nfl-f-canc"> Mostrar canceladas</label>
           <button type="button" class="btn qf-mini" id="fin-f-limpar">Limpar filtros</button>
           <span class="qf-sub" id="fin-f-total"></span>
         </div>
         <div class="table-wrap">
-          <table>
-            <thead><tr><th>Fornecedor</th><th>Categoria</th><th>Competência</th><th>Nº nota</th><th>Vencimento</th><th>Status</th><th class="num">Valor</th></tr></thead>
-            <tbody id="fin-nf-body"><tr><td colspan="7" class="empty-row">Carregando…</td></tr></tbody>
+          <table class="nfl-tabela">
+            <thead><tr><th>Competência</th><th>Fornecedor</th><th>Hub</th><th>Conta</th><th>Descrição</th><th>Veículo</th><th>NF</th><th>Emissão</th><th>Vencimento</th><th class="num">Valor</th><th>Forma de pagamento</th><th>Envio ao Financeiro</th><th>Pipe</th><th>Etapa</th><th>Responsável</th></tr></thead>
+            <tbody id="fin-nf-body"><tr><td colspan="15" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -4037,6 +4054,9 @@
 
     rest("hubs?select=id,nome&order=nome").then(function(rows){
       fillSelect("nf-hub", rows, function(h){ return h.nome; }, "—");
+      var sh = document.getElementById("nfl-f-hub");
+      sh.innerHTML = '<option value="">Todos</option>' + rows.map(function(h){ return '<option value="' + esc(h.id) + '">' + esc(h.nome) + '</option>'; }).join("");
+      sh.value = finFiltros.hub;
     }).catch(function(){});
 
     rest("veiculos?select=id,placa&order=placa").then(function(rows){
@@ -4050,30 +4070,66 @@
     carregarNotasFiscais();
   }
 
-  // Filtros da lista de notas (linha de conta e mês de competência). Sem filtro: 200 mais recentes.
-  var finFiltros = { categoria: "", mes: "" };
-  var FIN_LIMITE_FILTRADO = 1000;
+  // Lista de notas (N3, 11/11/2026): carrega todas (são ~1.300 por ano) e filtra aqui; regras em Regras.filtrarNotas /
+  // alertaVencimentoNota / linhasExportacaoNotas. finFiltros.categoria e .mes continuam sendo os que a Visão Executiva preenche.
+  var finFiltros = { categoria: "", mes: "", hub: "", etapa: "", alerta: "", busca: "", canceladas: false };
+  var NFL = { todas: [], filtradas: [] };
+  var NFL_ETAPA_TOM = { pendente_envio: "warn", enviado: "neutral", pago: "good", recusado: "crit" };
   function carregarNotasFiscais(){
-    var f = finFiltros, filtrado = !!(f.categoria || f.mes);
-    var q = "notas_fiscais?select=numero_nota,data_vencimento,mes_referencia,valor,status,fornecedores(nome),categorias_custo(nome)" +
-      (f.categoria ? "&categoria_id=eq." + encodeURIComponent(f.categoria) : "") +
-      (f.mes ? "&mes_referencia=gte." + f.mes + "-01&mes_referencia=lt." + Regras.somaMeses(f.mes, 1) + "-01" : "") +
-      "&order=" + (filtrado ? "mes_referencia.desc,valor.desc" : "data_vencimento.desc") + "&limit=" + (filtrado ? FIN_LIMITE_FILTRADO : 200);
     document.getElementById("fin-f-total").textContent = "";
-    rest(q).then(function(rows){
-      renderNotasFiscais(rows);
-      if (filtrado){
-        var soma = rows.reduce(function(s, n){ return s + (Number(n.valor) || 0); }, 0);
-        document.getElementById("fin-f-total").textContent = "Total filtrado: " + money(soma) + (rows.length >= FIN_LIMITE_FILTRADO ? " (mostrando as " + FIN_LIMITE_FILTRADO + " primeiras)" : "");
-      }
+    restTodas("notas_fiscais?select=id,pipefy_card_id,pipe_parte,numero_nota,descricao,veiculo_texto,data_emissao,data_vencimento,data_pagamento,data_pagamento_prevista," +
+      "data_envio_financeiro,mes_referencia,valor,forma_pagamento,aprovacao,etapa,responsavel_planilha,justificativa_atraso,fornecedor_id,categoria_id,hub_id," +
+      "fornecedores(nome),categorias_custo(nome),hubs(nome)&order=mes_referencia.desc.nullslast,valor.desc,id").then(function(rows){
+      NFL.todas = (rows || []).map(function(n){
+        n.fornecedor = n.fornecedores ? n.fornecedores.nome : ""; n.conta = n.categorias_custo ? n.categorias_custo.nome : ""; n.hub = n.hubs ? n.hubs.nome : "";
+        n.responsavel = n.responsavel_planilha || ""; n.aprovacao = n.aprovacao || "aprovado";
+        return n;
+      });
+      aplicarFiltrosNotas();
     }).catch(function(e){ toast("Erro ao carregar notas fiscais: " + e.message, true); });
   }
-  document.getElementById("fin-f-cat").addEventListener("change", function(ev){ finFiltros.categoria = ev.target.value; carregarNotasFiscais(); });
-  document.getElementById("fin-f-mes").addEventListener("change", function(ev){ finFiltros.mes = ev.target.value; carregarNotasFiscais(); });
+  function aplicarFiltrosNotas(){
+    var f = finFiltros, hoje = qdHoje();
+    NFL.filtradas = Regras.filtrarNotas(NFL.todas, { mes: f.mes, hub_id: f.hub, categoria_id: f.categoria, etapa: f.etapa, alerta: f.alerta, busca: f.busca, canceladas: f.canceladas }, hoje);
+    renderNotasFiscais(NFL.filtradas, hoje);
+    var soma = NFL.filtradas.reduce(function(s, n){ return s + (n.aprovacao === "cancelado" ? 0 : Number(n.valor) || 0); }, 0);
+    var alertas = NFL.filtradas.filter(function(n){ var a = Regras.alertaVencimentoNota(n, hoje); return a && /^venc/.test(a.chave); }).length;
+    document.getElementById("fin-f-total").textContent = "Total: " + money(soma) + (alertas ? " · " + alertas + (alertas === 1 ? " com alerta de vencimento" : " com alerta de vencimento") : "");
+  }
+  function nflSincronizarCampos(){
+    var f = finFiltros;
+    document.getElementById("fin-f-cat").value = f.categoria; document.getElementById("fin-f-mes").value = f.mes;
+    document.getElementById("nfl-f-hub").value = f.hub; document.getElementById("nfl-f-etapa").value = f.etapa;
+    document.getElementById("nfl-f-alerta").value = f.alerta; document.getElementById("nfl-f-busca").value = f.busca;
+    document.getElementById("nfl-f-canc").checked = f.canceladas;
+  }
+  [["fin-f-cat", "categoria"], ["fin-f-mes", "mes"], ["nfl-f-hub", "hub"], ["nfl-f-etapa", "etapa"], ["nfl-f-alerta", "alerta"]].forEach(function(p){
+    document.getElementById(p[0]).addEventListener("change", function(ev){ finFiltros[p[1]] = ev.target.value; aplicarFiltrosNotas(); });
+  });
+  var nflBuscaTimer = null;
+  document.getElementById("nfl-f-busca").addEventListener("input", function(ev){
+    clearTimeout(nflBuscaTimer); nflBuscaTimer = setTimeout(function(){ finFiltros.busca = ev.target.value; aplicarFiltrosNotas(); }, 250);
+  });
+  document.getElementById("nfl-f-canc").addEventListener("change", function(ev){ finFiltros.canceladas = ev.target.checked; aplicarFiltrosNotas(); });
   document.getElementById("fin-f-limpar").addEventListener("click", function(){
-    finFiltros.categoria = ""; finFiltros.mes = "";
-    document.getElementById("fin-f-cat").value = ""; document.getElementById("fin-f-mes").value = "";
-    carregarNotasFiscais();
+    finFiltros = { categoria: "", mes: "", hub: "", etapa: "", alerta: "", busca: "", canceladas: false };
+    nflSincronizarCampos(); aplicarFiltrosNotas();
+  });
+  // exportar exatamente o que está filtrado
+  function nflNomeArquivo(ext){
+    var f = finFiltros, partes = ["notas-fiscais", f.mes || "todas-competencias"];
+    if (f.etapa) partes.push(f.etapa); if (f.alerta) partes.push(f.alerta);
+    return partes.join("_") + "_" + qdHoje() + "." + ext;
+  }
+  document.getElementById("nfl-xlsx").addEventListener("click", function(){
+    if (!NFL.filtradas.length){ toast("Nenhuma nota com esses filtros.", true); return; }
+    gmBaixar(this, "Notas fiscais", nflNomeArquivo("xlsx"), Regras.linhasExportacaoNotas(NFL.filtradas, qdHoje()));
+  });
+  document.getElementById("nfl-csv").addEventListener("click", function(){
+    if (!NFL.filtradas.length){ toast("Nenhuma nota com esses filtros.", true); return; }
+    var blob = new Blob([Regras.csvDeLinhas(Regras.linhasExportacaoNotas(NFL.filtradas, qdHoje()))], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nflNomeArquivo("csv");
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   });
 
   function renderFornecedores(rows){
@@ -4086,15 +4142,24 @@
     }).join("");
   }
 
-  function renderNotasFiscais(rows){
+  function renderNotasFiscais(rows, hoje){
     var body = document.getElementById("fin-nf-body");
     document.getElementById("fin-nf-count").textContent = rows.length + (rows.length === 1 ? " nota" : " notas");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="empty-row">' + (finFiltros.categoria || finFiltros.mes ? "Nenhuma nota com esses filtros." : "Nenhuma nota fiscal registrada ainda.") + '</td></tr>'; return; }
+    var algumFiltro = Object.keys(finFiltros).some(function(k){ return finFiltros[k]; });
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="15" class="empty-row">' + (algumFiltro ? "Nenhuma nota com esses filtros." : "Nenhuma nota fiscal registrada ainda.") + '</td></tr>'; return; }
+    var d = function(v){ return v ? dateBR(String(v).slice(0, 10)) : "—"; };
     body.innerHTML = rows.map(function(n){
-      return "<tr><td>" + esc(n.fornecedores ? n.fornecedores.nome : "—") + "</td><td>" + esc(n.categorias_custo ? n.categorias_custo.nome : "—") +
-        "</td><td>" + (n.mes_referencia ? esc(n.mes_referencia.slice(5, 7) + "/" + n.mes_referencia.slice(0, 4)) : "—") +
-        "</td><td>" + esc(n.numero_nota || "—") + "</td><td>" + dateBR(n.data_vencimento) + "</td><td>" +
-        pill(STATUS_NF_LABEL[n.status] || n.status, STATUS_NF_PILL[n.status]) + "</td><td class=\"num\">" + money(n.valor) + "</td></tr>";
+      var a = Regras.alertaVencimentoNota(n, hoje), temp = /^TEMP-/.test(n.pipefy_card_id || "");
+      var pipe = temp ? pill("Sem Pipe", "warn") + '<span class="nfl-sub" title="ID temporário">' + esc(n.pipefy_card_id) + '</span>'
+        : esc(n.pipefy_card_id || "—") + (n.pipe_parte > 1 ? '<span class="nfl-sub">parte ' + esc(n.pipe_parte) + '</span>' : "");
+      var etapa = (n.aprovacao === "cancelado" ? pill("Cancelada", "neutral") : pill(Regras.NF_ETAPAS[n.etapa] || n.etapa || "—", NFL_ETAPA_TOM[n.etapa])) +
+        (n.data_pagamento ? '<span class="nfl-sub">paga em ' + d(n.data_pagamento) + '</span>' : n.data_pagamento_prevista ? '<span class="nfl-sub">previsto ' + d(n.data_pagamento_prevista) + '</span>' : "");
+      return "<tr><td>" + (n.mes_referencia ? esc(n.mes_referencia.slice(5, 7) + "/" + n.mes_referencia.slice(0, 4)) : "—") + "</td><td>" + esc(n.fornecedor || "—") +
+        "</td><td>" + esc(n.hub || "—") + "</td><td>" + esc(n.conta || "—") + '</td><td class="nfl-desc" title="' + esc(n.descricao || "") + '">' + esc(n.descricao || "—") +
+        "</td><td>" + esc(n.veiculo_texto || "—") + "</td><td>" + esc(n.numero_nota || "—") + "</td><td>" + d(n.data_emissao) +
+        "</td><td>" + d(n.data_vencimento) + (a && a.chave !== "paga" && a.chave !== "cancelada" ? "<br>" + pill(a.texto, a.tom) : "") +
+        '</td><td class="num">' + money(n.valor) + "</td><td>" + esc(n.forma_pagamento || "—") + "</td><td>" + d(n.data_envio_financeiro) +
+        "</td><td>" + pipe + "</td><td>" + etapa + "</td><td>" + esc(n.responsavel || "—") + "</td></tr>";
     }).join("");
   }
 

@@ -430,6 +430,34 @@
     mk({ "NÚMERO DO PIPE": 900 }), mk({ "NÚMERO DO PIPE": 901 }), mk({ "NÚMERO DO PIPE": 902, "MÊS REFERÊNCIA": 9 }), mk({ "NÚMERO DO PIPE": 906, "STATUS": "Cancelado" })]), "2026-10").notas.length, 2);
   igual("N2: dataDaPlanilha recusa data impossível", R.dataDaPlanilha("31/02/2026", 2026).iso, null);
 
+  grupo("Notas — lista (N3): etiqueta de vencimento, filtros e exportação");
+  var H = "2026-11-11", av = function(o){ var a = R.alertaVencimentoNota(o, H); return a ? a.chave : "sem"; };
+  igual("N3: pendente de envio vencida há 3 dias", R.alertaVencimentoNota({ etapa: "pendente_envio", aprovacao: "aprovado", data_vencimento: "2026-11-08" }, H).texto, "Vencida há 3 dias");
+  igual("N3: pendente de envio antiga também alerta (é a Frota que precisa agir)", av({ etapa: "pendente_envio", data_vencimento: "2026-03-10" }), "vencida");
+  igual("N3: recusada alerta como pendente", av({ etapa: "recusado", data_vencimento: "2026-11-11" }), "vence_hoje");
+  igual("N3: enviada com vencimento antes de 01/11/2026 não alerta (passado sem registro de pagamento)", av({ etapa: "enviado", data_vencimento: "2026-10-31" }), "sem");
+  igual("N3: enviada com vencimento a partir de 01/11/2026 alerta", av({ etapa: "enviado", data_vencimento: "2026-11-01" }), "vencida");
+  igual("N3: vence em 7 dias = alerta; em 8 dias = sem alerta", av({ etapa: "enviado", data_vencimento: "2026-11-18" }) + "/" + av({ etapa: "enviado", data_vencimento: "2026-11-19" }), "vence_7/sem");
+  igual("N3: paga e cancelada não alertam", av({ etapa: "pago", data_vencimento: "2026-01-01" }) + "/" + av({ etapa: "pendente_envio", aprovacao: "cancelado", data_vencimento: "2026-01-01" }), "paga/cancelada");
+  igual("N3: sem vencimento = sem etiqueta", av({ etapa: "pendente_envio" }), "sem");
+  var LN = [
+    { id: 1, fornecedor: "ZZT Garagem", numero_nota: "10", pipefy_card_id: "123", mes_referencia: "2026-10-01", hub_id: "h1", categoria_id: "c1", etapa: "enviado", aprovacao: "aprovado", data_vencimento: "2026-11-05", valor: 100 },
+    { id: 2, fornecedor: "ZZT Oficina", numero_nota: "ACCBT - 55", pipefy_card_id: "TEMP-202610-abc", mes_referencia: "2026-10-01", hub_id: "h2", categoria_id: "c2", etapa: "pendente_envio", aprovacao: "aprovado", data_vencimento: "2026-12-30", valor: 200 },
+    { id: 3, fornecedor: "ZZT Garagem", numero_nota: "11", pipefy_card_id: "124", mes_referencia: "2026-09-01", hub_id: "h1", categoria_id: "c1", etapa: "pago", aprovacao: "aprovado", valor: 300 },
+    { id: 4, fornecedor: "ZZT Garagem", numero_nota: "12", pipefy_card_id: "125", mes_referencia: "2026-10-01", hub_id: "h1", categoria_id: "c1", etapa: "enviado", aprovacao: "cancelado", valor: 50 }];
+  var ids = function(l){ return l.map(function(n){ return n.id; }).join(","); };
+  igual("N3: sem filtro, canceladas ficam de fora", ids(R.filtrarNotas(LN, {}, H)), "1,2,3");
+  igual("N3: mostrar canceladas", ids(R.filtrarNotas(LN, { canceladas: true }, H)), "1,2,3,4");
+  igual("N3: competência + hub + conta", ids(R.filtrarNotas(LN, { mes: "2026-10", hub_id: "h1", categoria_id: "c1" }, H)), "1");
+  igual("N3: etapa", ids(R.filtrarNotas(LN, { etapa: "pago" }, H)), "3");
+  igual("N3: só com alerta", ids(R.filtrarNotas(LN, { alerta: "com_alerta" }, H)), "1");
+  igual("N3: busca por fornecedor, NF ou Pipe (sem acento/caixa/traço)", ids(R.filtrarNotas(LN, { busca: "accbt 55" }, H)) + " " + ids(R.filtrarNotas(LN, { busca: "124" }, H)) + " " + ids(R.filtrarNotas(LN, { busca: "zzt garagem" }, H)), "2 3 1,3");
+  var EX = R.linhasExportacaoNotas([LN[1]], H);
+  igual("N3: Excel com o cabeçalho e uma linha por nota", EX.length + " / " + EX[0].length + " colunas", "2 / 20 colunas");
+  igual("N3: Excel mostra TEMP como \"sem Pipe\" e o valor como número", EX[1][13] + " | " + EX[1][10], "sem Pipe (TEMP-202610-abc) | 200");
+  igual("N3: Excel não tem coluna bancária", /BANCO|AGENCIA|BENEFICIADO|E MAIL/.test(R.finNorm(EX[0].join(" "))), false);
+  igual("N3: CSV com ponto e vírgula, vírgula decimal e aspas", R.csvDeLinhas([["a;b", 1234.5, "x\"y"]]), "﻿\"a;b\";1234,50;\"x\"\"y\"");
+
   grupo("Financeiro — rateio por BU (aba \"Rateio\", bloco Motoristas)");
   var abaRateio = [
     [null, null, null, null, null, "Outro bloco"],
