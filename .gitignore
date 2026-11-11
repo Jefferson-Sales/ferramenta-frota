@@ -1,0 +1,4 @@
+# planilhas de trabalho nunca vão para o repositório (público; têm dados bancários e pessoais)
+*.xlsx
+*.xls
+*.csv
