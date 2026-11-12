@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1102,6 +1102,49 @@ begin
   casos := casos || text 'N2: marcar paga pela tela limpa a previsão e grava quem marcou'; obtidos := obtidos || x; esperados := esperados || text 'pago/limpa/true';
   begin perform frota.nf_registrar_envio(n2b, '9900001'); x := 'aceitou'; exception when others then x := 'recusou'; end;
   casos := casos || text 'N2: registrar envio com Pipe de outra nota é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 26. FORNECEDORES N4a: CADASTRO COMPLETO E DADOS BANCÁRIOS RESTRITOS
+  u_fop := gen_random_uuid(); u_fvis := gen_random_uuid(); u_frota := gen_random_uuid();
+  insert into auth.users (id, email, aud, role) values (u_fop, 'teste.fop@zzt.invalid', 'authenticated', 'authenticated'),
+    (u_fvis, 'teste.fvis@zzt.invalid', 'authenticated', 'authenticated'), (u_frota, 'teste.ffrota@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (u_fop, 'TESTE Operador Fin', 'operador', '{financeiro}', '{financeiro}'), (u_fvis, 'TESTE Visualizador Fin', 'visualizador', '{financeiro}', '{}'),
+    (u_frota, 'TESTE Visualizador Frota', 'visualizador', '{frota}', '{}');
+  insert into frota.fornecedores (nome, cnpj, razao_social, tipo_fornecimento, forma_pagamento, contato_email)
+    values ('TESTE Forn N4', '12.345.678/0001-90', '  TESTE Razão Social LTDA ', 'Serviços', 'pix', ' Contato@ZZT.invalid ') returning id into ffor;
+  select cnpj || '/' || razao_social || '/' || contato_email into x from frota.fornecedores where id = ffor;
+  casos := casos || text 'N4a: CNPJ guardado só com os dígitos; textos e e-mail limpos'; obtidos := obtidos || x; esperados := esperados || text '12345678000190/TESTE Razão Social LTDA/contato@zzt.invalid';
+  begin insert into frota.fornecedores (nome, cnpj) values ('TESTE Forn N4 dup', '12345678000190'); x := 'aceitou'; exception when unique_violation then x := 'recusou'; end;
+  casos := casos || text 'N4a: CNPJ repetido é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin insert into frota.fornecedores (nome, cnpj) values ('TESTE Forn N4 cpf', '123.456.789-09'); x := 'aceitou'; exception when check_violation then x := 'recusou'; end;
+  casos := casos || text 'N4a: CNPJ que não tem 14 dígitos (ex.: CPF) é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin insert into frota.fornecedores (nome, cnpj) values ('TESTE Forn N4 vazio', ''); select coalesce(cnpj, 'nulo') into x from frota.fornecedores where nome = 'TESTE Forn N4 vazio'; exception when others then x := 'erro'; end;
+  casos := casos || text 'N4a: CNPJ em branco vira nulo (vários sem CNPJ convivem)'; obtidos := obtidos || x; esperados := esperados || text 'nulo';
+  begin update frota.fornecedores set tipo_fornecimento = 'Outro' where id = ffor; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'N4a: tipo de fornecimento fora da lista é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.fornecedores set forma_pagamento = 'dinheiro' where id = ffor; x := 'aceitou'; exception when check_violation then x := 'recusou'; end;
+  casos := casos || text 'N4a: forma de pagamento fora da lista é recusada'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fop, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.fornecedores_dados_bancarios (fornecedor_id, banco, agencia, conta) values (ffor, 'TESTE Banco', '0001', ' 12345-6 ');
+  select banco || '/' || conta || '/' || (atualizado_por = u_fop)::text into x from frota.fornecedores_dados_bancarios where fornecedor_id = ffor;
+  casos := casos || text 'N4a: operador do Financeiro grava e lê dados bancários; quem alterou fica gravado'; obtidos := obtidos || x; esperados := esperados || text 'TESTE Banco/12345-6/true';
+  begin delete from frota.fornecedores_dados_bancarios where fornecedor_id = ffor; get diagnostics n = row_count; x := n::text; exception when others then x := 'recusou'; end;
+  casos := casos || text 'N4a: ninguém apaga dados bancários'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text || '/' || (select count(*) from frota.fornecedores where id = ffor)::text into x from frota.fornecedores_dados_bancarios where fornecedor_id = ffor;
+  casos := casos || text 'N4a: quem só vê o Financeiro vê o fornecedor, mas não os dados bancários'; obtidos := obtidos || x; esperados := esperados || text '0/1';
+  begin update frota.fornecedores_dados_bancarios set conta = '999' where fornecedor_id = ffor; get diagnostics n = row_count; x := n::text; exception when others then x := 'recusou'; end;
+  casos := casos || text 'N4a: quem só vê o Financeiro não altera dados bancários'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_frota, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text || '/' || (select count(*) from frota.fornecedores where id = ffor)::text into x from frota.fornecedores_dados_bancarios where fornecedor_id = ffor;
+  casos := casos || text 'N4a: quem vê o Cadastro da Frota não vê dados bancários'; obtidos := obtidos || x; esperados := esperados || text '0/1';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 
