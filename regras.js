@@ -728,6 +728,108 @@
     return "﻿" + linhas.map(function(l){ return l.map(cel).join(";"); }).join("\r\n");
   }
 
+  // ---------------- Notas N4b (12/11/2026): cartões do mês, esteira, sugestões do cadastro e cadastro do fornecedor ----------------
+  // Cartões e esteira seguem a competência do filtro da lista (sem filtro = mês atual — quem chama decide o mês). Canceladas ficam de fora.
+  // "Enviadas" = tudo que já foi ao Financeiro (etapa enviado ou pago); "pagas" é a parte delas já paga.
+  function resumoNotasMes(lista, mes, hoje) {
+    var r = { enviadas: { qtd: 0, valor: 0 }, pagas: { qtd: 0, valor: 0 }, pendentes: { qtd: 0, valor: 0 }, recusadas: { qtd: 0, valor: 0 },
+              alertas: { qtd: 0, vencida: 0, vence_hoje: 0, vence_7: 0 } };
+    var soma = function(k, n){ r[k].qtd++; r[k].valor = Math.round((r[k].valor + (Number(n.valor) || 0)) * 100) / 100; };
+    (lista || []).forEach(function(n){
+      if (n.aprovacao === "cancelado") return;
+      if (mes && String(n.mes_referencia || "").slice(0, 7) !== mes) return;
+      if (n.etapa === "enviado" || n.etapa === "pago") soma("enviadas", n);
+      if (n.etapa === "pago") soma("pagas", n);
+      if (n.etapa === "pendente_envio") soma("pendentes", n);
+      if (n.etapa === "recusado") soma("recusadas", n);
+      var a = alertaVencimentoNota(n, hoje);
+      if (a && r.alertas[a.chave] != null) { r.alertas.qtd++; r.alertas[a.chave]++; }
+    });
+    return r;
+  }
+  // esteira: quantas notas (e quanto) em cada etapa, na ordem do fluxo
+  var NF_ORDEM_ESTEIRA = ["pendente_envio", "enviado", "pago", "recusado"];
+  function contagemEsteira(lista, mes) {
+    var c = {}; NF_ORDEM_ESTEIRA.forEach(function(e){ c[e] = { qtd: 0, valor: 0 }; });
+    (lista || []).forEach(function(n){
+      if (n.aprovacao === "cancelado" || !c[n.etapa]) return;
+      if (mes && String(n.mes_referencia || "").slice(0, 7) !== mes) return;
+      c[n.etapa].qtd++; c[n.etapa].valor = Math.round((c[n.etapa].valor + (Number(n.valor) || 0)) * 100) / 100;
+    });
+    return NF_ORDEM_ESTEIRA.map(function(e){ return { etapa: e, rotulo: NF_ETAPAS[e], qtd: c[e].qtd, valor: c[e].valor }; });
+  }
+  // Sugestões do cadastro de nota, a partir das notas anteriores (aprovadas) do mesmo fornecedor:
+  // conta, hub e forma de pagamento mais usados nas 12 últimas (empate = a mais recente); prazo = mediana dos dias entre
+  // emissão e vencimento; vencimento = emissão + prazo; competência = mês da emissão.
+  function sugestoesNota(anteriores, emissao) {
+    var lst = (anteriores || []).filter(function(n){ return n.aprovacao !== "cancelado"; })
+      .sort(function(a, b){ return String(b.mes_referencia || "") < String(a.mes_referencia || "") ? -1 : String(b.mes_referencia || "") > String(a.mes_referencia || "") ? 1 : 0; })
+      .slice(0, 12);
+    var moda = function(campo){
+      var cont = {}, primeiro = {};
+      lst.forEach(function(n, i){ var v = n[campo]; if (v == null || v === "") return; cont[v] = (cont[v] || 0) + 1; if (primeiro[v] == null) primeiro[v] = i; });
+      var ks = Object.keys(cont); if (!ks.length) return null;
+      ks.sort(function(a, b){ return cont[b] - cont[a] || primeiro[a] - primeiro[b]; });
+      return ks[0];
+    };
+    var prazos = lst.filter(function(n){ return n.data_emissao && n.data_vencimento; })
+      .map(function(n){ return diasEntre(String(n.data_emissao).slice(0, 10), String(n.data_vencimento).slice(0, 10)); })
+      .filter(function(d){ return d >= 0 && d <= 120; }).sort(function(a, b){ return a - b; });
+    var prazo = prazos.length ? (prazos.length % 2 ? prazos[(prazos.length - 1) / 2] : Math.round((prazos[prazos.length / 2 - 1] + prazos[prazos.length / 2]) / 2)) : null;
+    var s = { categoria_id: moda("categoria_id"), hub_id: moda("hub_id"), forma_pagamento: moda("forma_pagamento"), forma_pagamento_chave: null, prazo_dias: prazo, base: lst.length,
+              data_vencimento: null, mes_referencia: null };
+    s.forma_pagamento_chave = formaPagamentoChave(s.forma_pagamento);
+    if (emissao) {
+      s.mes_referencia = String(emissao).slice(0, 7);
+      if (prazo != null) s.data_vencimento = isoMaisDias(String(emissao).slice(0, 10), prazo);
+    }
+    return s;
+  }
+  // CNPJ: 14 dígitos com os dois dígitos verificadores certos (pontuação é ignorada)
+  function cnpjValido(c) {
+    var d = String(c == null ? "" : c).replace(/\D/g, "");
+    if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+    var dv = function(base){
+      var pesos = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], s = 0;
+      for (var i = 0; i < base.length; i++) s += Number(base[i]) * pesos[i];
+      var r = s % 11; return r < 2 ? 0 : 11 - r;
+    };
+    var d1 = dv(d.slice(0, 12)), d2 = dv(d.slice(0, 12) + d1);
+    return d1 === Number(d[12]) && d2 === Number(d[13]);
+  }
+  function cnpjFormatado(c) {
+    var d = String(c == null ? "" : c).replace(/\D/g, "");
+    return d.length === 14 ? d.slice(0, 2) + "." + d.slice(2, 5) + "." + d.slice(5, 8) + "/" + d.slice(8, 12) + "-" + d.slice(12) : String(c || "");
+  }
+  // Cadastro do fornecedor (para o Pipefy): o que falta. Opcionais: inscrição estadual e regime tributário.
+  // Dados bancários só contam quando a forma de pagamento usa conta (transferência ou PIX) e quando quem vê pode lê-los
+  // (bancarios = null → não dá para saber, não acusa).
+  var FORNECEDOR_CAMPOS = [["cnpj", "CNPJ"], ["razao_social", "Razão social"], ["inscricao_municipal", "Inscrição municipal"], ["endereco", "Endereço"],
+    ["forma_pagamento", "Forma de pagamento"], ["contato_email", "E-mail"], ["contato_telefone", "Telefone"], ["servico_descricao", "Serviço"],
+    ["tipo_fornecimento", "Tipo de fornecimento"]];
+  var FORMA_PAGAMENTO_FORN = { boleto: "Boleto", transferencia: "Transferência", pix: "PIX", cartao: "Cartão", debito_automatico: "Débito automático" };
+  // texto livre da planilha/nota ("TRANSFERÊNCIA", "Boleto") → chave do cadastro do fornecedor
+  function formaPagamentoChave(t) {
+    var s = finNorm(t);
+    if (!s) return null;
+    if (s.indexOf("BOLETO") === 0) return "boleto";
+    if (s.indexOf("TRANSF") === 0 || s.indexOf("TED") === 0 || s.indexOf("DEPOSITO") === 0) return "transferencia";
+    if (s.indexOf("PIX") === 0) return "pix";
+    if (s.indexOf("CARTAO") === 0) return "cartao";
+    if (s.indexOf("DEBITO") === 0) return "debito_automatico";
+    return null;
+  }
+  function pendenciasFornecedor(f, bancarios) {
+    f = f || {};
+    var falta = FORNECEDOR_CAMPOS.filter(function(c){ return f[c[0]] == null || String(f[c[0]]).trim() === ""; }).map(function(c){ return c[1]; });
+    if (f.cnpj && String(f.cnpj).trim() !== "" && !cnpjValido(f.cnpj)) falta.push("CNPJ inválido");
+    if (bancarios !== null && (f.forma_pagamento === "transferencia" || f.forma_pagamento === "pix")) {
+      var b = bancarios || {};
+      [["banco", "Banco"], ["agencia", "Agência"], ["conta", "Conta bancária"]].forEach(function(c){ if (!b[c[0]] || String(b[c[0]]).trim() === "") falta.push(c[1]); });
+    }
+    return falta;
+  }
+
   // ID temporário de nota sem Pipe: "TEMP-AAAAMM-xxxxxxxx", calculado de fornecedor + NF + valor (+ ocorrência, se houver
   // duas iguais). É sempre o mesmo para a mesma nota: reimportar não duplica e, quando o Pipe for preenchido na planilha,
   // a nota temporária é achada por ele e recebe o número do Pipe (ver idsTemporariosCandidatos).
@@ -816,6 +918,16 @@
     NF_COLUNAS_EXPORT: NF_COLUNAS_EXPORT,
     linhasExportacaoNotas: linhasExportacaoNotas,
     csvDeLinhas: csvDeLinhas,
+    resumoNotasMes: resumoNotasMes,
+    NF_ORDEM_ESTEIRA: NF_ORDEM_ESTEIRA,
+    contagemEsteira: contagemEsteira,
+    sugestoesNota: sugestoesNota,
+    cnpjValido: cnpjValido,
+    cnpjFormatado: cnpjFormatado,
+    FORNECEDOR_CAMPOS: FORNECEDOR_CAMPOS,
+    FORMA_PAGAMENTO_FORN: FORMA_PAGAMENTO_FORN,
+    formaPagamentoChave: formaPagamentoChave,
+    pendenciasFornecedor: pendenciasFornecedor,
     dataDaPlanilha: dataDaPlanilha,
     lerRateioBU: lerRateioBU,
     idTemporarioNota: idTemporarioNota,

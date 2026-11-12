@@ -458,6 +458,42 @@
   igual("N3: Excel não tem coluna bancária", /BANCO|AGENCIA|BENEFICIADO|E MAIL/.test(R.finNorm(EX[0].join(" "))), false);
   igual("N3: CSV com ponto e vírgula, vírgula decimal e aspas", R.csvDeLinhas([["a;b", 1234.5, "x\"y"]]), "﻿\"a;b\";1234,50;\"x\"\"y\"");
 
+  grupo("Notas — N4b: cartões do mês, esteira, sugestões e cadastro do fornecedor");
+  var M4 = [
+    { mes_referencia: "2026-11-01", etapa: "enviado", aprovacao: "aprovado", valor: 100, data_vencimento: "2026-11-05" },
+    { mes_referencia: "2026-11-01", etapa: "pago", aprovacao: "aprovado", valor: 200, data_vencimento: "2026-11-01" },
+    { mes_referencia: "2026-11-01", etapa: "pendente_envio", aprovacao: "aprovado", valor: 50.25, data_vencimento: "2026-11-15" },
+    { mes_referencia: "2026-11-01", etapa: "recusado", aprovacao: "aprovado", valor: 10, data_vencimento: "2026-11-11" },
+    { mes_referencia: "2026-11-01", etapa: "enviado", aprovacao: "cancelado", valor: 999, data_vencimento: "2026-11-01" },
+    { mes_referencia: "2026-10-01", etapa: "pendente_envio", aprovacao: "aprovado", valor: 70, data_vencimento: "2026-10-01" }];
+  var RM = R.resumoNotasMes(M4, "2026-11", H);
+  igual("N4b: enviadas = enviado + pago (qtd e R$), canceladas fora", RM.enviadas.qtd + " / " + RM.enviadas.valor + " · pagas " + RM.pagas.qtd, "2 / 300 · pagas 1");
+  igual("N4b: pendentes e recusadas do mês", RM.pendentes.qtd + "/" + RM.pendentes.valor + " · " + RM.recusadas.qtd, "1/50.25 · 1");
+  igual("N4b: alertas do mês por faixa (vencida, vence hoje, até 7 dias)", RM.alertas.qtd + " = " + RM.alertas.vencida + "+" + RM.alertas.vence_hoje + "+" + RM.alertas.vence_7, "3 = 1+1+1");
+  igual("N4b: sem mês = todas as competências", R.resumoNotasMes(M4, "", H).pendentes.qtd, 2);
+  igual("N4b: esteira na ordem do fluxo, com quantidade", R.contagemEsteira(M4, "2026-11").map(function(e){ return e.etapa + ":" + e.qtd; }).join(" "), "pendente_envio:1 enviado:1 pago:1 recusado:1");
+  var ANT = [
+    { mes_referencia: "2026-10-01", categoria_id: "c1", hub_id: "h1", forma_pagamento: "BOLETO", data_emissao: "2026-10-05", data_vencimento: "2026-10-20", aprovacao: "aprovado" },
+    { mes_referencia: "2026-09-01", categoria_id: "c1", hub_id: "h2", forma_pagamento: "TRANSFERÊNCIA", data_emissao: "2026-09-05", data_vencimento: "2026-09-15", aprovacao: "aprovado" },
+    { mes_referencia: "2026-08-01", categoria_id: "c2", hub_id: "h2", forma_pagamento: "BOLETO", data_emissao: "2026-08-05", data_vencimento: "2026-08-25", aprovacao: "aprovado" },
+    { mes_referencia: "2026-07-01", categoria_id: "c9", hub_id: "h9", forma_pagamento: "PIX", data_emissao: "2026-07-05", data_vencimento: "2026-07-06", aprovacao: "cancelado" }];
+  var SG = R.sugestoesNota(ANT, "2026-11-10");
+  igual("N4b: sugestão = conta, hub e forma mais usados (canceladas não contam)", [SG.categoria_id, SG.hub_id, SG.forma_pagamento, SG.forma_pagamento_chave].join(" "), "c1 h2 BOLETO boleto");
+  igual("N4b: empate fica com a mais recente", R.sugestoesNota(ANT.slice(0, 2), null).hub_id, "h1");
+  igual("N4b: prazo = mediana (10, 15, 20 → 15) e vencimento = emissão + prazo", SG.prazo_dias + " " + SG.data_vencimento, "15 2026-11-25");
+  igual("N4b: competência sugerida = mês da emissão", SG.mes_referencia, "2026-11");
+  igual("N4b: fornecedor sem histórico = sem sugestão", JSON.stringify([R.sugestoesNota([], "2026-11-10").categoria_id, R.sugestoesNota([], "2026-11-10").data_vencimento]), "[null,null]");
+  igual("N4b: CNPJ com dígitos verificadores certos (com ou sem pontuação)", R.cnpjValido("11.222.333/0001-81") + " " + R.cnpjValido("11222333000181"), "true true");
+  igual("N4b: CNPJ com dígito errado, repetido ou CPF é inválido", [R.cnpjValido("11222333000182"), R.cnpjValido("11111111111111"), R.cnpjValido("123.456.789-09")].join(" "), "false false false");
+  igual("N4b: CNPJ formatado", R.cnpjFormatado("11222333000181"), "11.222.333/0001-81");
+  igual("N4b: forma de pagamento da planilha → chave do cadastro", [R.formaPagamentoChave("TRANSFERÊNCIA"), R.formaPagamentoChave("Boleto"), R.formaPagamentoChave("Pix"), String(R.formaPagamentoChave("outro"))].join(" "), "transferencia boleto pix null");
+  var FC = { cnpj: "11222333000181", razao_social: "X LTDA", inscricao_municipal: "1", endereco: "Rua A", forma_pagamento: "transferencia", contato_email: "a@zzt.invalid", contato_telefone: "11", servico_descricao: "Lavagem", tipo_fornecimento: "Serviços" };
+  igual("N4b: cadastro completo (boleto) não tem pendência", R.pendenciasFornecedor(Object.assign({}, FC, { forma_pagamento: "boleto" }), {}).length, 0);
+  igual("N4b: transferência/PIX sem dados bancários = pendência", R.pendenciasFornecedor(FC, {}).join(", "), "Banco, Agência, Conta bancária");
+  igual("N4b: quem não pode ver dados bancários não recebe pendência bancária", R.pendenciasFornecedor(FC, null).length, 0);
+  igual("N4b: fornecedor vazio lista os 9 campos (inscrição estadual e regime são opcionais)", R.pendenciasFornecedor({}, null).length, 9);
+  igual("N4b: CNPJ com dígito errado aparece como pendência", R.pendenciasFornecedor(Object.assign({}, FC, { cnpj: "11222333000182", forma_pagamento: "boleto" }), {}).join(", "), "CNPJ inválido");
+
   grupo("Financeiro — rateio por BU (aba \"Rateio\", bloco Motoristas)");
   var abaRateio = [
     [null, null, null, null, null, "Outro bloco"],
