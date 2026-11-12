@@ -48,6 +48,27 @@
   .sidebar .brand{ display:flex; align-items:center; gap:9px; padding:var(--espaco-1) var(--espaco-3) var(--espaco-7); }
   .sidebar .brand .mark{ width:28px; height:28px; border-radius:var(--raio-md-2); background:var(--accent-marca); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-md); flex:none; }
   .sidebar .brand .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-lg-2); letter-spacing:-0.01em; line-height:1.2; }
+  /* Cabeçalho da marca no menu: faixa verde Beep (sem degradê), logo em selo branco */
+  .sidebar .brand{ background:var(--accent); color:var(--accent-ink); border-radius:var(--radius); padding:var(--espaco-5) var(--espaco-5); margin:0 0 var(--espaco-7); gap:var(--espaco-4); box-shadow:var(--shadow); }
+  .sidebar .brand .mark{ width:38px; height:38px; border-radius:var(--raio-md-3); background:var(--accent-ink); color:var(--accent-marca); }
+  .sidebar .brand .logo-cruz{ stroke:var(--accent-ink); }
+  .sidebar .brand .name{ font-size:var(--fs-xl); color:var(--accent-ink); }
+  .brand-txt{ min-width:0; }
+  .brand-sub{ font-size:var(--fs-2xs); font-weight:600; opacity:.85; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mark .logo-beep{ width:70%; height:70%; }
+  .logo-coracao{ fill:currentColor; }
+  .logo-cruz{ fill:none; stroke:var(--accent-marca); stroke-width:2.4; stroke-linecap:round; }
+  /* Botão Atualizar (no título de cada tela) */
+  .topline{ align-items:center; }
+  .topline h1{ margin-right:auto; }
+  .btn-atualizar{ width:36px; height:36px; flex:none; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:var(--raio-botao); background:var(--surface); color:var(--muted); padding:0; }
+  .btn-atualizar svg{ width:18px; height:18px; }
+  .btn-atualizar:hover{ color:var(--accent); border-color:var(--accent); }
+  .btn-atualizar:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .btn-atualizar:disabled{ cursor:default; }
+  .btn-atualizar.girando svg{ animation:girar .8s linear; }
+  @keyframes girar{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce){ .btn-atualizar.girando svg{ animation:none; } }
   .navbtn{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:none; border-radius:var(--raio-botao); padding:9px var(--espaco-4); font-size:var(--fs-md-2); font-weight:600; color:var(--muted); }
   .navbtn:hover{ background:var(--surface-2); color:var(--ink); }
   .navbtn.active{ background:var(--accent-soft); color:var(--accent); }
@@ -483,7 +504,7 @@
 <div id="view-login">
   <div class="login-card">
     <div class="login-brand">
-      <div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div>
+      <div class="mark"><svg class="mark-ico logo-beep" viewBox="0 0 24 24" aria-hidden="true"><path class="logo-coracao" d="M12 21.2 4.6 14C3 12.5 1.8 10.7 1.8 8.4A5.4 5.4 0 0 1 7.2 3c1.8 0 3.3.8 4.8 2.3C13.5 3.8 15 3 16.8 3a5.4 5.4 0 0 1 5.4 5.4c0 2.3-1.2 4.1-2.8 5.6Z"/><path class="logo-cruz" d="M12 8.6v6M9 11.6h6"/></svg></div>
       <div>
         <div class="name">Beep Fleet</div>
         <div class="sub">Painel de gestão da frota</div>
@@ -510,11 +531,11 @@
   <!-- Barra do topo só no celular/tablet: abre o menu de módulos -->
   <div class="mobile-bar">
     <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
-    <div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="mobile-nome"><div class="name">Beep Fleet</div><div class="mobile-secao" id="mobile-secao"></div></div>
+    <div class="mark"><svg class="mark-ico logo-beep" viewBox="0 0 24 24" aria-hidden="true"><path class="logo-coracao" d="M12 21.2 4.6 14C3 12.5 1.8 10.7 1.8 8.4A5.4 5.4 0 0 1 7.2 3c1.8 0 3.3.8 4.8 2.3C13.5 3.8 15 3 16.8 3a5.4 5.4 0 0 1 5.4 5.4c0 2.3-1.2 4.1-2.8 5.6Z"/><path class="logo-cruz" d="M12 8.6v6M9 11.6h6"/></svg></div><div class="mobile-nome"><div class="name">Beep Fleet</div><div class="mobile-secao" id="mobile-secao"></div></div>
   </div>
   <div class="sidebar-fundo" id="sidebar-fundo"></div>
   <div class="sidebar" id="sidebar">
-    <div class="brand"><div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="name">Beep Fleet</div></div>
+    <div class="brand"><div class="mark"><svg class="mark-ico logo-beep" viewBox="0 0 24 24" aria-hidden="true"><path class="logo-coracao" d="M12 21.2 4.6 14C3 12.5 1.8 10.7 1.8 8.4A5.4 5.4 0 0 1 7.2 3c1.8 0 3.3.8 4.8 2.3C13.5 3.8 15 3 16.8 3a5.4 5.4 0 0 1 5.4 5.4c0 2.3-1.2 4.1-2.8 5.6Z"/><path class="logo-cruz" d="M12 8.6v6M9 11.6h6"/></svg></div><div class="brand-txt"><div class="name">Beep Fleet</div><div class="brand-sub">Gestão de frota</div></div></div>
     <nav id="nav" aria-label="Módulos"></nav>
     <div class="sidebar-foot">
       <div class="user-menu-wrap">
@@ -534,6 +555,7 @@
 
   <div class="main">
 
+    <button type="button" class="btn-atualizar" id="btn-atualizar" title="Atualizar os dados desta tela" aria-label="Atualizar os dados desta tela" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
     <button type="button" class="ex-voltar" id="ex-voltar" hidden>‹ Voltar à Visão Executiva</button>
 
     <!-- VISÃO EXECUTIVA (Diretoria) — B1: tela base; os números entram nas etapas C1–C4 -->
@@ -2374,6 +2396,12 @@
     abrirMenuMobile(!document.getElementById("view-app").classList.contains("menu-aberto"));
   });
   document.getElementById("sidebar-fundo").addEventListener("click", function(){ abrirMenuMobile(false); });
+  document.getElementById("btn-atualizar").addEventListener("click", function(){
+    var b = this;
+    b.disabled = true; b.classList.add("girando");
+    setTimeout(function(){ b.disabled = false; b.classList.remove("girando"); }, 800);
+    carregarPainel(currentPanel, false);
+  });
   document.querySelectorAll("[data-man-aba]").forEach(function(b){
     b.addEventListener("click", function(){ if (currentPanel !== b.dataset.manAba) showPanel(b.dataset.manAba); });
   });
@@ -2403,9 +2431,15 @@
     document.querySelectorAll("[data-edit]").forEach(function(el){
       el.hidden = !canEdit(el.dataset.edit);
     });
+    var tl = document.querySelector('.panel[data-panel="' + key + '"] .topline'), bAt = document.getElementById("btn-atualizar");
+    if (tl) tl.appendChild(bAt);
+    bAt.hidden = !tl;
+    carregarPainel(key, true);
+  }
+  function carregarPainel(key, primeiraVez){
     if (key === "executivo") loadExecutivo();
     if (key === "frota") { loadFrota(); ajustarStickyFrota(); }
-    if (key === "manutencao") loadManutencao(true);
+    if (key === "manutencao") loadManutencao(primeiraVez);
     if (key === "qualidade"){ loadQualidade(); if (QF.tela === "diaria") loadQualidadeDiaria(); }
     if (key === "gestao_manutencao") loadGestaoManutencao();
     if (key === "multas"){ loadMultas(); if (!document.getElementById("mu-aba-descontos").hidden) loadDescontos(); }
