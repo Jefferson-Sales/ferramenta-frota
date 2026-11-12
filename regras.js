@@ -686,7 +686,7 @@
     if (d <= 7) return { chave: "vence_7", texto: "Vence em " + d + (d === 1 ? " dia" : " dias"), tom: "warn", dias: d };
     return null;
   }
-  // filtros da lista: { mes "AAAA-MM", hub_id, categoria_id, etapa, alerta ("" | "com_alerta" | chave), busca (fornecedor, NF ou Pipe), canceladas }
+  // filtros da lista: { mes "AAAA-MM", hub_id, categoria_id, etapa (ou "enviadas" = enviado + pago), alerta ("" | "com_alerta" | chave), busca (fornecedor, NF ou Pipe), canceladas }
   function filtrarNotas(lista, f, hoje) {
     f = f || {};
     var busca = finNorm(f.busca || "");
@@ -695,7 +695,7 @@
       if (f.mes && String(n.mes_referencia || "").slice(0, 7) !== f.mes) return false;
       if (f.hub_id && n.hub_id !== f.hub_id) return false;
       if (f.categoria_id && n.categoria_id !== f.categoria_id) return false;
-      if (f.etapa && n.etapa !== f.etapa) return false;
+      if (f.etapa === "enviadas" ? (n.etapa !== "enviado" && n.etapa !== "pago") : (f.etapa && n.etapa !== f.etapa)) return false; // "enviadas" = enviado + pago (cartão do topo)
       if (f.alerta) {
         var a = alertaVencimentoNota(n, hoje), k = a ? a.chave : "";
         if (f.alerta === "com_alerta" ? ["vencida", "vence_hoje", "vence_7"].indexOf(k) < 0 : k !== f.alerta) return false;

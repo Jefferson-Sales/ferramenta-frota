@@ -450,6 +450,7 @@
   igual("N3: mostrar canceladas", ids(R.filtrarNotas(LN, { canceladas: true }, H)), "1,2,3,4");
   igual("N3: competência + hub + conta", ids(R.filtrarNotas(LN, { mes: "2026-10", hub_id: "h1", categoria_id: "c1" }, H)), "1");
   igual("N3: etapa", ids(R.filtrarNotas(LN, { etapa: "pago" }, H)), "3");
+  igual("N4c: etapa \"enviadas\" = enviado + pago (bate com o cartão do topo)", ids(R.filtrarNotas(LN, { etapa: "enviadas" }, H)), "1,3");
   igual("N3: só com alerta", ids(R.filtrarNotas(LN, { alerta: "com_alerta" }, H)), "1");
   igual("N3: busca por fornecedor, NF ou Pipe (sem acento/caixa/traço)", ids(R.filtrarNotas(LN, { busca: "accbt 55" }, H)) + " " + ids(R.filtrarNotas(LN, { busca: "124" }, H)) + " " + ids(R.filtrarNotas(LN, { busca: "zzt garagem" }, H)), "2 3 1,3");
   var EX = R.linhasExportacaoNotas([LN[1]], H);

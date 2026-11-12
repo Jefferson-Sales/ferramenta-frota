@@ -371,6 +371,25 @@
   .nfl-tabela .nfl-desc{ max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nfl-tabela .nfl-sub{ display:block; margin-top:var(--espaco-1); font-size:var(--fs-xs); color:var(--muted); white-space:nowrap; }
   .nfl-tabela .pill{ margin-top:var(--espaco-1); }
+  .nfl-topo{ padding:var(--espaco-6) var(--espaco-7) var(--espaco-2); border-bottom:1px solid var(--line); }
+  .nfl-periodo{ font-size:var(--fs-sm); color:var(--muted); margin-bottom:var(--espaco-4); }
+  .nfl-topo .kpi-row{ margin-bottom:var(--espaco-5); }
+  .nfl-topo button.kpi-card{ text-align:left; font:inherit; color:inherit; width:100%; }
+  .nfl-topo .kpi-sub{ display:block; font-size:var(--fs-xs); color:var(--muted); margin-top:var(--espaco-1); }
+  .nfl-esteira{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-2) var(--espaco-3); margin-bottom:var(--espaco-5); }
+  .nfl-esteira button{ display:inline-flex; align-items:center; gap:var(--espaco-3); padding:var(--espaco-3) var(--espaco-5); border:1px solid var(--line); border-radius:var(--raio-botao); background:var(--surface); color:var(--ink); font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .nfl-esteira button:hover{ border-color:var(--line-strong); }
+  .nfl-esteira button.sel{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .nfl-esteira b{ font-family:var(--font-display); font-size:var(--fs-lg); }
+  .nfl-esteira .nfl-seta{ color:var(--muted); }
+  .nfl-esteira .nfl-ou{ color:var(--muted); font-size:var(--fs-xs); }
+  .nfl-recorr{ border:1px solid var(--line); border-radius:var(--raio-md); background:var(--surface-2); padding:var(--espaco-4) var(--espaco-5); margin-bottom:var(--espaco-5); }
+  .nfl-recorr.tem-atraso{ border-color:var(--warning-forte); }
+  .nfl-recorr summary{ cursor:pointer; font-weight:600; font-size:var(--fs-sm); }
+  .nfl-recorr ul{ list-style:none; margin:var(--espaco-3) 0 0; padding:0; }
+  .nfl-recorr li{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-2) var(--espaco-4); padding:var(--espaco-3) 0; border-top:1px solid var(--line); font-size:var(--fs-sm); }
+  .nfl-recorr li button{ border:0; background:none; padding:0; font:inherit; font-weight:600; color:var(--accent); cursor:pointer; text-align:left; }
+  .nfl-recorr .nfl-sub{ color:var(--muted); font-size:var(--fs-xs); }
   .fimp-detalhe{ margin:var(--espaco-4) 0; }
   .fimp-detalhe summary{ cursor:pointer; font-weight:600; }
   .fimp-detalhe ul{ margin:var(--espaco-2) 0 0; padding-left:var(--espaco-8); font-size:var(--fs-sm); }
@@ -690,11 +709,12 @@
         <div class="card-head"><h2>Notas fiscais</h2><div class="card-head-actions"><span class="count" id="fin-nf-count"></span>
           <button type="button" class="btn qf-mini" id="nfl-xlsx">Baixar Excel</button><button type="button" class="btn qf-mini" id="nfl-csv">Baixar CSV</button>
           <button class="inline-add-trigger" data-open-modal="modal-nota" data-edit="financeiro">+ Nova nota fiscal</button></div></div>
+        <div class="nfl-topo" id="nfl-topo" aria-live="polite"></div>
         <div class="fin-filtros nfl-filtros">
           <label>Competência <input type="month" id="fin-f-mes" class="filter-select"></label>
           <label>Hub <select id="nfl-f-hub" class="filter-select"><option value="">Todos</option></select></label>
           <label>Conta <select id="fin-f-cat" class="filter-select"><option value="">Todas</option></select></label>
-          <label>Etapa <select id="nfl-f-etapa" class="filter-select"><option value="">Todas</option><option value="pendente_envio">Pendente de envio</option><option value="enviado">Enviado</option><option value="pago">Pago</option><option value="recusado">Recusado</option></select></label>
+          <label>Etapa <select id="nfl-f-etapa" class="filter-select"><option value="">Todas</option><option value="pendente_envio">Pendente de envio</option><option value="enviadas">Enviadas ao Financeiro (enviado + pago)</option><option value="enviado">Enviado (aguardando pagamento)</option><option value="pago">Pago</option><option value="recusado">Recusado</option></select></label>
           <label>Vencimento <select id="nfl-f-alerta" class="filter-select"><option value="">Todos</option><option value="com_alerta">Com alerta</option><option value="vencida">Vencidas</option><option value="vence_hoje">Vencem hoje</option><option value="vence_7">Vencem em até 7 dias</option><option value="paga">Pagas</option></select></label>
           <input type="search" id="nfl-f-busca" class="filter-select" placeholder="Fornecedor, NF ou Pipe" aria-label="Buscar por fornecedor, nota fiscal ou Pipe">
           <label class="nfl-canc"><input type="checkbox" id="nfl-f-canc"> Mostrar canceladas</label>
@@ -4095,7 +4115,81 @@
     var soma = NFL.filtradas.reduce(function(s, n){ return s + (n.aprovacao === "cancelado" ? 0 : Number(n.valor) || 0); }, 0);
     var alertas = NFL.filtradas.filter(function(n){ var a = Regras.alertaVencimentoNota(n, hoje); return a && /^venc/.test(a.chave); }).length;
     document.getElementById("fin-f-total").textContent = "Total: " + money(soma) + (alertas ? " · " + alertas + (alertas === 1 ? " com alerta de vencimento" : " com alerta de vencimento") : "");
+    renderTopoNotas(hoje);
   }
+  // ---- Topo da lista (N4c): cartões do mês, esteira e fornecedores habituais sem nota ----
+  // O mês é o do filtro "Competência"; sem filtro, o mês atual (decisão do Jefferson, 12/11/2026).
+  var NFL_MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  function nflMesTopo(){ return finFiltros.mes || qdHoje().slice(0, 7); }
+  function nflMesNome(m){ return NFL_MESES[Number(m.slice(5, 7)) - 1] + " de " + m.slice(0, 4); }
+  NFL.recorr = { mes: null, linhas: null, erro: null };
+  function renderTopoNotas(hoje){
+    var host = document.getElementById("nfl-topo"), mes = nflMesTopo(), f = finFiltros;
+    var r = Regras.resumoNotasMes(NFL.todas, mes, hoje), est = Regras.contagemEsteira(NFL.todas, mes);
+    var card = function(chave, tom, num, rotulo, sub, sel){
+      return '<button type="button" class="kpi-card clickable ' + tom + (sel ? " sel" : "") + '" data-nfl-card="' + chave + '" aria-pressed="' + (sel ? "true" : "false") + '">' +
+        '<div class="kpi-num">' + esc(num) + '</div><div class="kpi-label">' + esc(rotulo) + '</div>' + (sub ? '<span class="kpi-sub">' + esc(sub) + '</span>' : '') + '</button>';
+    };
+    var html = '<div class="nfl-periodo">Resumo de <b>' + esc(nflMesNome(mes)) + '</b>' + (f.mes ? ' (competência do filtro)' : ' (mês atual — escolha outra competência no filtro abaixo)') + '</div>' +
+      '<div class="kpi-row">' +
+        card("enviadas", "good", r.enviadas.qtd, "Enviadas ao Financeiro", money(r.enviadas.valor) + (r.pagas.qtd ? " · " + r.pagas.qtd + (r.pagas.qtd === 1 ? " paga" : " pagas") : ""), f.etapa === "enviadas") +
+        card("pendentes", r.pendentes.qtd ? "warn" : "neutral", r.pendentes.qtd, "Pendentes de envio", money(r.pendentes.valor), f.etapa === "pendente_envio") +
+        card("recusadas", r.recusadas.qtd ? "crit" : "neutral", r.recusadas.qtd, "Recusadas (corrigir e reenviar)", money(r.recusadas.valor), f.etapa === "recusado") +
+        card("alertas", r.alertas.qtd ? "crit" : "neutral", r.alertas.qtd, "Alertas de vencimento",
+          r.alertas.qtd ? [r.alertas.vencida ? r.alertas.vencida + (r.alertas.vencida === 1 ? " vencida" : " vencidas") : "", r.alertas.vence_hoje ? r.alertas.vence_hoje + " hoje" : "", r.alertas.vence_7 ? r.alertas.vence_7 + " em até 7 dias" : ""].filter(Boolean).join(" · ") : "nenhum", f.alerta === "com_alerta") +
+      '</div>' +
+      '<div class="nfl-esteira" role="group" aria-label="Esteira das notas do mês (clique para filtrar)">' +
+        est.map(function(e, i){
+          return (i === 3 ? '<span class="nfl-ou">ou</span>' : i ? '<span class="nfl-seta" aria-hidden="true">→</span>' : '') +
+            '<button type="button" data-nfl-etapa="' + e.etapa + '" class="' + (f.etapa === e.etapa ? "sel" : "") + '" aria-pressed="' + (f.etapa === e.etapa ? "true" : "false") + '" title="' + esc(money(e.valor)) + '">' +
+            pill(e.rotulo, NFL_ETAPA_TOM[e.etapa]) + '<b>' + esc(e.qtd) + '</b></button>';
+        }).join("") +
+      '</div>' + nflRecorrenciaHtml(mes);
+    host.innerHTML = html;
+    if (NFL.recorr.mes !== mes) carregarRecorrencia(mes);
+  }
+  function carregarRecorrencia(mes){
+    NFL.recorr = { mes: mes, linhas: null, erro: null };
+    rest("rpc/nf_recorrencia", { method: "POST", body: { p_mes: mes + "-01" } }).then(function(rows){
+      if (NFL.recorr.mes !== mes) return;
+      NFL.recorr.linhas = rows || []; renderTopoNotas(qdHoje());
+    }).catch(function(e){ if (NFL.recorr.mes === mes){ NFL.recorr.erro = e.message; renderTopoNotas(qdHoje()); } });
+  }
+  var NFL_SITUACAO = { atrasada: ["Atrasada", "crit"], no_prazo: ["No prazo", "neutral"] };
+  function nflRecorrenciaHtml(mes){
+    var rc = NFL.recorr;
+    if (rc.mes !== mes || (!rc.linhas && !rc.erro)) return '<div class="nfl-recorr"><span class="nfl-sub">Conferindo fornecedores habituais…</span></div>';
+    if (rc.erro) return '<div class="nfl-recorr"><span class="nfl-sub">Não foi possível conferir os fornecedores habituais: ' + esc(rc.erro) + '</span></div>';
+    var falta = rc.linhas.filter(function(l){ return l.situacao !== "emitiu"; }), atras = falta.filter(function(l){ return l.situacao === "atrasada"; });
+    if (!falta.length) return '<div class="nfl-recorr"><span class="nfl-sub">Fornecedores habituais: todos ' + (rc.linhas.length ? "(" + rc.linhas.length + ") " : "") + 'já têm nota em ' + esc(nflMesNome(mes)) + '.</span></div>';
+    falta.sort(function(a, b){ return (a.situacao === "atrasada" ? 0 : 1) - (b.situacao === "atrasada" ? 0 : 1) || (a.dia_habitual || 99) - (b.dia_habitual || 99); });
+    return '<details class="nfl-recorr' + (atras.length ? ' tem-atraso' : '') + '"' + (atras.length ? ' open' : '') + '><summary>' +
+      falta.length + (falta.length === 1 ? ' fornecedor habitual ainda sem nota' : ' fornecedores habituais ainda sem nota') + ' em ' + esc(nflMesNome(mes)) +
+      (atras.length ? ' · <span class="pill crit">' + atras.length + (atras.length === 1 ? ' atrasado' : ' atrasados') + '</span>' : '') + '</summary>' +
+      '<div class="nfl-sub">Habitual = nota em pelo menos 3 dos 6 meses anteriores, nas 6 contas da DRE. Atrasado = passou do dia habitual de emissão + 3 dias. Clique no nome para ver as notas dele.</div><ul>' +
+      falta.map(function(l){
+        var s = NFL_SITUACAO[l.situacao] || [l.situacao, "neutral"];
+        return '<li>' + pill(s[0], s[1]) + '<button type="button" data-nfl-forn="' + esc(l.fornecedor || "") + '">' + esc(l.fornecedor || "—") + '</button>' +
+          '<span>' + esc(l.hub || "sem hub") + ' · ' + esc(l.conta || "—") + '</span>' +
+          '<span class="nfl-sub">costuma emitir por volta do dia ' + esc(l.dia_habitual || "?") + ' · nota em ' + esc(l.meses_com_nota) + ' dos 6 meses · média ' + esc(money(Number(l.valor_medio) || 0)) + '</span></li>';
+      }).join("") + '</ul></details>';
+  }
+  document.getElementById("nfl-topo").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-nfl-card], [data-nfl-etapa], [data-nfl-forn]"); if (!b) return;
+    var f = finFiltros;
+    if (b.hasAttribute("data-nfl-forn")){
+      // notas desse fornecedor em todas as competências (histórico)
+      f.busca = b.getAttribute("data-nfl-forn"); f.mes = ""; f.etapa = ""; f.alerta = "";
+    } else {
+      // cartão/esteira valem para o mês do topo: fixa a competência para a lista bater com o número clicado
+      f.mes = nflMesTopo();
+      var etapa = b.getAttribute("data-nfl-etapa") || { enviadas: "enviado", pendentes: "pendente_envio", recusadas: "recusado" }[b.getAttribute("data-nfl-card")];
+      if (b.getAttribute("data-nfl-card") === "alertas"){ f.alerta = f.alerta === "com_alerta" ? "" : "com_alerta"; f.etapa = ""; }
+      else if (b.getAttribute("data-nfl-card") === "enviadas"){ f.etapa = f.etapa === "enviadas" ? "" : "enviadas"; f.alerta = ""; }
+      else { f.etapa = f.etapa === etapa ? "" : etapa; f.alerta = ""; }
+    }
+    nflSincronizarCampos(); aplicarFiltrosNotas();
+  });
   function nflSincronizarCampos(){
     var f = finFiltros;
     document.getElementById("fin-f-cat").value = f.categoria; document.getElementById("fin-f-mes").value = f.mes;
