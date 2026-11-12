@@ -1,6 +1,9 @@
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gestão da Frota Beep Saúde</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#008E87">
+<meta name="apple-mobile-web-app-title" content="Beep Fleet">
+<meta name="application-name" content="Beep Fleet">
+<title>Beep Fleet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -48,8 +51,15 @@
   .navbtn{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:none; border-radius:var(--raio-botao); padding:9px var(--espaco-4); font-size:var(--fs-md-2); font-weight:600; color:var(--muted); }
   .navbtn:hover{ background:var(--surface-2); color:var(--ink); }
   .navbtn.active{ background:var(--accent-soft); color:var(--accent); }
-  .navbtn .dot{ width:7px; height:7px; border-radius:var(--raio-pilula); background:var(--line-strong); flex:none; }
-  .navbtn.active .dot{ background:var(--accent-marca); }
+  .navbtn{ position:relative; gap:var(--espaco-4); min-height:40px; }
+  .navbtn .nav-ico{ width:18px; height:18px; flex:none; color:var(--faint); }
+  .navbtn:hover .nav-ico{ color:var(--ink); }
+  .navbtn.active{ font-weight:700; }
+  .navbtn.active .nav-ico{ color:var(--accent-marca); }
+  .navbtn.active::before{ content:""; position:absolute; left:-6px; top:8px; bottom:8px; width:3px; border-radius:var(--raio-pilula); background:var(--accent-marca); }
+  .navbtn:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .navbtn .nav-txt{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .man-abas{ margin-top:var(--espaco-4); }
   .nav-badge{ margin-left:auto; background:var(--critical); color:var(--texto-sobre-cor); font-size:var(--fs-3xs); font-weight:700; border-radius:var(--raio-pilula); padding:1px 7px; }
   .sidebar-foot{ margin-top:auto; border-top:1px solid var(--line); padding-top:var(--espaco-5); }
   .user-chip{ display:flex; align-items:center; gap:var(--espaco-3); padding:var(--espaco-2) var(--espaco-3); }
@@ -106,7 +116,12 @@
     #view-app.active{ flex-direction:column; }
     .mobile-bar{ display:flex; align-items:center; gap:var(--espaco-4); position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--line); padding:var(--espaco-3) var(--espaco-7); }
     .mobile-bar .mark{ width:28px; height:28px; border-radius:var(--raio-md-2); background:var(--accent-marca); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:800; font-size:var(--fs-md); flex:none; }
-    .mobile-bar .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-lg-2); }
+    .mobile-bar{ padding-top:max(var(--espaco-3), env(safe-area-inset-top)); }
+    .mobile-bar .name{ font-family:var(--font-display); font-weight:800; font-size:var(--fs-lg-2); line-height:1.15; }
+    .mobile-nome{ min-width:0; }
+    .mobile-secao{ font-size:var(--fs-sm); color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .navbtn{ min-height:46px; font-size:var(--fs-md-2); }
+    .sidebar{ padding-bottom:max(var(--espaco-8), env(safe-area-inset-bottom)); }
     .menu-toggle{ width:40px; height:40px; flex:none; display:flex; align-items:center; justify-content:center; border:1px solid var(--line-strong); border-radius:var(--raio-botao); background:var(--surface); color:var(--ink); font-size:var(--fs-2xl); line-height:1; }
     .menu-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
     .sidebar{ position:fixed; left:0; top:0; bottom:0; height:100vh; height:100dvh; width:min(264px, 84vw); z-index:35; box-shadow:var(--shadow-forte);
@@ -115,6 +130,25 @@
     #view-app.menu-aberto .sidebar-fundo{ display:block; position:fixed; inset:0; background:var(--fundo-modal); z-index:34; }
     .main{ padding:var(--espaco-7) var(--espaco-7) 48px; max-width:none; width:100%; }
     .frota-sticky-head{ position:static; }
+  }
+  /* Tabelas no celular: rolagem lateral suave dentro do card, sem arrastar a página. */
+  .table-wrap{ -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
+  @media (max-width:640px){
+    .main{ padding:var(--espaco-6) var(--espaco-5) 48px; }
+    .topline h1{ font-size:var(--fs-2xl); }
+    .section-desc{ margin-bottom:var(--espaco-7); }
+    .card{ margin-bottom:var(--espaco-7); }
+    .card-head{ flex-wrap:wrap; padding:var(--espaco-4) var(--espaco-5); }
+    .card-head-actions{ flex-wrap:wrap; }
+    .kpi-row{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+    th{ padding:var(--espaco-3) var(--espaco-4); }
+    td{ padding:var(--espaco-3) var(--espaco-4); }
+    .qf-abas{ overflow-x:auto; scrollbar-width:none; }
+    .qf-aba{ white-space:nowrap; }
+    .modal-overlay{ padding:var(--espaco-4) var(--espaco-3); }
+    .modal{ padding:var(--espaco-7) var(--espaco-6); }
+    .modal-actions{ flex-wrap:wrap; }
+    .filter-select{ max-width:100%; }
   }
   @media (max-width:900px) and (prefers-reduced-motion:reduce){ .sidebar, #view-app.menu-aberto .sidebar{ transition:none; } }
   .topline{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--espaco-5); margin-bottom:var(--espaco-1); flex-wrap:wrap; }
@@ -451,7 +485,7 @@
     <div class="login-brand">
       <div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div>
       <div>
-        <div class="name">Gestão da Frota Beep Saúde</div>
+        <div class="name">Beep Fleet</div>
         <div class="sub">Painel de gestão da frota</div>
       </div>
     </div>
@@ -476,11 +510,11 @@
   <!-- Barra do topo só no celular/tablet: abre o menu de módulos -->
   <div class="mobile-bar">
     <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
-    <div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="name">Gestão da Frota Beep Saúde</div>
+    <div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="mobile-nome"><div class="name">Beep Fleet</div><div class="mobile-secao" id="mobile-secao"></div></div>
   </div>
   <div class="sidebar-fundo" id="sidebar-fundo"></div>
   <div class="sidebar" id="sidebar">
-    <div class="brand"><div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="name">Gestão da Frota Beep Saúde</div></div>
+    <div class="brand"><div class="mark"><svg class="mark-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div><div class="name">Beep Fleet</div></div>
     <nav id="nav" aria-label="Módulos"></nav>
     <div class="sidebar-foot">
       <div class="user-menu-wrap">
@@ -518,7 +552,7 @@
     <section class="panel" data-panel="frota">
       <div class="frota-sticky-zone">
         <div class="frota-sticky-head">
-          <div class="topline"><h1>Cadastro da Frota</h1></div>
+          <div class="topline"><h1>Veículos</h1></div>
           <p class="section-desc">Veículos, hubs, contratos e status de disponibilidade. Esta é a base de dados usada pelos outros módulos.</p>
 
           <div class="kpi-row" id="frota-kpis"></div>
@@ -594,6 +628,7 @@
     <!-- MANUTENÇÃO -->
     <section class="panel" data-panel="manutencao">
       <div class="topline"><h1>Manutenções</h1></div>
+      <div class="qf-abas man-abas" role="tablist" aria-label="Manutenções"><button type="button" role="tab" class="qf-aba on" data-man-aba="manutencao" aria-selected="true">Ordens de serviço</button><button type="button" role="tab" class="qf-aba" data-man-aba="gestao_manutencao" aria-selected="false">Painel de gestão</button></div>
       <p class="section-desc">Ordens de serviço, oficinas e tempo parado por veículo. Clique numa OS para ver detalhes, anexar orçamento/NF ou fechar.</p>
 
       <div class="kpi-row" id="man-kpis"></div>
@@ -807,7 +842,8 @@
 
     <!-- QUALIDADE DA FROTA (checklists) -->
     <section class="panel" data-panel="gestao_manutencao">
-      <div class="topline"><h1>Gestão de Manutenção</h1><span class="meta" id="gm-atualizado"></span></div>
+      <div class="topline"><h1>Manutenções</h1><span class="meta" id="gm-atualizado"></span></div>
+      <div class="qf-abas man-abas" role="tablist" aria-label="Manutenções"><button type="button" role="tab" class="qf-aba" data-man-aba="manutencao" aria-selected="false">Ordens de serviço</button><button type="button" role="tab" class="qf-aba on" data-man-aba="gestao_manutencao" aria-selected="true">Painel de gestão</button></div>
       <p class="section-desc">Visão de gestão da manutenção: disponibilidade, oficinas, quebras, custo, cumprimento do checklist, anomalias e revisões preventivas. Tudo considera só os hubs liberados para você, inclusive totais e planilhas.</p>
       <div class="gm-filtros">
         <label>Período <select id="gm-periodo" class="filter-select">
@@ -890,10 +926,10 @@
     </section>
 
     <section class="panel" data-panel="qualidade">
-      <div class="topline"><h1>Gestão de Checklist</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
+      <div class="topline"><h1>Checklists</h1><a class="meta" href="checklist.html" target="_blank" rel="noopener">Abrir formulário do checklist ↗</a></div>
       <p class="section-desc">Estado de cada veículo segundo os checklists de Retirada, Devolução e Inspeção técnica. O status considera as anomalias abertas agora. Clique num veículo para ver o histórico e as fotos. Na <strong>Visão diária</strong>, veja quais carros fizeram (ou não) o checklist de retirada em cada dia.</p>
 
-      <div class="qf-abas" role="tablist" aria-label="Visões da Gestão de Checklist">
+      <div class="qf-abas" role="tablist" aria-label="Visões de Checklists">
         <button type="button" role="tab" class="qf-aba on" data-qf-tela="geral" aria-selected="true">Visão geral</button>
         <button type="button" role="tab" class="qf-aba" data-qf-tela="diaria" aria-selected="false">Visão diária</button>
       </div>
@@ -1163,7 +1199,7 @@
         </div>
         <div class="field span2" id="ac-hubs-field">
           <div class="ac-hubs-head">
-            <label>Hubs <span class="ac-hubs-sub">(valem só para Manutenções e Gestão de Checklist)</span></label>
+            <label>Hubs <span class="ac-hubs-sub">(valem só para Manutenções e Checklists)</span></label>
             <span class="ac-hubs-acoes"><button type="button" class="btn qf-mini" id="ac-hubs-todos">Marcar todos</button><button type="button" class="btn qf-mini" id="ac-hubs-limpar">Limpar</button></span>
           </div>
           <div class="ac-hubs" id="ac-hubs"></div>
@@ -1726,15 +1762,27 @@
     return "&" + col + "=in.(" + (meusHubs.length ? meusHubs.join(",") : "00000000-0000-0000-0000-000000000000") + ")";
   }
 
+  var ICONES_MENU = {
+    painel: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+    carro: '<path d="M5 17H3.5a.5.5 0 0 1-.5-.5V13l2.2-5.1A1.5 1.5 0 0 1 6.6 7h9.6a1.5 1.5 0 0 1 1.3.8L20 13h.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M9 17h6"/><path d="M4 13h16"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+    chave: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+    prancheta: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    alerta: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    carteira: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+    raio: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>'
+  };
+  function iconeMenu(nome){ return '<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONES_MENU[nome] || "") + '</svg>'; }
+  // aba do menu que fica acesa para cada painel (o Painel de gestão fica dentro de Manutenções)
+  function moduloDoMenu(key){ return key === "gestao_manutencao" ? "manutencao" : key; }
   var MODULES = [
-    {key:"executivo", label:"Visão Executiva"}, // primeiro: é a tela inicial de quem tem (Diretoria e Admin)
-    {key:"frota", label:"Cadastro da Frota"},
-    {key:"manutencao", label:"Manutenções"},
-    {key:"gestao_manutencao", label:"Gestão de Manutenção"},
-    {key:"qualidade", label:"Gestão de Checklist"},
-    {key:"multas", label:"Multas"},
-    {key:"financeiro", label:"Financeiro"},
-    {key:"eletrificacao", label:"Carros Elétricos"}
+    {key:"executivo", label:"Visão Executiva", icone:"painel"}, // primeiro: é a tela inicial de quem tem (Diretoria e Admin)
+    {key:"frota", label:"Veículos", icone:"carro"},
+    {key:"manutencao", label:"Manutenções", icone:"chave"},
+    {key:"gestao_manutencao", label:"Manutenções", noMenu:true} /* aba "Painel de gestão" dentro de Manutenções */,
+    {key:"qualidade", label:"Checklists", icone:"prancheta"},
+    {key:"multas", label:"Multas", icone:"alerta"},
+    {key:"financeiro", label:"Financeiro", icone:"carteira"},
+    {key:"eletrificacao", label:"Carros Elétricos", icone:"raio"}
   ];
 
   // ---------------- storage (per-browser convenience only) ----------------
@@ -1988,7 +2036,7 @@
     var visiveis = EX_QUADRANTES.filter(function(q){ return q.pode(); });
     var grade = document.getElementById("ex-grade");
     if (!visiveis.length){
-      grade.innerHTML = '<div class="ex-vazio"><b>Nenhum quadrante liberado</b>Para ver os números, o administrador precisa liberar a visualização dos módulos (Cadastro da Frota, Financeiro, Multas, Carros Elétricos) no seu acesso.</div>';
+      grade.innerHTML = '<div class="ex-vazio"><b>Nenhum quadrante liberado</b>Para ver os números, o administrador precisa liberar a visualização dos módulos (Veículos, Financeiro, Multas, Carros Elétricos) no seu acesso.</div>';
       return;
     }
     grade.innerHTML = visiveis.map(function(q){
@@ -2168,7 +2216,7 @@
         dica: verFrota ? "Notas de LOCAÇÃO VEICULAR: " + P.num(alu.meses_nf || 0) + (alu.meses_nf === 1 ? " mês" : " meses") +
           (alu.ultima_nf ? " (última: " + EX_MESES[Number(alu.ultima_nf.slice(5, 7)) - 1].toLowerCase() + "/" + alu.ultima_nf.slice(0, 4) + ")" : "") +
           (alu.meses_previsto ? " · previsto pelo contrato (" + P.moeda(alu.mensal, true) + "/mês, nota ainda não lançada): " + P.num(alu.meses_previsto) + (alu.meses_previsto === 1 ? " mês" : " meses") : "")
-          : "Precisa da visualização do Cadastro da Frota" },
+          : "Precisa da visualização de Veículos" },
       { rot: "Recargas (energia)", valor: custoRec, txt: P.moeda(custoRec, true),
         dica: P.num(rec.qtd || 0) + " recargas · " + P.num(Math.round(Number(rec.kwh) || 0)) + " kWh · última lançada em " + dataBR(d.ultima_recarga) },
       { rot: "Manutenção", valor: custoMan, txt: verManut ? P.moeda(custoMan, true) : "sem acesso",
@@ -2302,10 +2350,10 @@
       showPanel("sem-acesso");
       return;
     }
-    visible.forEach(function(m, i){
+    visible.filter(function(m){ return !m.noMenu; }).forEach(function(m, i){
       var b = document.createElement("button");
       b.className = "navbtn";
-      b.innerHTML = '<span class="dot"></span>' + esc(m.label) + '<span class="nav-badge" id="nav-badge-' + m.key + '" hidden></span>';
+      b.innerHTML = iconeMenu(m.icone) + '<span class="nav-txt">' + esc(m.label) + '</span><span class="nav-badge" id="nav-badge-' + m.key + '" hidden></span>';
       b.addEventListener("click", function(){ showPanel(m.key); });
       b.dataset.mod = m.key;
       nav.appendChild(b);
@@ -2326,6 +2374,9 @@
     abrirMenuMobile(!document.getElementById("view-app").classList.contains("menu-aberto"));
   });
   document.getElementById("sidebar-fundo").addEventListener("click", function(){ abrirMenuMobile(false); });
+  document.querySelectorAll("[data-man-aba]").forEach(function(b){
+    b.addEventListener("click", function(){ if (currentPanel !== b.dataset.manAba) showPanel(b.dataset.manAba); });
+  });
   document.addEventListener("keydown", function(ev){
     if (ev.key === "Escape" && document.getElementById("view-app").classList.contains("menu-aberto")){
       abrirMenuMobile(false); document.getElementById("menu-toggle").focus();
@@ -2340,9 +2391,14 @@
     document.querySelectorAll(".panel").forEach(function(p){
       p.classList.toggle("active", p.dataset.panel === key);
     });
+    var noMenu = moduloDoMenu(key);
     document.querySelectorAll(".navbtn").forEach(function(b){
-      b.classList.toggle("active", b.dataset.mod === key);
+      var ativo = b.dataset.mod === noMenu;
+      b.classList.toggle("active", ativo);
+      if (ativo) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
+    var mod = MODULES.filter(function(m){ return m.key === noMenu; })[0];
+    document.getElementById("mobile-secao").textContent = mod ? mod.label : "";
     // reveal/hide edit affordances per module
     document.querySelectorAll("[data-edit]").forEach(function(el){
       el.hidden = !canEdit(el.dataset.edit);
@@ -4940,7 +4996,7 @@
       var ls = r[1] || [];
       if (!ls.length) return;
       OSA.fechamento = { osId: osId, lista: ls };
-      document.getElementById("osa-resumo").textContent = "A OS do " + placa + " foi concluída. Para cada anomalia do checklist ligada a ela, diga se o problema foi resolvido. Se continuar, ela volta para Aberta e segue visível na Gestão de Checklist.";
+      document.getElementById("osa-resumo").textContent = "A OS do " + placa + " foi concluída. Para cada anomalia do checklist ligada a ela, diga se o problema foi resolvido. Se continuar, ela volta para Aberta e segue visível em Checklists.";
       document.getElementById("osa-lista").innerHTML = ls.map(function(a){
         return '<div class="osa-item" data-osa-id="' + esc(a.id) + '"><div>' + qfSevPill(a.severidade) + " <b>" + esc(qfItem(a)) + "</b>" + (a.descricao ? ' <span class="qf-sub">— ' + esc(a.descricao) + "</span>" : "") + "</div>" +
           '<div class="osa-opcoes"><label><input type="radio" name="osa-' + esc(a.id) + '" value="resolvida"> Sim, marcar como resolvida</label>' +
@@ -6364,7 +6420,7 @@
       { num: pDisp == null ? "—" : pDisp + "%", label: "Disponíveis agora (" + gmNum(disp.disponivel) + " de " + gmNum(disp.total) + ")", cls: Regras.faixaDisponibilidade(pDisp), ir: "disp", dica: "Ver a disponibilidade por hub" },
       { num: gmNum(disp.indisponivel), label: "Indisponíveis agora", cls: disp.indisponivel ? "warn" : "good", ir: "indisp", dica: "Ver os carros parados, com OS, prazos e tratativas" },
       { num: pCk == null ? "—" : pCk + "%", label: "Checklist de retirada no período (" + gmNum(ckFez) + " de " + gmNum(ckEsp) + ")", cls: pCk == null ? "neutral" : pCk >= 90 ? "good" : pCk >= 70 ? "warn" : "crit", ir: "checklist", dica: "Ver o checklist de retirada por dia" },
-      { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good", ir: "anomalias", dica: "Abrir a lista de anomalias abertas (Gestão de Checklist)" },
+      { num: gmNum(an.abertas_agora), label: "Anomalias abertas agora", cls: an.abertas_agora ? "warn" : "good", ir: "anomalias", dica: "Abrir a lista de anomalias abertas (Checklists)" },
       { num: gmNum(rv.vencidas), label: "Revisões vencidas", cls: rv.vencidas ? "crit" : "good", ir: "vencida", dica: "Ver só as revisões vencidas" },
       { num: gmNum(rv.vencendo), label: "Revisões vencendo (até 1.000 km)", cls: rv.vencendo ? "warn" : "good", ir: "vencendo", dica: "Ver só as revisões vencendo" },
       { num: gmNum(aConferir), label: "Revisões a conferir", cls: aConferir ? "warn" : "good", ir: "conferir", dica: "Ver a lista \"a conferir\"" }
@@ -6475,7 +6531,7 @@
   document.getElementById("gm-kpis").addEventListener("click", function(ev){
     var b = ev.target.closest("[data-gm-ir]"); if (!b) return;
     var ir = b.dataset.gmIr, hub = document.getElementById("gm-hub").value;
-    origemDrill = { painel: "gestao_manutencao", texto: "‹ Voltar ao Dash de Manutenção" };
+    origemDrill = { painel: "gestao_manutencao", texto: "‹ Voltar ao Painel de gestão" };
     if (ir === "disp") gmDestacar("gm-disp-hubs");
     else if (ir === "indisp") exAbrirIndisponiveis(hub);
     else if (ir === "checklist") gmDestacar("gm-checklist");
@@ -6739,9 +6795,9 @@
   // Tudo passa pela Edge Function `usuarios`, que confere no servidor se quem chama é admin ativo.
   var AC_MODULOS = [
     {key:"executivo", label:"Visão Executiva (Diretoria)"},
-    {key:"frota", label:"Cadastro da Frota"},
+    {key:"frota", label:"Veículos"},
     {key:"manutencao", label:"Manutenções"},
-    {key:"checklist", label:"Checklist (formulário e Gestão de Checklist)"},
+    {key:"checklist", label:"Checklists (formulário e painel)"},
     {key:"multas", label:"Multas"},
     {key:"financeiro", label:"Financeiro"},
     {key:"eletrificacao", label:"Carros Elétricos"}
@@ -6880,7 +6936,7 @@
       else cb.disabled = false;
     });
     if (papel === "admin") hint.textContent = "Admin vê e opera todos os módulos e acessa esta tela.";
-    else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada. Diretoria: marque Visão Executiva e também os módulos que ela poderá abrir pelos indicadores — Manutenções (com todos os hubs: disponibilidade, preventivas e carros parados vêm daí), Cadastro da Frota, Financeiro, Multas e Carros Elétricos.";
+    else if (papel === "visualizador") hint.textContent = "Visualizador só consulta; não cria nem edita nada. Diretoria: marque Visão Executiva e também os módulos que ela poderá abrir pelos indicadores — Manutenções (com todos os hubs: disponibilidade, preventivas e carros parados vêm daí), Veículos, Financeiro, Multas e Carros Elétricos.";
     else hint.textContent = "Quem opera um módulo também vê. Visão Executiva é só para Visualizador (Diretoria). Auxiliar de frota: papel Operador, Checklist em \"Opera\" e matrícula preenchida (libera a Inspeção técnica no formulário do checklist).";
     acAjustarHubs();
   }
@@ -6908,7 +6964,7 @@
     document.getElementById("ac-hubs-todos").disabled = !usa;
     document.getElementById("ac-hubs-limpar").disabled = !usa;
     document.getElementById("ac-hubs-hint").textContent = admin ? "Admin vê todos os hubs."
-      : !usa ? "Só vale para Manutenções e Gestão de Checklist. Marque um desses módulos para escolher os hubs."
+      : !usa ? "Só vale para Manutenções e Checklists. Marque um desses módulos para escolher os hubs."
       : "A pessoa só vê veículos, OS, checklists e anomalias dos hubs marcados. Hub novo não entra sozinho: marque aqui quando for cadastrado.";
   }
   function acHubsMarcados(){
@@ -7014,7 +7070,7 @@
     }
     if (acUsaHub()){
       dados.hubs = acHubsMarcados();
-      if (!dados.hubs.length){ setErr("ac-err", "Marque pelo menos um hub (vale para Manutenções e Gestão de Checklist)."); return; }
+      if (!dados.hubs.length){ setErr("ac-err", "Marque pelo menos um hub (vale para Manutenções e Checklists)."); return; }
     }
     var senha = "";
     if (!id){
@@ -7084,7 +7140,7 @@
     var url = location.origin + location.pathname.replace(/[^/]*$/, "");
     document.getElementById("ac-cred-url").textContent = url;
     document.getElementById("ac-cred").innerHTML = "E-mail: " + esc(email) + "<br>Senha: " + esc(senha);
-    acCredTexto = "Gestão da Frota Beep Saúde: " + url + "\nE-mail: " + email + "\nSenha: " + senha;
+    acCredTexto = "Beep Fleet: " + url + "\nE-mail: " + email + "\nSenha: " + senha;
     openModal("modal-usuario-criado");
   }
   document.getElementById("ac-copiar").addEventListener("click", function(){
