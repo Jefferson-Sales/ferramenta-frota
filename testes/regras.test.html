@@ -495,6 +495,35 @@
   igual("N4b: fornecedor vazio lista os 9 campos (inscrição estadual e regime são opcionais)", R.pendenciasFornecedor({}, null).length, 9);
   igual("N4b: CNPJ com dígito errado aparece como pendência", R.pendenciasFornecedor(Object.assign({}, FC, { cnpj: "11222333000182", forma_pagamento: "boleto" }), {}).join(", "), "CNPJ inválido");
 
+  grupo("Notas — N4d: ações da esteira na tela");
+  var ac = function(e, ap, pode){ return R.acoesNota({ etapa: e, aprovacao: ap || "aprovado" }, pode !== false).join(","); };
+  igual("N4d: pendente → registrar envio", ac("pendente_envio"), "envio");
+  igual("N4d: enviada → marcar paga, recusar, reabrir", ac("enviado"), "paga,recusar,reabrir");
+  igual("N4d: recusada → reenviar ou reabrir", ac("recusado"), "envio,reabrir");
+  igual("N4d: paga → só reabrir", ac("pago"), "reabrir");
+  igual("N4d: cancelada ou quem só vê → nenhuma ação", ac("enviado", "cancelado") + "|" + ac("enviado", "aprovado", false), "|");
+  igual("N4d: envio sem Pipe numérico é barrado", R.validarAcaoNota("envio", { pipe: "TEMP-1", data: "2026-11-12" }, "2026-11-12"), "Informe o número do Pipe (só números).");
+  igual("N4d: envio com data futura é barrado; certo passa", R.validarAcaoNota("envio", { pipe: "123", data: "2026-11-13" }, "2026-11-12") + "|" + R.validarAcaoNota("envio", { pipe: " 123 ", data: "2026-11-12" }, "2026-11-12"), "A data de envio não pode ser no futuro.|null");
+  igual("N4d: paga sem data ou futura é barrada", [R.validarAcaoNota("paga", {}, "2026-11-12"), R.validarAcaoNota("paga", { data: "2026-12-01" }, "2026-11-12")].join("|"), "Informe a data de pagamento.|A data de pagamento não pode ser no futuro (use a previsão).");
+  igual("N4d: recusar e reabrir pedem motivo (≥ 5 letras)", [R.validarAcaoNota("recusar", { motivo: "ok" }, ""), String(R.validarAcaoNota("reabrir", { motivo: "Valor errado" }, ""))].join("|"), "Informe o motivo (pelo menos 5 letras).|null");
+  igual("N4d: sugestão do envio = hoje e o Pipe da nota (TEMP não)", JSON.stringify([R.sugestaoAcaoNota("envio", { pipefy_card_id: "TEMP-202610-x" }, "2026-11-12"), R.sugestaoAcaoNota("envio", { pipefy_card_id: "555" }, "2026-11-12").pipe]), JSON.stringify([{ pipe: "", data: "2026-11-12" }, "555"]));
+  igual("N4d: sugestão do pagamento = previsão se já passou, senão hoje", R.sugestaoAcaoNota("paga", { data_pagamento_prevista: "2026-11-10" }, "2026-11-12").data + " " + R.sugestaoAcaoNota("paga", { data_pagamento_prevista: "2026-11-20" }, "2026-11-12").data, "2026-11-10 2026-11-12");
+
+  grupo("Notas — N4e: cadastro de nota pela tela");
+  var NV = { fornecedor_id: "f1", valor: 100, data_emissao: "2026-11-10", mes_referencia: "2026-11", data_vencimento: "2026-11-25", categoria_id: "c1", numero_nota: "77" };
+  var LV = [{ fornecedor_id: "f1", fornecedor: "ZZT Garagem", numero_nota: "0077", mes_referencia: "2026-10-01", pipefy_card_id: "123", aprovacao: "aprovado" },
+            { fornecedor_id: "f1", numero_nota: "88", mes_referencia: "2026-10-01", pipefy_card_id: "124", aprovacao: "cancelado" }];
+  var vn = function(o, l){ return String(R.validarNovaNota(Object.assign({}, NV, o), l || [], "2026-11-12")); };
+  igual("N4e: nota completa passa", vn({}), "null");
+  igual("N4e: sem fornecedor / sem valor / sem conta", [vn({ fornecedor_id: "" }), vn({ valor: 0 }), vn({ categoria_id: "" })].join(" | "), "Escolha o fornecedor (ou cadastre um novo). | Informe o valor da nota. | Escolha a conta.");
+  igual("N4e: fornecedor novo (só o nome) passa", vn({ fornecedor_id: "", fornecedor_novo: "ZZT Nova" }), "null");
+  igual("N4e: emissão no futuro é barrada", vn({ data_emissao: "2026-11-13" }), "A data de emissão não pode ser no futuro.");
+  igual("N4e: Pipe sem data de envio, ou envio sem Pipe, é barrado", vn({ pipe: "999" }) + " | " + vn({ data_envio: "2026-11-12" }), "Informe a data de envio ao Financeiro (ou deixe o Pipe em branco). | Para registrar o envio, informe também o número do Pipe.");
+  igual("N4e: NF repetida do mesmo fornecedor é barrada (0077 = 77)", vn({ numero_nota: "77" }, LV), "Já existe a NF 0077 desse fornecedor (competência 10/2026).");
+  igual("N4e: NF repetida de nota cancelada não barra", vn({ numero_nota: "88" }, LV), "null");
+  igual("N4e: Pipe já usado em outra nota é barrado", vn({ numero_nota: "", pipe: "123", data_envio: "2026-11-12" }, LV), "Esse Pipe já está na nota de ZZT Garagem (NF 0077).");
+  igual("N4e: e-mail válido", R.emailValido("a@b.com") + " " + R.emailValido("a@b") + " " + R.emailValido(""), "true false false");
+
   grupo("Financeiro — rateio por BU (aba \"Rateio\", bloco Motoristas)");
   var abaRateio = [
     [null, null, null, null, null, "Outro bloco"],

@@ -830,6 +830,79 @@
     return falta;
   }
 
+  // ---------------- Notas N4d (12/11/2026): ações da esteira na tela (espelho das funções nf_* do banco) ----------------
+  // Quem mexe: admin e operador do Financeiro (o banco confere de novo). Nota cancelada não tem ação.
+  //  - Registrar envio (Pipe só números + data): pendente de envio ou recusada (reenvio);
+  //  - Recusar (motivo ≥ 5 letras) e Marcar paga (data, não futura): só enviada;
+  //  - Reabrir (motivo): paga → enviada; enviada ou recusada → pendente.
+  var NF_ACOES = { envio: "Registrar envio", recusar: "Recusar", paga: "Marcar paga", reabrir: "Reabrir" };
+  function acoesNota(n, podeEditar) {
+    if (!podeEditar || !n || n.aprovacao === "cancelado") return [];
+    var e = n.etapa, a = [];
+    if (e === "pendente_envio" || e === "recusado") a.push("envio");
+    if (e === "enviado") { a.push("paga"); a.push("recusar"); }
+    if (e === "enviado" || e === "pago" || e === "recusado") a.push("reabrir");
+    return a;
+  }
+  // valida o que a pessoa digitou antes de chamar o banco; devolve a mensagem de erro ou null
+  function validarAcaoNota(acao, d, hoje) {
+    d = d || {};
+    if (acao === "envio") {
+      if (!/^\d+$/.test(String(d.pipe == null ? "" : d.pipe).trim())) return "Informe o número do Pipe (só números).";
+      if (!d.data) return "Informe a data de envio ao Financeiro.";
+      if (d.data > hoje) return "A data de envio não pode ser no futuro.";
+      return null;
+    }
+    if (acao === "paga") {
+      if (!d.data) return "Informe a data de pagamento.";
+      if (d.data > hoje) return "A data de pagamento não pode ser no futuro (use a previsão).";
+      return null;
+    }
+    if (acao === "recusar" || acao === "reabrir") return textoOk(d.motivo) ? null : "Informe o motivo (pelo menos 5 letras).";
+    return "Ação desconhecida.";
+  }
+  // valores sugeridos ao abrir cada ação: envio = hoje (e o Pipe que a nota já tiver, se não for TEMP); paga = previsão se já passou, senão hoje
+  function sugestaoAcaoNota(acao, n, hoje) {
+    if (acao === "envio") return { pipe: /^\d+$/.test(String(n.pipefy_card_id || "")) ? n.pipefy_card_id : "", data: hoje };
+    if (acao === "paga") return { data: n.data_pagamento_prevista && n.data_pagamento_prevista <= hoje ? n.data_pagamento_prevista : hoje };
+    return { motivo: "" };
+  }
+  // forma de pagamento gravada na nota, no mesmo texto da planilha (BOLETO, TRANSFERÊNCIA…)
+  var FORMA_PAGAMENTO_NOTA = { boleto: "BOLETO", transferencia: "TRANSFERÊNCIA", pix: "PIX", cartao: "CARTÃO", debito_automatico: "DÉBITO AUTOMÁTICO" };
+
+  // ---------------- Notas N4e (12/11/2026): cadastro de nota pela tela ----------------
+  // d = { fornecedor_id | fornecedor_novo, valor, data_emissao, mes_referencia (AAAA-MM), data_vencimento, categoria_id, numero_nota, pipe, data_envio }
+  // lista = notas já carregadas (para barrar NF repetida do mesmo fornecedor e Pipe já usado). Devolve a mensagem ou null.
+  function validarNovaNota(d, lista, hoje) {
+    d = d || {};
+    if (!d.fornecedor_id && !String(d.fornecedor_novo || "").trim()) return "Escolha o fornecedor (ou cadastre um novo).";
+    if (!(Number(d.valor) > 0)) return "Informe o valor da nota.";
+    if (!d.data_emissao) return "Informe a data de emissão.";
+    if (d.data_emissao > hoje) return "A data de emissão não pode ser no futuro.";
+    if (!/^\d{4}-\d{2}$/.test(String(d.mes_referencia || ""))) return "Informe a competência.";
+    if (!d.data_vencimento) return "Informe o vencimento.";
+    if (!d.categoria_id) return "Escolha a conta.";
+    var pipe = String(d.pipe == null ? "" : d.pipe).trim();
+    if (pipe && !/^\d+$/.test(pipe)) return "O número do Pipe tem só números.";
+    if (pipe && !d.data_envio) return "Informe a data de envio ao Financeiro (ou deixe o Pipe em branco).";
+    if (!pipe && d.data_envio) return "Para registrar o envio, informe também o número do Pipe.";
+    if (d.data_envio && d.data_envio > hoje) return "A data de envio não pode ser no futuro.";
+    var nfChave = function(x){ return finNorm(x).replace(/\b0+(\d)/g, "$1"); }; // "0077" = "77"
+    var nf = nfChave(d.numero_nota);
+    var ativas = (lista || []).filter(function(n){ return n.aprovacao !== "cancelado"; });
+    if (nf && d.fornecedor_id) {
+      var dup = ativas.filter(function(n){ return n.fornecedor_id === d.fornecedor_id && nfChave(n.numero_nota) === nf; })[0];
+      if (dup) return "Já existe a NF " + dup.numero_nota + " desse fornecedor (competência " + String(dup.mes_referencia || "").slice(5, 7) + "/" + String(dup.mes_referencia || "").slice(0, 4) + ").";
+    }
+    if (pipe) {
+      var usado = (lista || []).filter(function(n){ return n.pipefy_card_id === pipe; })[0];
+      if (usado) return "Esse Pipe já está na nota de " + (usado.fornecedor || "outro fornecedor") + (usado.numero_nota ? " (NF " + usado.numero_nota + ")" : "") + ".";
+    }
+    return null;
+  }
+  // e-mail com cara de e-mail (o banco só guarda em minúsculas)
+  function emailValido(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || "").trim()); }
+
   // ID temporário de nota sem Pipe: "TEMP-AAAAMM-xxxxxxxx", calculado de fornecedor + NF + valor (+ ocorrência, se houver
   // duas iguais). É sempre o mesmo para a mesma nota: reimportar não duplica e, quando o Pipe for preenchido na planilha,
   // a nota temporária é achada por ele e recebe o número do Pipe (ver idsTemporariosCandidatos).
@@ -928,6 +1001,13 @@
     FORMA_PAGAMENTO_FORN: FORMA_PAGAMENTO_FORN,
     formaPagamentoChave: formaPagamentoChave,
     pendenciasFornecedor: pendenciasFornecedor,
+    NF_ACOES: NF_ACOES,
+    acoesNota: acoesNota,
+    validarAcaoNota: validarAcaoNota,
+    sugestaoAcaoNota: sugestaoAcaoNota,
+    FORMA_PAGAMENTO_NOTA: FORMA_PAGAMENTO_NOTA,
+    validarNovaNota: validarNovaNota,
+    emailValido: emailValido,
     dataDaPlanilha: dataDaPlanilha,
     lerRateioBU: lerRateioBU,
     idTemporarioNota: idTemporarioNota,

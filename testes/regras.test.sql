@@ -1089,6 +1089,8 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', u_n2, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
   insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, pipefy_card_id, pipe_parte, origem_carga) values (nfor, nhub, 3750, '2033-08-01', '9900001', 1, 'planilha') returning id into n2a;
+  select criado_por_nome into x from frota.notas_fiscais where id = n2a;
+  casos := casos || text 'N4e: nome de quem cadastrou vem do login (gravado pelo banco)'; obtidos := obtidos || x; esperados := esperados || text 'TESTE Operador N2';
   begin insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, pipefy_card_id, pipe_parte, origem_carga) values (nfor, nhub, 1700, '2033-07-01', '9900001', 2, 'planilha') returning id into n2b; x := 'aceitou'; exception when others then x := 'recusou'; end;
   casos := casos || text 'N2: mesmo Pipe com outra parte é aceito'; obtidos := obtidos || x; esperados := esperados || text 'aceitou';
   begin insert into frota.notas_fiscais (fornecedor_id, hub_id, valor, mes_referencia, pipefy_card_id, pipe_parte) values (nfor, nhub, 1, '2033-07-01', '9900001', 2); x := 'aceitou'; exception when unique_violation then x := 'recusou'; end;

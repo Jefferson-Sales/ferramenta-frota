@@ -390,6 +390,35 @@
   .nfl-recorr li{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-2) var(--espaco-4); padding:var(--espaco-3) 0; border-top:1px solid var(--line); font-size:var(--fs-sm); }
   .nfl-recorr li button{ border:0; background:none; padding:0; font:inherit; font-weight:600; color:var(--accent); cursor:pointer; text-align:left; }
   .nfl-recorr .nfl-sub{ color:var(--muted); font-size:var(--fs-xs); }
+  .nfl-acoes{ white-space:nowrap; }
+  .nfl-acoes .btn{ width:auto; margin:0 var(--espaco-2) var(--espaco-1) 0; }
+  .nfd-modal{ max-width:780px; }
+  .nfd-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:var(--espaco-4) var(--espaco-6); margin-bottom:var(--espaco-6); }
+  .nfd-grid div{ font-size:var(--fs-sm); min-width:0; overflow-wrap:anywhere; }
+  .nfd-grid small{ display:block; font-size:var(--fs-xs); color:var(--muted); margin-bottom:var(--espaco-1); }
+  .nfd-sec{ border-top:1px solid var(--line); padding-top:var(--espaco-5); margin-top:var(--espaco-5); }
+  .nfd-sec h4{ font-size:var(--fs-md); margin:0 0 var(--espaco-4); }
+  .nfd-botoes{ display:flex; flex-wrap:wrap; gap:var(--espaco-3); }
+  .nfd-botoes .btn{ width:auto; }
+  .nfd-form{ margin-top:var(--espaco-5); border:1px solid var(--line); border-radius:var(--radius); padding:var(--espaco-5); background:var(--surface-2); }
+  .nfd-form .modal-actions{ margin-top:var(--espaco-4); }
+  .nfd-aviso{ font-size:var(--fs-sm); color:var(--muted); margin-top:var(--espaco-3); }
+  .nfc-modal{ max-width:820px; }
+  .nfc-bloco{ border-top:1px solid var(--line); padding-top:var(--espaco-5); margin-top:var(--espaco-5); }
+  .nfc-bloco:first-child{ border-top:none; padding-top:0; margin-top:0; }
+  .nfc-titulo{ font-weight:700; margin-bottom:var(--espaco-4); }
+  .nfc-lista{ display:flex; flex-direction:column; gap:var(--espaco-2); margin-top:var(--espaco-3); }
+  .nfc-lista button{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-3); text-align:left; padding:var(--espaco-3) var(--espaco-5); border:1px solid var(--line); border-radius:var(--raio-botao); background:var(--surface); color:var(--ink); font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .nfc-lista button:hover{ border-color:var(--accent); }
+  .nfc-lista button[data-nfc-novo]{ color:var(--accent); font-weight:600; border-style:dashed; }
+  .nfc-sugestao{ font-size:var(--fs-sm); color:var(--accent); background:var(--surface-2); border-radius:var(--raio-md); padding:var(--espaco-3) var(--espaco-5); margin-bottom:var(--espaco-4); }
+  .fp-escolhido{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-3); margin-bottom:var(--espaco-4); }
+  .fp-escolhido .btn{ width:auto; }
+  .fp-painel{ border:1px solid var(--line); border-radius:var(--radius); background:var(--surface-2); padding:var(--espaco-5); margin-bottom:var(--espaco-5); }
+  .fp-cab{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--espaco-3); margin-bottom:var(--espaco-4); }
+  .fp-sub{ font-weight:600; font-size:var(--fs-sm); margin:var(--espaco-5) 0 var(--espaco-3); }
+  #fin-forn-body .nfl-sub{ display:block; font-size:var(--fs-xs); color:var(--muted); }
+  .fp-painel .nfl-sub, .fp-escolhido .nfl-sub, .nfc-lista .nfl-sub, .nfd-grid .nfl-sub{ font-size:var(--fs-xs); color:var(--muted); }
   .fimp-detalhe{ margin:var(--espaco-4) 0; }
   .fimp-detalhe summary{ cursor:pointer; font-weight:600; }
   .fimp-detalhe ul{ margin:var(--espaco-2) 0 0; padding-left:var(--espaco-8); font-size:var(--fs-sm); }
@@ -723,8 +752,8 @@
         </div>
         <div class="table-wrap">
           <table class="nfl-tabela">
-            <thead><tr><th>Competência</th><th>Fornecedor</th><th>Hub</th><th>Conta</th><th>Descrição</th><th>Veículo</th><th>NF</th><th>Emissão</th><th>Vencimento</th><th class="num">Valor</th><th>Forma de pagamento</th><th>Envio ao Financeiro</th><th>Pipe</th><th>Etapa</th><th>Responsável</th></tr></thead>
-            <tbody id="fin-nf-body"><tr><td colspan="15" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr><th>Competência</th><th>Fornecedor</th><th>Hub</th><th>Conta</th><th>Descrição</th><th>Veículo</th><th>NF</th><th>Emissão</th><th>Vencimento</th><th class="num">Valor</th><th>Forma de pagamento</th><th>Envio ao Financeiro</th><th>Pipe</th><th>Etapa</th><th>Responsável</th><th>Ações</th></tr></thead>
+            <tbody id="fin-nf-body"><tr><td colspan="16" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -753,8 +782,8 @@
         <div class="card-head"><h2>Fornecedores</h2><div class="card-head-actions"><span class="count" id="fin-forn-count"></span><button class="inline-add-trigger" data-open-modal="modal-fornecedor" data-edit="financeiro">+ Novo fornecedor</button></div></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>Tipo</th><th>Dia esperado de envio</th><th>Ativo</th></tr></thead>
-            <tbody id="fin-forn-body"><tr><td colspan="4" class="empty-row">Carregando…</td></tr></tbody>
+            <thead><tr><th>Nome</th><th>CNPJ</th><th>Tipo de fornecimento</th><th>Cadastro</th><th>Ativo</th><th></th></tr></thead>
+            <tbody id="fin-forn-body"><tr><td colspan="6" class="empty-row">Carregando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1587,56 +1616,69 @@
 </div>
 
 <div class="modal-overlay" id="modal-fornecedor" hidden>
-  <div class="modal">
-    <div class="modal-head"><h3>Novo fornecedor</h3><button class="modal-close" data-close-modal>×</button></div>
+  <div class="modal nfc-modal">
+    <div class="modal-head"><h3 id="fo-titulo">Novo fornecedor</h3><button class="modal-close" data-close-modal aria-label="Fechar">×</button></div>
     <form data-form="fornecedor">
+      <input type="hidden" id="fo-id">
       <div class="form-grid">
-        <div class="field span2"><label for="fo-nome">Nome</label><input id="fo-nome" required></div>
-        <div class="field"><label for="fo-cnpj">CNPJ</label><input id="fo-cnpj"></div>
-        <div class="field"><label for="fo-tipo">Tipo</label><select id="fo-tipo"><option value="outro">Outro</option><option value="locadora">Locadora</option></select></div>
+        <div class="field span2"><label for="fo-nome">Nome (como aparece na planilha)</label><input id="fo-nome" required maxlength="200"></div>
+        <div class="field"><label for="fo-tipo">Papel</label><select id="fo-tipo"><option value="outro">Fornecedor</option><option value="locadora">Locadora</option></select></div>
         <div class="field"><label for="fo-dia">Dia esperado de envio da nota</label><input id="fo-dia" type="number" min="1" max="31"></div>
-        <div class="field"><label for="fo-contato-nome">Contato</label><input id="fo-contato-nome"></div>
-        <div class="field"><label for="fo-contato-email">E-mail do contato</label><input id="fo-contato-email" type="email"></div>
-        <div class="field"><label for="fo-contato-tel">Telefone do contato</label><input id="fo-contato-tel"></div>
         <div class="field" style="align-self:end;"><label><input type="checkbox" id="fo-ativo" checked style="width:auto; margin-right:6px;">Fornecedor ativo</label></div>
-        <div class="field span2"><label for="fo-obs">Observações</label><textarea id="fo-obs" rows="2"></textarea></div>
       </div>
+      <div id="fo-painel"></div>
+      <div class="field"><label for="fo-obs">Observações</label><textarea id="fo-obs" rows="2"></textarea></div>
       <div class="field-err" id="fo-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar fornecedor</button></div>
     </form>
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-nota" hidden>
-  <div class="modal">
-    <div class="modal-head"><h3>Nova nota fiscal</h3><button class="modal-close" data-close-modal>×</button></div>
-    <form data-form="nota">
-      <div class="form-grid">
-        <div class="field span2"><label for="nf-fornecedor">Fornecedor</label><select id="nf-fornecedor" required><option value="">Selecione…</option></select></div>
-        <div class="field"><label for="nf-categoria">Categoria (opcional)</label><select id="nf-categoria"><option value="">—</option></select></div>
-        <div class="field"><label for="nf-hub">Hub (opcional)</label><select id="nf-hub"><option value="">—</option></select></div>
-        <div class="field"><label for="nf-veiculo">Veículo (opcional)</label><select id="nf-veiculo"><option value="">—</option></select></div>
-        <div class="field"><label for="nf-numero">Número da nota</label><input id="nf-numero"></div>
-        <div class="field"><label for="nf-valor">Valor (R$)</label><input id="nf-valor" type="number" step="0.01" required></div>
-        <div class="field"><label for="nf-emissao">Data de emissão</label><input id="nf-emissao" type="date"></div>
-        <div class="field"><label for="nf-vencimento">Data de vencimento</label><input id="nf-vencimento" type="date"></div>
-        <div class="field"><label for="nf-mes-ref">Mês de referência</label><input id="nf-mes-ref" type="month"></div>
-        <div class="field"><label for="nf-status">Status</label>
-          <select id="nf-status">
-            <option value="recebida_email">Recebida por e-mail</option>
-            <option value="pipefy_aberto">Pipefy aberto</option>
-            <option value="aguardando_pagamento">Aguardando pagamento</option>
-            <option value="paga">Paga</option>
-            <option value="atrasada">Atrasada</option>
-            <option value="contestada">Contestada</option>
-          </select>
+<div class="modal-overlay" id="modal-nota" hidden data-sem-fechar-fora>
+  <div class="modal nfc-modal">
+    <div class="modal-head"><h3>Nova nota fiscal</h3><button class="modal-close" data-close-modal aria-label="Fechar">×</button></div>
+    <form data-form="nota" autocomplete="off">
+      <div class="nfc-bloco">
+        <div class="nfc-titulo">1. Fornecedor</div>
+        <div class="field"><label for="nf-forn-busca">Buscar por nome ou CNPJ</label><input id="nf-forn-busca" type="search" placeholder="Ex.: Localiza ou 12.345.678/0001-90"></div>
+        <input type="hidden" id="nf-fornecedor">
+        <div id="nf-forn-lista" class="nfc-lista"></div>
+        <div id="nf-forn-painel"></div>
+      </div>
+      <div class="nfc-bloco">
+        <div class="nfc-titulo">2. Dados da nota</div>
+        <div class="nfc-sugestao" id="nf-sugestao" hidden></div>
+        <div class="form-grid">
+          <div class="field"><label for="nf-numero">Número da nota</label><input id="nf-numero" maxlength="60"></div>
+          <div class="field"><label for="nf-valor">Valor (R$)</label><input id="nf-valor" type="number" step="0.01" min="0.01" required></div>
+          <div class="field"><label for="nf-emissao">Data de emissão</label><input id="nf-emissao" type="date" required></div>
+          <div class="field"><label for="nf-mes-ref">Competência</label><input id="nf-mes-ref" type="month" required></div>
+          <div class="field"><label for="nf-vencimento">Vencimento</label><input id="nf-vencimento" type="date" required></div>
+          <div class="field"><label for="nf-forma-pagamento">Forma de pagamento</label><select id="nf-forma-pagamento"><option value="">—</option></select></div>
+          <div class="field"><label for="nf-categoria">Conta</label><select id="nf-categoria" required><option value="">Selecione…</option></select></div>
+          <div class="field"><label for="nf-hub">Hub</label><select id="nf-hub"><option value="">—</option></select></div>
+          <div class="field"><label for="nf-veiculo-txt">Veículo (placa, se for de um carro)</label><input id="nf-veiculo-txt" maxlength="40" placeholder="N/A"></div>
+          <div class="field span2"><label for="nf-descricao">Descrição</label><input id="nf-descricao" maxlength="500"></div>
         </div>
-        <div class="field"><label for="nf-forma-pagamento">Forma de pagamento</label><input id="nf-forma-pagamento" placeholder="Ex.: boleto, transferência…"></div>
-        <div class="field span2"><label for="nf-obs">Observações</label><textarea id="nf-obs" rows="2"></textarea></div>
+      </div>
+      <div class="nfc-bloco">
+        <div class="nfc-titulo">3. Envio ao Financeiro (opcional)</div>
+        <p class="nfd-aviso">Se o card do Pipe já foi aberto, informe o número e a data: a nota entra como <b>Enviado</b>. Sem Pipe, entra como <b>Pendente de envio</b>.</p>
+        <div class="form-grid">
+          <div class="field"><label for="nf-pipe">Número do Pipe</label><input id="nf-pipe" inputmode="numeric"></div>
+          <div class="field"><label for="nf-envio">Data de envio</label><input id="nf-envio" type="date"></div>
+        </div>
       </div>
       <div class="field-err" id="nf-err" hidden></div>
-      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto">Salvar nota fiscal</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" style="width:auto" id="nf-salvar">Salvar nota fiscal</button></div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-nf" hidden>
+  <div class="modal nfd-modal">
+    <div class="modal-head"><h3 id="nfd-titulo">Nota fiscal</h3><button class="modal-close" data-close-modal aria-label="Fechar">×</button></div>
+    <div id="nfd-corpo"></div>
   </div>
 </div>
 
@@ -4061,12 +4103,8 @@
 
   function loadFinanceiro(){
     fimpPreparar();
-    rest("fornecedores?select=id,nome&order=nome").then(function(rows){
-      fillSelect("nf-fornecedor", rows, function(f){ return f.nome; }, "Selecione…");
-    }).catch(function(){});
-
     rest("categorias_custo?select=id,nome&order=nome").then(function(rows){
-      fillSelect("nf-categoria", rows, function(c){ return c.nome; }, "—");
+      fillSelect("nf-categoria", rows, function(c){ return c.nome; }, "Selecione…");
       var sel = document.getElementById("fin-f-cat");
       sel.innerHTML = '<option value="">Todas</option>' + rows.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.nome) + '</option>'; }).join("");
       sel.value = finFiltros.categoria; // filtro pode ter vindo da Visão Executiva antes das opções existirem
@@ -4079,13 +4117,7 @@
       sh.value = finFiltros.hub;
     }).catch(function(){});
 
-    rest("veiculos?select=id,placa&order=placa").then(function(rows){
-      fillSelect("nf-veiculo", rows, function(v){ return v.placa; }, "—");
-    }).catch(function(){});
-
-    rest("fornecedores?select=nome,tipo,dia_esperado_envio_nota,ativo&order=nome").then(function(rows){
-      renderFornecedores(rows);
-    }).catch(function(e){ toast("Erro ao carregar fornecedores: " + e.message, true); });
+    carregarFornecedores();
 
     carregarNotasFiscais();
   }
@@ -4097,12 +4129,12 @@
   var NFL_ETAPA_TOM = { pendente_envio: "warn", enviado: "neutral", pago: "good", recusado: "crit" };
   function carregarNotasFiscais(){
     document.getElementById("fin-f-total").textContent = "";
-    restTodas("notas_fiscais?select=id,pipefy_card_id,pipe_parte,numero_nota,descricao,veiculo_texto,data_emissao,data_vencimento,data_pagamento,data_pagamento_prevista," +
-      "data_envio_financeiro,mes_referencia,valor,forma_pagamento,aprovacao,etapa,responsavel_planilha,justificativa_atraso,fornecedor_id,categoria_id,hub_id," +
+    return restTodas("notas_fiscais?select=id,pipefy_card_id,pipe_parte,numero_nota,descricao,veiculo_texto,data_emissao,data_vencimento,data_pagamento,data_pagamento_prevista," +
+      "data_envio_financeiro,mes_referencia,valor,forma_pagamento,aprovacao,etapa,responsavel_planilha,criado_por_nome,motivo_recusa,justificativa_atraso,fornecedor_id,categoria_id,hub_id," +
       "fornecedores(nome),categorias_custo(nome),hubs(nome)&order=mes_referencia.desc.nullslast,valor.desc,id").then(function(rows){
       NFL.todas = (rows || []).map(function(n){
         n.fornecedor = n.fornecedores ? n.fornecedores.nome : ""; n.conta = n.categorias_custo ? n.categorias_custo.nome : ""; n.hub = n.hubs ? n.hubs.nome : "";
-        n.responsavel = n.responsavel_planilha || ""; n.aprovacao = n.aprovacao || "aprovado";
+        n.responsavel = n.responsavel_planilha || n.criado_por_nome || ""; n.aprovacao = n.aprovacao || "aprovado";
         return n;
       });
       aplicarFiltrosNotas();
@@ -4226,21 +4258,11 @@
     document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   });
 
-  function renderFornecedores(rows){
-    var body = document.getElementById("fin-forn-body");
-    document.getElementById("fin-forn-count").textContent = rows.length + (rows.length === 1 ? " fornecedor" : " fornecedores");
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum fornecedor cadastrado ainda.</td></tr>'; return; }
-    body.innerHTML = rows.map(function(f){
-      return "<tr><td>" + esc(f.nome) + "</td><td>" + esc(f.tipo || "—") + "</td><td>" + (f.dia_esperado_envio_nota != null ? esc(f.dia_esperado_envio_nota) : "—") +
-        "</td><td>" + pill(f.ativo === false ? "Inativo" : "Ativo", f.ativo === false ? "neutral" : "good") + "</td></tr>";
-    }).join("");
-  }
-
   function renderNotasFiscais(rows, hoje){
     var body = document.getElementById("fin-nf-body");
     document.getElementById("fin-nf-count").textContent = rows.length + (rows.length === 1 ? " nota" : " notas");
     var algumFiltro = Object.keys(finFiltros).some(function(k){ return finFiltros[k]; });
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="15" class="empty-row">' + (algumFiltro ? "Nenhuma nota com esses filtros." : "Nenhuma nota fiscal registrada ainda.") + '</td></tr>'; return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="16" class="empty-row">' + (algumFiltro ? "Nenhuma nota com esses filtros." : "Nenhuma nota fiscal registrada ainda.") + '</td></tr>'; return; }
     var d = function(v){ return v ? dateBR(String(v).slice(0, 10)) : "—"; };
     body.innerHTML = rows.map(function(n){
       var a = Regras.alertaVencimentoNota(n, hoje), temp = /^TEMP-/.test(n.pipefy_card_id || "");
@@ -4253,63 +4275,376 @@
         "</td><td>" + esc(n.veiculo_texto || "—") + "</td><td>" + esc(n.numero_nota || "—") + "</td><td>" + d(n.data_emissao) +
         "</td><td>" + d(n.data_vencimento) + (a && a.chave !== "paga" && a.chave !== "cancelada" ? "<br>" + pill(a.texto, a.tom) : "") +
         '</td><td class="num">' + money(n.valor) + "</td><td>" + esc(n.forma_pagamento || "—") + "</td><td>" + d(n.data_envio_financeiro) +
-        "</td><td>" + pipe + "</td><td>" + etapa + "</td><td>" + esc(n.responsavel || "—") + "</td></tr>";
+        "</td><td>" + pipe + "</td><td>" + etapa + "</td><td>" + esc(n.responsavel || "—") + "</td><td class=\"nfl-acoes\">" + nflBotoesLinha(n) + "</td></tr>";
     }).join("");
   }
 
-  document.querySelector('[data-form="fornecedor"]').addEventListener("submit", function(ev){
-    ev.preventDefault();
-    setErr("fo-err", "");
-    var nome = document.getElementById("fo-nome").value.trim();
-    if (!nome){ setErr("fo-err", "Informe o nome do fornecedor."); return; }
-    var body = {
-      nome: nome,
-      cnpj: document.getElementById("fo-cnpj").value.trim() || null,
-      tipo: document.getElementById("fo-tipo").value,
-      dia_esperado_envio_nota: document.getElementById("fo-dia").value ? parseInt(document.getElementById("fo-dia").value, 10) : null,
-      contato_nome: document.getElementById("fo-contato-nome").value.trim() || null,
-      contato_email: document.getElementById("fo-contato-email").value.trim() || null,
-      contato_telefone: document.getElementById("fo-contato-tel").value.trim() || null,
-      observacoes: document.getElementById("fo-obs").value.trim() || null,
-      ativo: document.getElementById("fo-ativo").checked
-    };
-    rest("fornecedores", {method:"POST", body: body}).then(function(){
-      toast("Fornecedor " + body.nome + " cadastrado.");
-      document.getElementById("modal-fornecedor").hidden = true;
-      ev.target.reset();
-      document.getElementById("fo-ativo").checked = true;
-      loadFinanceiro();
-    }).catch(function(e){ setErr("fo-err", e.message); });
+  // ---- Ações da esteira e linha do tempo da nota (N4d, 12/11/2026) ----
+  // Botões só para quem edita o Financeiro (admin e operador); o banco confere tudo de novo (funções nf_*).
+  // A linha do tempo vem de notas_fiscais_historico (imutável: ninguém altera nem apaga).
+  var NFD = { id: null, acao: null };
+  var NFD_RPC = { envio: "nf_registrar_envio", recusar: "nf_recusar", paga: "nf_marcar_paga", reabrir: "nf_reabrir" };
+  var NFD_ORIGEM = { tela: "pela tela", importacao: "pela carga da planilha", sistema: "pelo sistema" };
+  function nflBotoesLinha(n){
+    var ac = Regras.acoesNota(n, canEdit("financeiro")), prin = ac.filter(function(a){ return a !== "reabrir"; })[0];
+    return (prin ? '<button type="button" class="btn qf-mini" data-nfd-id="' + esc(n.id) + '" data-nfd-acao="' + prin + '">' + esc(Regras.NF_ACOES[prin]) + '</button>' : '') +
+      '<button type="button" class="btn qf-mini" data-nfd-id="' + esc(n.id) + '" aria-label="Ver a nota e a linha do tempo">Ver</button>';
+  }
+  document.getElementById("fin-nf-body").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-nfd-id]"); if (!b) return;
+    abrirNotaDetalhe(b.getAttribute("data-nfd-id"), b.getAttribute("data-nfd-acao"));
+  });
+  function abrirNotaDetalhe(id, acao){
+    NFD = { id: id, acao: acao || null, hist: null };
+    openModal("modal-nf"); renderNotaDetalhe(); carregarHistoricoNota(id);
+  }
+  function nfdNota(){ return NFL.todas.filter(function(n){ return n.id === NFD.id; })[0]; }
+  function carregarHistoricoNota(id){
+    rest("notas_fiscais_historico?nota_id=eq." + encodeURIComponent(id) + "&select=etapa_de,etapa_para,observacao,pipefy_card_id,data_ref,origem,feito_por_nome,feito_em&order=feito_em.asc")
+      .then(function(rows){ if (NFD.id === id){ NFD.hist = rows || []; nfdRenderHist(); } })
+      .catch(function(e){ if (NFD.id === id){ NFD.hist = { erro: e.message }; nfdRenderHist(); } });
+  }
+  function renderNotaDetalhe(){
+    var n = nfdNota(), corpo = document.getElementById("nfd-corpo");
+    if (!n){ corpo.innerHTML = '<p class="osd-vazio">Nota não encontrada (pode ter saído da lista).</p>'; return; }
+    var hoje = qdHoje(), a = Regras.alertaVencimentoNota(n, hoje), d = function(v){ return v ? dateBR(String(v).slice(0, 10)) : "—"; };
+    var temp = /^TEMP-/.test(n.pipefy_card_id || "");
+    document.getElementById("nfd-titulo").textContent = (n.fornecedor || "Nota fiscal") + (n.numero_nota ? " · NF " + n.numero_nota : "");
+    var item = function(rot, html){ return '<div><small>' + esc(rot) + '</small>' + html + '</div>'; };
+    var html = '<div class="nfd-grid">' +
+      item("Etapa", n.aprovacao === "cancelado" ? pill("Cancelada", "neutral") : pill(Regras.NF_ETAPAS[n.etapa] || n.etapa, NFL_ETAPA_TOM[n.etapa])) +
+      item("Valor", '<b>' + esc(money(n.valor)) + '</b>') +
+      item("Competência", n.mes_referencia ? esc(n.mes_referencia.slice(5, 7) + "/" + n.mes_referencia.slice(0, 4)) : "—") +
+      item("Hub · Conta", esc((n.hub || "—") + " · " + (n.conta || "—"))) +
+      item("Emissão", d(n.data_emissao)) +
+      item("Vencimento", d(n.data_vencimento) + (a && a.chave !== "paga" && a.chave !== "cancelada" ? " " + pill(a.texto, a.tom) : "")) +
+      item("Pipe", temp ? pill("Sem Pipe", "warn") + ' <span class="nfl-sub">' + esc(n.pipefy_card_id) + '</span>' : esc(n.pipefy_card_id || "—") + (n.pipe_parte > 1 ? " (parte " + esc(n.pipe_parte) + ")" : "")) +
+      item("Envio ao Financeiro", d(n.data_envio_financeiro)) +
+      item(n.data_pagamento ? "Pagamento" : "Pagamento previsto", d(n.data_pagamento || n.data_pagamento_prevista)) +
+      item("Forma de pagamento", esc(n.forma_pagamento || "—")) +
+      item("Veículo", esc(n.veiculo_texto || "—")) +
+      item("Responsável", esc(n.responsavel || "—")) +
+      (n.etapa === "recusado" ? item("Motivo da recusa", esc(n.motivo_recusa || "—")) : "") +
+      (n.descricao ? item("Descrição", esc(n.descricao)) : "") +
+      '</div>';
+    var acoes = Regras.acoesNota(n, canEdit("financeiro"));
+    if (acoes.length){
+      html += '<div class="nfd-sec"><h4>Próximo passo</h4><div class="nfd-botoes">' + acoes.map(function(x){
+        return '<button type="button" class="btn' + (x === NFD.acao ? " btn-primary" : "") + '" data-nfd-passo="' + x + '">' + esc(Regras.NF_ACOES[x]) + '</button>';
+      }).join("") + '</div>' + (NFD.acao ? nfdFormHtml(NFD.acao, n, hoje) : '') + '</div>';
+    } else if (n.aprovacao !== "cancelado" && !canEdit("financeiro")) {
+      html += '<p class="nfd-aviso">Só o administrador e quem opera o Financeiro mudam a etapa da nota.</p>';
+    }
+    html += '<div class="nfd-sec"><h4>Linha do tempo</h4><div id="nfd-hist"></div></div>';
+    corpo.innerHTML = html;
+    nfdRenderHist();
+    var foco = corpo.querySelector(".nfd-form input, .nfd-form textarea"); if (foco) foco.focus();
+  }
+  function nfdFormHtml(acao, n, hoje){
+    var s = Regras.sugestaoAcaoNota(acao, n, hoje), campos = "";
+    if (acao === "envio") campos = '<div class="form-grid"><div class="field"><label for="nfd-pipe">Número do Pipe</label><input id="nfd-pipe" inputmode="numeric" autocomplete="off" value="' + esc(s.pipe) + '"></div>' +
+      '<div class="field"><label for="nfd-data">Data de envio ao Financeiro</label><input id="nfd-data" type="date" max="' + hoje + '" value="' + esc(s.data) + '"></div></div>' +
+      (/^TEMP-/.test(n.pipefy_card_id || "") ? '<p class="nfd-aviso">A nota está com ID temporário: o número do Pipe substitui o TEMP.</p>' : '');
+    else if (acao === "paga") campos = '<div class="form-grid"><div class="field"><label for="nfd-data">Data do pagamento</label><input id="nfd-data" type="date" max="' + hoje + '" value="' + esc(s.data) + '"></div></div>' +
+      '<p class="nfd-aviso">Marque quando o Financeiro confirmar o pagamento.' + (n.data_pagamento_prevista ? ' Previsão: ' + esc(dateBR(n.data_pagamento_prevista)) + '.' : '') + '</p>';
+    else campos = '<div class="field"><label for="nfd-motivo">' + (acao === "recusar" ? "Motivo da recusa do Financeiro" : "Motivo para reabrir") + '</label><textarea id="nfd-motivo" rows="2" maxlength="500"></textarea></div>' +
+      (acao === "reabrir" ? '<p class="nfd-aviso">' + (n.etapa === "pago" ? "A nota volta para Enviado e a data de pagamento é apagada (fica no histórico)." : "A nota volta para Pendente de envio.") + '</p>'
+        : '<p class="nfd-aviso">A nota volta para a Frota corrigir e reenviar. O motivo fica no histórico.</p>');
+    return '<div class="nfd-form">' + campos + '<div class="field-err" id="nfd-err" hidden></div><div class="modal-actions">' +
+      '<button type="button" class="btn" data-nfd-cancelar>Cancelar</button><button type="button" class="btn btn-primary" style="width:auto" data-nfd-confirmar>Confirmar: ' + esc(Regras.NF_ACOES[acao]) + '</button></div></div>';
+  }
+  function nfdRenderHist(){
+    var host = document.getElementById("nfd-hist"); if (!host) return;
+    var h = NFD.hist;
+    if (!h){ host.innerHTML = '<span class="osd-vazio">Carregando…</span>'; return; }
+    if (h.erro){ host.innerHTML = '<span class="field-err">Não foi possível carregar o histórico: ' + esc(h.erro) + '</span>'; return; }
+    if (!h.length){ host.innerHTML = '<span class="osd-vazio">Sem registros ainda.</span>'; return; }
+    var et = function(e){ return Regras.NF_ETAPAS[e] || e; };
+    host.innerHTML = '<ul class="osd-hist">' + h.map(function(x){
+      var oque = x.etapa_de ? et(x.etapa_de) + " → " + et(x.etapa_para) : "Nota cadastrada (" + et(x.etapa_para) + ")";
+      var det = [x.observacao && x.observacao !== "Nota cadastrada" ? x.observacao : "", x.pipefy_card_id && x.etapa_para === "enviado" ? "Pipe " + x.pipefy_card_id : "", x.data_ref ? "data " + dateBR(x.data_ref) : ""].filter(Boolean).join(" · ");
+      return '<li><span class="quando">' + esc(dateTimeBR(x.feito_em)) + '</span><b>' + esc(oque) + '</b>' + (det ? '<span>' + esc(det) + '</span>' : '') +
+        '<span class="quem">' + esc((x.feito_por_nome || "—") + " " + (NFD_ORIGEM[x.origem] || "")) + '</span></li>';
+    }).join("") + '</ul>';
+  }
+  document.getElementById("nfd-corpo").addEventListener("click", function(ev){
+    var passo = ev.target.closest("[data-nfd-passo]");
+    if (passo){ NFD.acao = NFD.acao === passo.getAttribute("data-nfd-passo") ? null : passo.getAttribute("data-nfd-passo"); renderNotaDetalhe(); return; }
+    if (ev.target.closest("[data-nfd-cancelar]")){ NFD.acao = null; renderNotaDetalhe(); return; }
+    var conf = ev.target.closest("[data-nfd-confirmar]"); if (!conf) return;
+    var acao = NFD.acao, id = NFD.id, v = function(i){ var e = document.getElementById(i); return e ? e.value.trim() : ""; };
+    var dados = { pipe: v("nfd-pipe"), data: v("nfd-data"), motivo: v("nfd-motivo") };
+    var erro = Regras.validarAcaoNota(acao, dados, qdHoje());
+    if (erro){ setErr("nfd-err", erro); return; }
+    var corpoRpc = { p_id: id };
+    if (acao === "envio"){ corpoRpc.p_pipe = dados.pipe; corpoRpc.p_data = dados.data; }
+    else if (acao === "paga") corpoRpc.p_data = dados.data;
+    else corpoRpc.p_motivo = dados.motivo;
+    conf.disabled = true;
+    rest("rpc/" + NFD_RPC[acao], { method: "POST", body: corpoRpc }).then(function(){
+      toast(Regras.NF_ACOES[acao] + ": feito.");
+      NFD.acao = null;
+      return carregarNotasFiscais();
+    }).then(function(){
+      if (NFD.id !== id) return;
+      renderNotaDetalhe(); carregarHistoricoNota(id);
+    }).catch(function(e){ conf.disabled = false; setErr("nfd-err", e.message); });
   });
 
-  document.querySelector('[data-form="nota"]').addEventListener("submit", function(ev){
-    ev.preventDefault();
-    setErr("nf-err", "");
-    var fornecedor = document.getElementById("nf-fornecedor").value;
-    if (!fornecedor){ setErr("nf-err", "Selecione o fornecedor."); return; }
-    var valor = parseFloat(document.getElementById("nf-valor").value);
-    if (!valor){ setErr("nf-err", "Informe o valor da nota."); return; }
-    var mesRef = document.getElementById("nf-mes-ref").value;
-    var body = {
-      fornecedor_id: fornecedor,
-      categoria_id: document.getElementById("nf-categoria").value || null,
-      hub_id: document.getElementById("nf-hub").value || null,
-      veiculo_id: document.getElementById("nf-veiculo").value || null,
-      numero_nota: document.getElementById("nf-numero").value.trim() || null,
-      data_emissao: document.getElementById("nf-emissao").value || null,
-      data_vencimento: document.getElementById("nf-vencimento").value || null,
-      mes_referencia: mesRef ? (mesRef + "-01") : null,
-      valor: valor,
-      status: document.getElementById("nf-status").value,
-      forma_pagamento: document.getElementById("nf-forma-pagamento").value.trim() || null,
-      observacoes: document.getElementById("nf-obs").value.trim() || null
+  // ---------------- Fornecedores e cadastro de nota (N4e, 12/11/2026) ----------------
+  // Cadastro do fornecedor (para a integração com o Pipefy) e dados bancários em tabela própria, que só admin e quem opera
+  // o Financeiro leem (RLS). "Cadastro incompleto" avisa, mas nunca bloqueia a nota (decisão do Jefferson).
+  var FORN = { lista: [], bancarios: null };
+  var FORN_SELECT = "id,nome,cnpj,razao_social,inscricao_municipal,inscricao_estadual,regime_tributario,endereco,forma_pagamento,contato_email,contato_telefone,servico_descricao,tipo_fornecimento,tipo,dia_esperado_envio_nota,ativo,observacoes";
+  var FORN_REGIMES = { mei: "MEI", simples_nacional: "Simples Nacional", lucro_presumido: "Lucro Presumido", lucro_real: "Lucro Real", outro: "Outro" };
+  var FORN_TIPOS = ["Produto", "Serviços", "Produtos e Serviços"];
+  // campo, rótulo, tipo de entrada (opções), largura
+  var FP_CAMPOS = [
+    ["cnpj", "CNPJ", "cnpj"], ["razao_social", "Razão social", "texto", true], ["inscricao_municipal", "Inscrição municipal", "texto"],
+    ["inscricao_estadual", "Inscrição estadual (opcional)", "texto"], ["regime_tributario", "Regime tributário (opcional)", FORN_REGIMES],
+    ["tipo_fornecimento", "Tipo de fornecimento", "tipos"], ["servico_descricao", "Serviço", "texto", true], ["endereco", "Endereço completo", "texto", true],
+    ["forma_pagamento", "Forma de pagamento", Regras.FORMA_PAGAMENTO_FORN], ["contato_email", "E-mail", "email"], ["contato_telefone", "Telefone de contato", "tel"]];
+  var FP_BANCO = [["banco", "Banco"], ["agencia", "Agência"], ["conta", "Conta"]];
+  function podeVerBancarios(){ return canEdit("financeiro"); }
+  function carregarFornecedores(){
+    return Promise.all([rest("fornecedores?select=" + FORN_SELECT + "&order=nome"),
+      podeVerBancarios() ? rest("fornecedores_dados_bancarios?select=fornecedor_id,banco,agencia,conta") : Promise.resolve(null)]).then(function(r){
+      FORN.lista = r[0] || []; FORN.bancarios = null;
+      if (r[1]){ FORN.bancarios = {}; r[1].forEach(function(b){ FORN.bancarios[b.fornecedor_id] = b; }); }
+      renderFornecedores();
+    }).catch(function(e){ toast("Erro ao carregar fornecedores: " + e.message, true); });
+  }
+  function fornPorId(id){ return FORN.lista.filter(function(f){ return f.id === id; })[0]; }
+  function fornBanc(id){ return FORN.bancarios ? (FORN.bancarios[id] || null) : undefined; } // undefined = não pode ver
+  function fornPendencias(f){ var b = fornBanc(f.id); return Regras.pendenciasFornecedor(f, b === undefined ? null : (b || {})); }
+  function fornValorExib(k, v){
+    if (k === "cnpj") return Regras.cnpjFormatado(v);
+    if (k === "regime_tributario") return FORN_REGIMES[v] || v;
+    if (k === "forma_pagamento") return Regras.FORMA_PAGAMENTO_FORN[v] || v;
+    return v;
+  }
+  function renderFornecedores(){
+    var rows = FORN.lista, body = document.getElementById("fin-forn-body"), pode = canEdit("financeiro");
+    document.getElementById("fin-forn-count").textContent = rows.length + (rows.length === 1 ? " fornecedor" : " fornecedores");
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhum fornecedor cadastrado ainda.</td></tr>'; return; }
+    body.innerHTML = rows.map(function(f){
+      var pend = fornPendencias(f);
+      return "<tr><td>" + esc(f.nome) + (f.razao_social && f.razao_social !== f.nome ? '<span class="nfl-sub">' + esc(f.razao_social) + '</span>' : '') + "</td><td>" + esc(f.cnpj ? Regras.cnpjFormatado(f.cnpj) : "—") +
+        "</td><td>" + esc(f.tipo_fornecimento || "—") + "</td><td>" + (pend.length ? '<span title="Falta: ' + esc(pend.join(", ")) + '">' + pill("Incompleto (" + pend.length + ")", "warn") + '</span>' : pill("Completo", "good")) +
+        "</td><td>" + pill(f.ativo === false ? "Inativo" : "Ativo", f.ativo === false ? "neutral" : "good") + "</td><td>" +
+        (pode ? '<button type="button" class="btn qf-mini" data-forn-editar="' + esc(f.id) + '">Editar</button>' : '') + "</td></tr>";
+    }).join("");
+  }
+  // Painel "Dados do fornecedor". modo "completar" (cadastro da nota): o que já está preenchido aparece só para ler e o que
+  // falta vira campo; modo "editar" (cartão Fornecedores): tudo editável. Banco/agência/conta só para quem pode ver.
+  function fornPainelHtml(f, modo, novo){
+    f = f || {};
+    var b = f.id ? fornBanc(f.id) : (podeVerBancarios() ? null : undefined);
+    var pend = Regras.pendenciasFornecedor(f, b === undefined ? null : (b || {}));
+    var entrada = function(k, rot, tipo, largo, valor){
+      var id = "fp-" + k, v = valor == null ? "" : valor, cls = "field" + (largo ? " span2" : "");
+      if (tipo && typeof tipo === "object"){
+        return '<div class="' + cls + '"><label for="' + id + '">' + esc(rot) + '</label><select id="' + id + '" data-fp="' + k + '"><option value="">—</option>' +
+          Object.keys(tipo).map(function(o){ return '<option value="' + esc(o) + '"' + (o === v ? " selected" : "") + '>' + esc(tipo[o]) + '</option>'; }).join("") + '</select></div>';
+      }
+      if (tipo === "tipos") return '<div class="' + cls + '"><label for="' + id + '">' + esc(rot) + '</label><select id="' + id + '" data-fp="' + k + '"><option value="">—</option>' +
+        FORN_TIPOS.map(function(o){ return '<option' + (o === v ? " selected" : "") + '>' + esc(o) + '</option>'; }).join("") + '</select></div>';
+      var t = tipo === "email" ? "email" : tipo === "tel" ? "tel" : "text";
+      return '<div class="' + cls + '"><label for="' + id + '">' + esc(rot) + '</label><input id="' + id + '" type="' + t + '" data-fp="' + k + '" value="' + esc(k === "cnpj" && v ? Regras.cnpjFormatado(v) : v) + '"' +
+        (tipo === "cnpj" ? ' inputmode="numeric" placeholder="00.000.000/0000-00"' : '') + ' maxlength="300"></div>';
     };
-    rest("notas_fiscais", {method:"POST", body: body}).then(function(){
-      toast("Nota fiscal cadastrada.");
+    var lidos = [], campos = [];
+    FP_CAMPOS.forEach(function(c){
+      var v = f[c[0]], tem = v != null && String(v).trim() !== "";
+      if (modo === "completar" && tem) lidos.push('<div><small>' + esc(c[1]) + '</small>' + esc(fornValorExib(c[0], v)) + '</div>');
+      else campos.push(entrada(c[0], c[1], c[2], c[3], v));
+    });
+    var banco = "";
+    if (b !== undefined){
+      var bl = [], bc = [];
+      FP_BANCO.forEach(function(c){
+        var v = b ? b[c[0]] : null, tem = v != null && String(v).trim() !== "";
+        if (modo === "completar" && tem) bl.push('<div><small>' + esc(c[1]) + '</small>' + esc(v) + '</div>');
+        else bc.push('<div class="field"><label for="fpb-' + c[0] + '">' + esc(c[1]) + '</label><input id="fpb-' + c[0] + '" data-fpb="' + c[0] + '" value="' + esc(v || "") + '" maxlength="60"></div>');
+      });
+      banco = '<div class="fp-sub">Dados bancários <span class="nfl-sub">(só administrador e quem opera o Financeiro veem)</span></div>' +
+        (bl.length ? '<div class="nfd-grid">' + bl.join("") + '</div>' : '') + (bc.length ? '<div class="form-grid">' + bc.join("") + '</div>' : '');
+    }
+    return '<div class="fp-painel">' +
+      '<div class="fp-cab"><b>Dados do fornecedor</b> ' + (pend.length ? pill("Cadastro incompleto", "warn") + ' <span class="nfl-sub">falta: ' + esc(pend.join(", ")) + '</span>' : pill("Cadastro completo", "good")) + '</div>' +
+      (modo === "completar" && pend.length ? '<p class="nfd-aviso">Pode salvar a nota assim mesmo. O que você preencher abaixo vai para o cadastro do fornecedor (nada do que já existe é trocado).</p>' : '') +
+      (novo ? '<div class="form-grid"><div class="field span2"><label for="fp-nome">Nome do fornecedor (como aparece na planilha)</label><input id="fp-nome" maxlength="200" value="' + esc(f.nome || "") + '"></div></div>' : '') +
+      (lidos.length ? '<div class="nfd-grid">' + lidos.join("") + '</div>' : '') + (campos.length ? '<div class="form-grid">' + campos.join("") + '</div>' : '') + banco + '</div>';
+  }
+  // lê o painel: { campos: {coluna: valor}, banco: {coluna: valor} }. modo "completar": só o que foi preenchido; "editar": tudo (vazio = apagar)
+  function fornPainelColetar(host, modo){
+    var r = { campos: {}, banco: {} };
+    host.querySelectorAll("[data-fp]").forEach(function(e){
+      var v = e.value.trim(); if (e.getAttribute("data-fp") === "cnpj") v = v.replace(/\D/g, "");
+      if (v || modo === "editar") r.campos[e.getAttribute("data-fp")] = v || null;
+    });
+    host.querySelectorAll("[data-fpb]").forEach(function(e){ var v = e.value.trim(); if (v || modo === "editar") r.banco[e.getAttribute("data-fpb")] = v || null; });
+    return r;
+  }
+  function fornValidar(campos){
+    if (campos.cnpj && !Regras.cnpjValido(campos.cnpj)) return "CNPJ inválido: confira os 14 números (fornecedor pessoa física fica sem CNPJ).";
+    if (campos.contato_email && !Regras.emailValido(campos.contato_email)) return "E-mail do fornecedor inválido.";
+    return null;
+  }
+  function fornMsgErro(e){
+    var m = e && e.message || String(e);
+    if (/fornecedores_cnpj_unico|duplicate key/.test(m)) return "Esse CNPJ já está no cadastro de outro fornecedor.";
+    if (/cnpj_formato/.test(m)) return "O CNPJ precisa ter 14 números.";
+    return m;
+  }
+  // grava os campos do fornecedor e os dados bancários (insere ou altera a linha da tabela restrita)
+  function fornGravarDados(id, dados){
+    var p = Object.keys(dados.campos).length ? rest("fornecedores?id=eq." + encodeURIComponent(id), { method: "PATCH", body: dados.campos }) : Promise.resolve();
+    return p.then(function(){
+      if (!Object.keys(dados.banco).length || !podeVerBancarios()) return;
+      return FORN.bancarios && FORN.bancarios[id]
+        ? rest("fornecedores_dados_bancarios?fornecedor_id=eq." + encodeURIComponent(id), { method: "PATCH", body: dados.banco })
+        : rest("fornecedores_dados_bancarios", { method: "POST", body: Object.assign({ fornecedor_id: id }, dados.banco) });
+    });
+  }
+
+  // ---- Cartão Fornecedores: novo / editar com o cadastro completo ----
+  function abrirFornecedorForm(id){
+    var f = id ? fornPorId(id) : null;
+    document.getElementById("fo-titulo").textContent = f ? "Editar fornecedor" : "Novo fornecedor";
+    document.getElementById("fo-id").value = f ? f.id : "";
+    document.getElementById("fo-nome").value = f ? f.nome : "";
+    document.getElementById("fo-tipo").value = f && f.tipo === "locadora" ? "locadora" : "outro";
+    document.getElementById("fo-dia").value = f && f.dia_esperado_envio_nota != null ? f.dia_esperado_envio_nota : "";
+    document.getElementById("fo-ativo").checked = !f || f.ativo !== false;
+    document.getElementById("fo-obs").value = f && f.observacoes ? f.observacoes : "";
+    document.getElementById("fo-painel").innerHTML = fornPainelHtml(f || {}, "editar", false);
+    setErr("fo-err", "");
+  }
+  document.querySelector('[data-open-modal="modal-fornecedor"]').addEventListener("click", function(){ abrirFornecedorForm(null); });
+  document.getElementById("fin-forn-body").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-forn-editar]"); if (!b) return;
+    abrirFornecedorForm(b.getAttribute("data-forn-editar")); openModal("modal-fornecedor");
+  });
+  document.querySelector('[data-form="fornecedor"]').addEventListener("submit", function(ev){
+    ev.preventDefault(); setErr("fo-err", "");
+    var id = document.getElementById("fo-id").value, nome = document.getElementById("fo-nome").value.trim();
+    if (!nome){ setErr("fo-err", "Informe o nome do fornecedor."); return; }
+    var dados = fornPainelColetar(document.getElementById("fo-painel"), "editar"), erro = fornValidar(dados.campos);
+    if (erro){ setErr("fo-err", erro); return; }
+    var dia = document.getElementById("fo-dia").value;
+    var base = { nome: nome, tipo: document.getElementById("fo-tipo").value, dia_esperado_envio_nota: dia ? parseInt(dia, 10) : null,
+      ativo: document.getElementById("fo-ativo").checked, observacoes: document.getElementById("fo-obs").value.trim() || null };
+    var btn = ev.target.querySelector('[type="submit"]'); btn.disabled = true;
+    var gravar = id
+      ? fornGravarDados(id, { campos: Object.assign({}, base, dados.campos), banco: dados.banco })
+      : rest("fornecedores", { method: "POST", body: Object.assign({}, base, dados.campos) }).then(function(rows){ return fornGravarDados(rows[0].id, { campos: {}, banco: dados.banco }); });
+    gravar.then(function(){
+      toast(id ? "Fornecedor atualizado." : "Fornecedor cadastrado.");
+      document.getElementById("modal-fornecedor").hidden = true;
+      carregarFornecedores();
+    }).catch(function(e){ setErr("fo-err", fornMsgErro(e)); }).finally(function(){ btn.disabled = false; });
+  });
+
+  // ---- Cadastro de nota: busca do fornecedor, painel, sugestões pelo histórico ----
+  var NFC = { forn: null, novo: false, sugestao: null };
+  var NFC_SUGERIVEIS = ["nf-categoria", "nf-hub", "nf-forma-pagamento", "nf-vencimento", "nf-mes-ref"];
+  function abrirNovaNota(){
+    var form = document.querySelector('[data-form="nota"]'); form.reset();
+    NFC = { forn: null, novo: false, sugestao: null };
+    document.getElementById("nf-fornecedor").value = "";
+    document.getElementById("nf-forn-lista").innerHTML = ""; document.getElementById("nf-forn-painel").innerHTML = "";
+    document.getElementById("nf-forn-busca").hidden = false; document.getElementById("nf-forn-busca").parentNode.hidden = false;
+    document.getElementById("nf-sugestao").hidden = true;
+    NFC_SUGERIVEIS.forEach(function(i){ delete document.getElementById(i).dataset.manual; });
+    var fp = document.getElementById("nf-forma-pagamento");
+    fp.innerHTML = '<option value="">—</option>' + Object.keys(Regras.FORMA_PAGAMENTO_NOTA).map(function(k){ return '<option value="' + esc(Regras.FORMA_PAGAMENTO_NOTA[k]) + '">' + esc(Regras.FORMA_PAGAMENTO_FORN[k]) + '</option>'; }).join("");
+    document.getElementById("nf-emissao").max = qdHoje(); document.getElementById("nf-envio").max = qdHoje();
+    setErr("nf-err", "");
+    if (!FORN.lista.length) carregarFornecedores();
+    setTimeout(function(){ document.getElementById("nf-forn-busca").focus(); }, 50);
+  }
+  document.querySelector('[data-open-modal="modal-nota"]').addEventListener("click", abrirNovaNota);
+  document.getElementById("nf-forn-busca").addEventListener("input", function(){
+    var t = this.value.trim(), q = Regras.finNorm(t), dig = t.replace(/\D/g, ""), host = document.getElementById("nf-forn-lista");
+    if (q.length < 2 && dig.length < 3){ host.innerHTML = ""; return; }
+    var achados = FORN.lista.filter(function(f){
+      return f.ativo !== false && (Regras.finNorm(f.nome + " " + (f.razao_social || "")).indexOf(q) > -1 || (dig.length >= 3 && String(f.cnpj || "").indexOf(dig) > -1));
+    }).slice(0, 8);
+    host.innerHTML = achados.map(function(f){
+      return '<button type="button" data-nfc-forn="' + esc(f.id) + '"><b>' + esc(f.nome) + '</b>' + (f.cnpj ? ' <span class="nfl-sub">' + esc(Regras.cnpjFormatado(f.cnpj)) + '</span>' : '') +
+        (fornPendencias(f).length ? ' ' + pill("Cadastro incompleto", "warn") : '') + '</button>';
+    }).join("") + '<button type="button" data-nfc-novo="1">+ Cadastrar novo fornecedor' + (t && !dig ? ': “' + esc(t) + '”' : '') + '</button>';
+  });
+  document.getElementById("nf-forn-lista").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-nfc-forn], [data-nfc-novo]"); if (!b) return;
+    var busca = document.getElementById("nf-forn-busca");
+    if (b.hasAttribute("data-nfc-novo")){ NFC.novo = true; NFC.forn = { nome: /\d{3}/.test(busca.value) ? "" : busca.value.trim() }; document.getElementById("nf-fornecedor").value = ""; }
+    else { NFC.novo = false; NFC.forn = fornPorId(b.getAttribute("data-nfc-forn")); document.getElementById("nf-fornecedor").value = NFC.forn.id; }
+    busca.parentNode.hidden = true; this.innerHTML = "";
+    nfcRenderPainel(); nfcAplicarSugestoes();
+  });
+  function nfcRenderPainel(){
+    var host = document.getElementById("nf-forn-painel");
+    host.innerHTML = '<div class="fp-escolhido">' + (NFC.novo ? 'Fornecedor novo' : 'Fornecedor: <b>' + esc(NFC.forn.nome) + '</b>') +
+      ' <button type="button" class="btn qf-mini" data-nfc-trocar>Trocar</button></div>' + fornPainelHtml(NFC.novo ? NFC.forn : NFC.forn, NFC.novo ? "editar" : "completar", NFC.novo);
+  }
+  document.getElementById("nf-forn-painel").addEventListener("click", function(ev){
+    if (!ev.target.closest("[data-nfc-trocar]")) return;
+    NFC = { forn: null, novo: false, sugestao: null };
+    document.getElementById("nf-fornecedor").value = ""; this.innerHTML = ""; document.getElementById("nf-sugestao").hidden = true;
+    var busca = document.getElementById("nf-forn-busca"); busca.parentNode.hidden = false; busca.value = ""; busca.focus();
+  });
+  // sugestões pelo histórico do fornecedor: só preenchem campo vazio ou que ainda tem a sugestão anterior (o que a pessoa mudou fica)
+  NFC_SUGERIVEIS.forEach(function(i){ document.getElementById(i).addEventListener("input", function(){ this.dataset.manual = "1"; }); });
+  document.getElementById("nf-emissao").addEventListener("change", nfcAplicarSugestoes);
+  document.getElementById("nf-pipe").addEventListener("input", function(){ var e = document.getElementById("nf-envio"); if (this.value.trim() && !e.value) e.value = qdHoje(); });
+  function nfcAplicarSugestoes(){
+    var id = NFC.forn && NFC.forn.id, emissao = document.getElementById("nf-emissao").value;
+    var anteriores = id ? NFL.todas.filter(function(n){ return n.fornecedor_id === id; }) : [];
+    var s = Regras.sugestoesNota(anteriores, emissao || null), usadas = [];
+    var por = function(campo, valor, rotulo){
+      var e = document.getElementById(campo); if (valor == null || valor === "" || e.dataset.manual) return;
+      if (e.tagName === "SELECT" && !Array.prototype.some.call(e.options, function(o){ return o.value === valor; })) return;
+      e.value = valor; usadas.push(rotulo);
+    };
+    por("nf-categoria", s.categoria_id, "conta"); por("nf-hub", s.hub_id, "hub");
+    por("nf-forma-pagamento", s.forma_pagamento_chave ? Regras.FORMA_PAGAMENTO_NOTA[s.forma_pagamento_chave] : (NFC.forn && NFC.forn.forma_pagamento ? Regras.FORMA_PAGAMENTO_NOTA[NFC.forn.forma_pagamento] : null), "forma de pagamento");
+    por("nf-mes-ref", s.mes_referencia, "competência (mês da emissão)");
+    por("nf-vencimento", s.data_vencimento, "vencimento (" + s.prazo_dias + " dias depois da emissão, o prazo de costume)");
+    var box = document.getElementById("nf-sugestao");
+    box.hidden = !usadas.length;
+    box.textContent = usadas.length ? "Sugerido pelo histórico do fornecedor (" + s.base + (s.base === 1 ? " nota" : " notas") + "): " + usadas.join(", ") + ". Pode mudar." : "";
+  }
+  document.querySelector('[data-form="nota"]').addEventListener("submit", function(ev){
+    ev.preventDefault(); setErr("nf-err", "");
+    var v = function(i){ return document.getElementById(i).value.trim(); };
+    var painel = document.getElementById("nf-forn-painel"), novoNome = NFC.novo ? (document.getElementById("fp-nome") || { value: "" }).value.trim() : "";
+    var d = { fornecedor_id: NFC.novo ? "" : v("nf-fornecedor"), fornecedor_novo: novoNome, valor: parseFloat(v("nf-valor")), data_emissao: v("nf-emissao"),
+      mes_referencia: v("nf-mes-ref"), data_vencimento: v("nf-vencimento"), categoria_id: v("nf-categoria"), numero_nota: v("nf-numero"), pipe: v("nf-pipe"), data_envio: v("nf-envio") };
+    var erro = Regras.validarNovaNota(d, NFL.todas, qdHoje());
+    if (!erro && NFC.novo && FORN.lista.some(function(f){ return Regras.finNorm(f.nome) === Regras.finNorm(novoNome); })) erro = "Já existe um fornecedor com esse nome: use a busca para escolhê-lo.";
+    var dados = NFC.forn ? fornPainelColetar(painel, NFC.novo ? "editar" : "completar") : { campos: {}, banco: {} };
+    if (!erro) erro = fornValidar(dados.campos);
+    if (erro){ setErr("nf-err", erro); return; }
+    var btn = document.getElementById("nf-salvar"); btn.disabled = true;
+    var fornId = NFC.novo
+      ? rest("fornecedores", { method: "POST", body: Object.assign({ nome: novoNome, ativo: true }, dados.campos) }).then(function(rows){ return fornGravarDados(rows[0].id, { campos: {}, banco: dados.banco }).then(function(){ return rows[0].id; }); })
+      : fornGravarDados(d.fornecedor_id, dados).then(function(){ return d.fornecedor_id; });
+    fornId.then(function(id){
+      var comEnvio = !!d.pipe;
+      return rest("notas_fiscais", { method: "POST", body: {
+        fornecedor_id: id, categoria_id: d.categoria_id, hub_id: v("nf-hub") || null, numero_nota: d.numero_nota || null,
+        data_emissao: d.data_emissao, data_vencimento: d.data_vencimento, mes_referencia: d.mes_referencia + "-01", valor: Math.round(d.valor * 100) / 100,
+        forma_pagamento: v("nf-forma-pagamento") || null, descricao: v("nf-descricao") || null, veiculo_texto: v("nf-veiculo-txt") || null,
+        pipefy_card_id: comEnvio ? d.pipe : null, pipe_parte: 1, data_envio_financeiro: comEnvio ? d.data_envio : null,
+        etapa: comEnvio ? "enviado" : "pendente_envio", aprovacao: "aprovado", origem_carga: "manual" } });
+    }).then(function(){
+      toast("Nota fiscal cadastrada" + (d.pipe ? " como Enviado." : " como Pendente de envio."));
       document.getElementById("modal-nota").hidden = true;
-      ev.target.reset();
-      loadFinanceiro();
-    }).catch(function(e){ setErr("nf-err", e.message); });
+      carregarNotasFiscais(); carregarFornecedores();
+    }).catch(function(e){ setErr("nf-err", /notas_fiscais_pipe_parte_unico/.test(e.message) ? "Esse Pipe já está em outra nota." : fornMsgErro(e)); })
+      .finally(function(){ btn.disabled = false; });
   });
 
   // ---------------- Carros Elétricos ----------------
