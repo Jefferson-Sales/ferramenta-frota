@@ -524,6 +524,15 @@
   igual("N4e: Pipe já usado em outra nota é barrado", vn({ numero_nota: "", pipe: "123", data_envio: "2026-11-12" }, LV), "Esse Pipe já está na nota de ZZT Garagem (NF 0077).");
   igual("N4e: e-mail válido", R.emailValido("a@b.com") + " " + R.emailValido("a@b") + " " + R.emailValido(""), "true false false");
 
+  grupo("Triagem de notas por e-mail (T1)");
+  var pt = function(r, v){ var p = R.prazoTriagem(r, v); return p.status + "/" + p.dias; };
+  igual("T1: 10 dias do recebimento = em dia", pt("2026-11-13T15:00:00Z", "2026-11-23"), "em_dia/10");
+  igual("T1: 9 dias = prazo curto (vencida também)", pt("2026-11-13T15:00:00Z", "2026-11-22") + " " + pt("2026-11-13T15:00:00Z", "2026-11-10"), "prazo_curto/9 prazo_curto/-3");
+  igual("T1: recebido às 23h30 de Brasília conta aquele dia (não o dia seguinte UTC)", pt("2026-11-14T02:30:00Z", "2026-11-23"), "em_dia/10");
+  igual("T1: sem vencimento", pt("2026-11-13T15:00:00Z", null), "sem_vencimento/null");
+  igual("T1: homologação do fornecedor", [R.homologacaoTriagem(null), R.homologacaoTriagem({}), R.homologacaoTriagem({ status_homologacao: "homologado" }), R.homologacaoTriagem({ status_homologacao: "bloqueado" })].join(","), "nao_cadastrado,pendente,homologado,bloqueado");
+  igual("T1: justificativa da reprovação (mín. 10 letras)", String(R.justificativaReprovacaoErro("  curta   ")) + " | " + R.justificativaReprovacaoErro("Vencimento fora do prazo"), "Escreva a justificativa (mínimo 10 letras); ela vai para o fornecedor. | null");
+
   grupo("Financeiro — rateio por BU (aba \"Rateio\", bloco Motoristas)");
   var abaRateio = [
     [null, null, null, null, null, "Outro bloco"],

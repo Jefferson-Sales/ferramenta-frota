@@ -903,6 +903,21 @@
   // e-mail com cara de e-mail (o banco só guarda em minúsculas)
   function emailValido(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || "").trim()); }
 
+  // ---------------- Triagem de notas por e-mail (T1, 13/11/2026) ----------------
+  // Mesma regra de frota.prazo_triagem: dias entre o recebimento (dia de Brasília) e o vencimento; em dia se >= 10.
+  var TRIAGEM_PRAZO_MIN = 10;
+  function diaBrasiliaDe(iso) { return new Date(new Date(iso).getTime() - 3 * 3600e3).toISOString().slice(0, 10); }
+  function prazoTriagem(recebidoEm, vencimento) {
+    if (!vencimento) return { status: "sem_vencimento", dias: null, ok: false };
+    var dias = Math.round((Date.parse(String(vencimento).slice(0, 10) + "T00:00:00Z") - Date.parse(diaBrasiliaDe(recebidoEm) + "T00:00:00Z")) / 864e5);
+    return { status: dias >= TRIAGEM_PRAZO_MIN ? "em_dia" : "prazo_curto", dias: dias, ok: dias >= TRIAGEM_PRAZO_MIN };
+  }
+  // fornecedor achado pelo CNPJ (ou null) → homologado | pendente | bloqueado | nao_cadastrado
+  function homologacaoTriagem(forn) { return forn ? (forn.status_homologacao || "pendente") : "nao_cadastrado"; }
+  function justificativaReprovacaoErro(t) {
+    return String(t || "").trim().length < 10 ? "Escreva a justificativa (mínimo 10 letras); ela vai para o fornecedor." : null;
+  }
+
   // ID temporário de nota sem Pipe: "TEMP-AAAAMM-xxxxxxxx", calculado de fornecedor + NF + valor (+ ocorrência, se houver
   // duas iguais). É sempre o mesmo para a mesma nota: reimportar não duplica e, quando o Pipe for preenchido na planilha,
   // a nota temporária é achada por ele e recebe o número do Pipe (ver idsTemporariosCandidatos).
@@ -1008,6 +1023,10 @@
     FORMA_PAGAMENTO_NOTA: FORMA_PAGAMENTO_NOTA,
     validarNovaNota: validarNovaNota,
     emailValido: emailValido,
+    TRIAGEM_PRAZO_MIN: TRIAGEM_PRAZO_MIN,
+    prazoTriagem: prazoTriagem,
+    homologacaoTriagem: homologacaoTriagem,
+    justificativaReprovacaoErro: justificativaReprovacaoErro,
     dataDaPlanilha: dataDaPlanilha,
     lerRateioBU: lerRateioBU,
     idTemporarioNota: idTemporarioNota,

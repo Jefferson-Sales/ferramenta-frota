@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1149,6 +1149,61 @@ begin
   casos := casos || text 'N4a: quem vê o Cadastro da Frota não vê dados bancários'; obtidos := obtidos || x; esperados := esperados || text '0/1';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 27. TRIAGEM DE NOTAS POR E-MAIL (T1)
+  select status_homologacao into x from frota.fornecedores where id = ffor;
+  casos := casos || text 'T1: fornecedor novo nasce "pendente" de homologação'; obtidos := obtidos || x; esperados := esperados || text 'pendente';
+  begin update frota.fornecedores set status_homologacao = 'aprovado' where id = ffor; x := 'aceitou'; exception when check_violation then x := 'recusou'; end;
+  casos := casos || text 'T1: status de homologação fora da lista é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.fornecedores set status_homologacao = 'homologado' where id = ffor;
+  insert into frota.financeiro_notas_triagem (message_id, remetente, data_recebimento, cnpj_lido, valor_lido, data_vencimento, caminho_pdf_nf, status_aprovacao)
+    values ('<zzt-1@teste>', 'nf@zzt.invalid', '2033-01-01 23:30-03', '12.345.678/0001-90', 1500, '2033-01-11', 'x/nf.pdf', 'aprovada') returning id into tg1;
+  select coalesce((fornecedor_id = ffor)::text, 'sem') || '/' || cnpj_lido || '/' || dias_ate_vencimento || '/' || status_validacao_dias || '/' || status_aprovacao into x
+    from frota.financeiro_notas_triagem where id = tg1;
+  casos := casos || text 'T1: e-mail novo acha o fornecedor pelo CNPJ, conta 10 dias pelo dia de Brasília (em dia) e nasce pendente'; obtidos := obtidos || x;
+  esperados := esperados || text 'true/12345678000190/10/em_dia/pendente';
+  insert into frota.financeiro_notas_triagem (message_id, data_recebimento, cnpj_lido, data_vencimento) values ('<zzt-2@teste>', '2033-01-01 12:00-03', '99888777000166', '2033-01-10') returning id into tg2;
+  insert into frota.financeiro_notas_triagem (message_id) values ('<zzt-3@teste>') returning id into tg3;
+  select (select status_validacao_dias || '/' || dias_ate_vencimento || '/' || coalesce(fornecedor_id::text, 'sem fornecedor') from frota.financeiro_notas_triagem where id = tg2) || ' | ' ||
+         (select status_validacao_dias from frota.financeiro_notas_triagem where id = tg3) into x;
+  casos := casos || text 'T1: 9 dias = prazo curto; CNPJ fora do cadastro fica sem fornecedor; sem vencimento = sem_vencimento'; obtidos := obtidos || x;
+  esperados := esperados || text 'prazo_curto/9/sem fornecedor | sem_vencimento';
+  begin insert into frota.financeiro_notas_triagem (message_id) values ('<zzt-1@teste>'); x := 'aceitou'; exception when unique_violation then x := 'recusou'; end;
+  casos := casos || text 'T1: o mesmo e-mail (message_id) não entra duas vezes'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fop, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.financeiro_notas_triagem where id in (tg1, tg2, tg3);
+  casos := casos || text 'T1: operador do Financeiro vê a caixa de entrada'; obtidos := obtidos || x; esperados := esperados || text '3';
+  begin update frota.financeiro_notas_triagem set status_aprovacao = 'reprovada', justificativa_reprovacao = 'curta' where id = tg2; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'T1: reprovar sem justificativa (mín. 10 letras) é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.financeiro_notas_triagem set status_aprovacao = 'reprovada', justificativa_reprovacao = '  Vencimento com menos de 10 dias  ' where id = tg2;
+  select status_aprovacao || '/' || justificativa_reprovacao || '/' || (decidido_por = u_fop)::text || '/' || decidido_por_nome || '/' || (decidido_em is not null)::text into x
+    from frota.financeiro_notas_triagem where id = tg2;
+  casos := casos || text 'T1: reprovar grava a justificativa e quem decidiu (pelo login)'; obtidos := obtidos || x;
+  esperados := esperados || text 'reprovada/Vencimento com menos de 10 dias/true/TESTE Operador Fin/true';
+  update frota.financeiro_notas_triagem set status_aprovacao = 'aprovada', justificativa_reprovacao = 'não deve ficar' where id = tg1;
+  select status_aprovacao || '/' || coalesce(justificativa_reprovacao, 'sem justificativa') into x from frota.financeiro_notas_triagem where id = tg1;
+  casos := casos || text 'T1: aprovar não guarda justificativa'; obtidos := obtidos || x; esperados := esperados || text 'aprovada/sem justificativa';
+  begin update frota.financeiro_notas_triagem set status_aprovacao = 'pendente' where id = tg2; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'T1: operador não reabre nota já decidida (só admin)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.financeiro_notas_triagem set remetente = 'outro@zzt.invalid' where id = tg3; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'T1: dados do e-mail recebido não mudam pela tela'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.financeiro_notas_triagem set data_vencimento = '2033-12-31' where id = tg3;
+  select status_validacao_dias into x from frota.financeiro_notas_triagem where id = tg3;
+  casos := casos || text 'T1: corrigir o vencimento recalcula o prazo'; obtidos := obtidos || x; esperados := esperados || text 'em_dia';
+  begin insert into frota.financeiro_notas_triagem (message_id) values ('<zzt-4@teste>'); x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'T1: pela tela ninguém cria item na caixa (só o e-mail, pela função)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.financeiro_notas_triagem where id = tg3; get diagnostics n = row_count; x := n::text; exception when others then x := 'recusou'; end;
+  casos := casos || text 'T1: ninguém apaga item da caixa'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.financeiro_notas_triagem where id in (tg1, tg2, tg3);
+  casos := casos || text 'T1: quem só vê o Financeiro não vê a caixa (tem boleto com dados bancários)'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  select public::text || '/' || file_size_limit::text into x from storage.buckets where id = 'notas-triagem';
+  casos := casos || text 'T1: pasta notas-triagem é privada e aceita até 10 MB'; obtidos := obtidos || x; esperados := esperados || text 'false/10485760';
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop
