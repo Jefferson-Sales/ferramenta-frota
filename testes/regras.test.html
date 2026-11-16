@@ -364,6 +364,17 @@
   igual("Edenred: linhas idênticas viram ocorrência 1 e 2", ed.linhas.filter(function(t){ return t.subtipo === "Estacionamento"; }).map(function(t){ return t.ocorrencia; }).join(","), "1,2");
   igual("Edenred: tag sem placa → MOURISCO", ed.linhas[0].hub + " / " + ed.linhas[0].hub_regra, "MOURISCO / matriz_sem_placa");
   igual("Edenred: cidade e UF pelo endereço", ed.linhas[1].cidade + "-" + ed.linhas[1].uf, "Barueri-SP");
+  // H1: histórico de hub — o custo vai para o hub em que o carro estava no dia da transação
+  var perH = [{ hub: "Alphaville", inicio: null, fim: "2026-11-10T12:00:00Z" }, { hub: "Barra", inicio: "2026-11-10T12:00:00Z", fim: null }];
+  igual("Histórico de hub: antes da troca = hub antigo", R.hubNaData(perH, "2026-11-05T10:00:00-03:00"), "Alphaville");
+  igual("Histórico de hub: no instante da troca = hub novo", R.hubNaData(perH, "2026-11-10T09:00:00-03:00"), "Barra");
+  igual("Histórico de hub: sem histórico → null", R.hubNaData(null, "2026-11-05T10:00:00-03:00"), null);
+  var cadH = { veiculos: { ABC1D23: { id: "v1", hub: "Barra", periodos: perH } }, hubs: ["Alphaville", "Barra", "MOURISCO"] };
+  var edH = R.lerEdenred(["Código da Fatura: 1;;", "Mês de referência: nov./2026;;", "Código;Data da Transação;Hora da Transação;Tipo de Transação;Placa;Valor cobrado(R$)",
+    "1;05/11/2026;08:00:00;Pedágio;ABC1D23;-10,00", "2;12/11/2026;08:00:00;Pedágio;ABC1D23;-7,00"].join("\n"), cadH, "f.csv");
+  igual("Edenred: pedágio antes da troca vai para o hub antigo", edH.linhas.map(function(t){ return t.hub + "/" + t.hub_regra; }).join(" "), "Alphaville/historico_hub Barra/cadastro");
+  var tlH = R.lerTicketLog([["CODIGO TRANSACAO", "DATA TRANSACAO", "PLACA", "SERVICO", "VALOR EMISSAO"], ["1", 46331.4, "ABC1D23", "Abastecimento", 100]], "2026-11", cadH, "t.xlsx");
+  igual("Ticket Log: abastecimento de 05/11 vai para o hub do dia", tlH[0].hub + "/" + tlH[0].hub_regra, "Alphaville/historico_hub");
   var nt = R.lerControleNotas([
     ["FORNECEDOR", "HUB", "CONTA", "NOTA FISCAL", "MÊS REFERÊNCIA", "ANO", "VALOR", "BANCO", "AGÊNCIA", "CONTA", "NÚMERO DO PIPE", "STATUS"],
     ["LOCADORA A", "MATRIZ", "LOCAÇÃO VEICULAR", "1", 10, 2026, 1000, "ITAU", "0001", "12345-6", "111", "Aprovado"],

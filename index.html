@@ -6228,17 +6228,20 @@
   var FIMP = { previa: null };
   var FIMP_COLS = [["aluguel", "Aluguel"], ["combustivel", "Combustível"], ["pedagio_estacionamento", "Pedágio/Estac."], ["lavagem", "Lavagem"], ["garagem", "Garagem"], ["manutencao", "Manutenção"]];
   var FIMP_CAT = { combustivel: "Combustível", lavagem: "Lavagem", outros: "Outros (pneu, óleo…)", pedagio: "Pedágio", estacionamento: "Estacionamento", taxa_tag: "Taxas de tag" };
-  var FIMP_REGRA = { cadastro: "placa do cadastro", informacao_adicional: "informação adicional do extrato", matriz_sem_placa: "sem placa → MOURISCO", sem_hub: "sem hub (placa fora do cadastro)" };
+  var FIMP_REGRA = { cadastro: "placa do cadastro", historico_hub: "hub em que o carro estava no dia", informacao_adicional: "informação adicional do extrato", matriz_sem_placa: "sem placa → MOURISCO", sem_hub: "sem hub (placa fora do cadastro)" };
   function fimpPreparar(){
     var mes = document.getElementById("fimp-mes");
     if (!mes.value){ var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); mes.value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
     document.getElementById("fimp-importar").hidden = !(perfil && perfil.papel === "admin");
   }
   function fimpCadastro(){
-    return Promise.all([rest("veiculos?select=id,placa,hub_id"), rest("hubs?select=id,nome")]).then(function(r){
+    // histórico de hub (H1): a prévia mostra o hub do dia da transação; o banco recalcula na gravação (gatilho cartao_hub_na_data)
+    var hist = restTodas("veiculos_historico_hub?select=veiculo_id,hub_id,inicio,fim&order=id").catch(function(){ return []; });
+    return Promise.all([rest("veiculos?select=id,placa,hub_id"), rest("hubs?select=id,nome"), hist]).then(function(r){
       var hubNome = {}, hubId = {}; (r[1] || []).forEach(function(h){ hubNome[h.id] = h.nome; hubId[h.nome] = h.id; });
       var cad = { veiculos: {}, hubs: (r[1] || []).map(function(h){ return h.nome; }), hubId: hubId, hubNome: hubNome };
-      (r[0] || []).forEach(function(v){ cad.veiculos[String(v.placa).toUpperCase().replace(/[^A-Z0-9]/g, "")] = { id: v.id, hub: hubNome[v.hub_id] || null }; });
+      var per = {}; (r[2] || []).forEach(function(p){ (per[p.veiculo_id] = per[p.veiculo_id] || []).push({ hub: hubNome[p.hub_id] || null, inicio: p.inicio, fim: p.fim }); });
+      (r[0] || []).forEach(function(v){ cad.veiculos[String(v.placa).toUpperCase().replace(/[^A-Z0-9]/g, "")] = { id: v.id, hub: hubNome[v.hub_id] || null, periodos: per[v.id] || null }; });
       return cad;
     });
   }

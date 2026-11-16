@@ -485,9 +485,23 @@
     var faltam = nomes.filter(function(n){ return ix[finNorm(n)] == null; });
     if (faltam.length) throw new Error(arquivo + ": faltam as colunas " + faltam.join(", ") + ".");
   }
-  // cadastro = { veiculos: { PLACA: { id, hub } }, hubs: [nomes] } (hub = nome do hub)
-  function hubDaTransacao(placa, textoReserva, cadastro, semPlacaVaiPara) {
+  // Hub do veículo numa data pelo histórico (= frota.hub_do_veiculo_na_data).
+  // periodos = [{ hub, inicio, fim }] (inicio vazio = desde antes do histórico; fim vazio = atual). Sem período → null.
+  function hubNaData(periodos, quando) {
+    var t = Date.parse(quando); if (!periodos || !periodos.length || isNaN(t)) return null;
+    var ach = null, ini = -Infinity;
+    periodos.forEach(function(p){
+      var i = p.inicio ? Date.parse(p.inicio) : -Infinity, f = p.fim ? Date.parse(p.fim) : Infinity;
+      if (i <= t && t < f && (ach === null || i > ini)) { ach = p; ini = i; }
+    });
+    return ach ? ach.hub : null;
+  }
+  // cadastro = { veiculos: { PLACA: { id, hub, periodos? } }, hubs: [nomes] } (hub = nome do hub atual)
+  // quando = data/hora da transação: com histórico, vale o hub em que o carro estava naquele dia.
+  function hubDaTransacao(placa, textoReserva, cadastro, semPlacaVaiPara, quando) {
     var v = placa ? cadastro.veiculos[placa] : null;
+    var hd = v && quando ? hubNaData(v.periodos, quando) : null;
+    if (v && hd && hd !== v.hub) return { veiculo_id: v.id, hub: hd, hub_regra: "historico_hub" };
     if (v && v.hub) return { veiculo_id: v.id, hub: v.hub, hub_regra: "cadastro" };
     if (!placa && semPlacaVaiPara) return { veiculo_id: null, hub: semPlacaVaiPara, hub_regra: "matriz_sem_placa" };
     var h = textoReserva ? hubDoTexto(textoReserva, cadastro.hubs) : null;
@@ -506,7 +520,7 @@
       var iso = serialExcelParaISO(c(l, "DATA TRANSACAO"));
       if (!iso || iso.slice(0, 7) !== mes) continue;
       var placa = limparPlaca(c(l, "PLACA")), sub = String(c(l, "SERVICO") || "").trim();
-      var h = hubDaTransacao(placa, c(l, "INFORMACAO ADIDIONAL 2"), cadastro, null);
+      var h = hubDaTransacao(placa, c(l, "INFORMACAO ADIDIONAL 2"), cadastro, null, iso);
       out.push({
         origem: "ticket_log", transacao_id_externo: String(c(l, "CODIGO TRANSACAO")), data_hora: iso, placa: placa || null,
         veiculo_id: h.veiculo_id, hub: h.hub, hub_regra: h.hub_regra, categoria: categoriaCartao("ticket_log", sub), subtipo: sub,
@@ -544,11 +558,12 @@
       if (!linhas[r].trim()) continue;
       var l = campoCSV(linhas[r]);
       var placa = limparPlaca(c(l, "Placa")), sub = c(l, "Tipo de Transação"), cobrado = valorBR(c(l, "Valor cobrado(R$)"));
-      var h = hubDaTransacao(placa, null, cadastro, "MOURISCO");
+      var dh = dataHoraBR(c(l, "Data da Transação"), c(l, "Hora da Transação"));
+      var h = hubDaTransacao(placa, null, cadastro, "MOURISCO", dh);
       var end = c(l, "Endereço"), uf = (/ - ([A-Z]{2})$/.exec(end) || [])[1] || null;
       var cidade = uf ? (end.replace(/ - [A-Z]{2}$/, "").split(",").pop() || "").trim() || null : null;
       out.push({
-        origem: "edenred", transacao_id_externo: c(l, "Código"), data_hora: dataHoraBR(c(l, "Data da Transação"), c(l, "Hora da Transação")),
+        origem: "edenred", transacao_id_externo: c(l, "Código"), data_hora: dh,
         placa: placa || null, veiculo_id: h.veiculo_id, hub: h.hub, hub_regra: h.hub_regra,
         categoria: categoriaCartao("edenred", sub), subtipo: sub,
         valor: cobrado == null ? 0 : Math.round(-cobrado * 100) / 100,   // cobrança vem negativa; estorno positivo → desconta
@@ -995,6 +1010,7 @@
     dataHoraBR: dataHoraBR,
     valorBR: valorBR,
     marcarOcorrencias: marcarOcorrencias,
+    hubNaData: hubNaData,
     lerTicketLog: lerTicketLog,
     lerEdenred: lerEdenred,
     lerControleNotas: lerControleNotas,

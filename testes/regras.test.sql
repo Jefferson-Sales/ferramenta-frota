@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1204,6 +1204,38 @@ begin
   perform set_config('request.jwt.claims', '', true);
   select public::text || '/' || file_size_limit::text into x from storage.buckets where id = 'notas-triagem';
   casos := casos || text 'T1: pasta notas-triagem é privada e aceita até 10 MB'; obtidos := obtidos || x; esperados := esperados || text 'false/10485760';
+
+  -- ============================================ 28. HISTÓRICO DE HUB (H1): CUSTO NO HUB EM QUE O CARRO ESTAVA NO DIA
+  select id, hub_id into h1v, h1a from frota.veiculos where ativo order by placa limit 1;
+  select id into h1b from frota.hubs where id <> h1a order by nome limit 1;
+  select count(*)::text into x from frota.veiculos v where not exists (select 1 from frota.veiculos_historico_hub h where h.veiculo_id = v.id and h.fim is null);
+  casos := casos || text 'H1: todo veículo tem um período aberto no histórico de hub'; obtidos := obtidos || x; esperados := esperados || text '0';
+  update frota.veiculos set hub_id = h1b where id = h1v;
+  select (frota.hub_do_veiculo_na_data(h1v, now() - interval '1 second') = h1a)::text || '/' || (frota.hub_do_veiculo_na_data(h1v, now() + interval '1 day') = h1b)::text into x;
+  casos := casos || text 'H1: trocar o hub fecha o período; antes da troca vale o hub antigo, depois o novo'; obtidos := obtidos || x; esperados := esperados || text 'true/true';
+  update frota.veiculos set hub_id = h1b where id = h1v;
+  select count(*)::text into x from frota.veiculos_historico_hub where veiculo_id = h1v and fim is null;
+  casos := casos || text 'H1: salvar o mesmo hub não abre período novo'; obtidos := obtidos || x; esperados := esperados || text '1';
+  insert into frota.financeiro_transacoes_cartao (origem, transacao_id_externo, ocorrencia, data_hora, veiculo_id, hub_id, hub_regra, categoria, subtipo, valor, mes_competencia, arquivo_origem)
+  values ('edenred', 'ZZTH1-1', 1, now() - interval '5 days', h1v, h1b, 'cadastro', 'pedagio', 'Pedágio', 10, date_trunc('month', now())::date, 'TESTE') returning id into h1t;
+  select (hub_id = h1a)::text || '/' || hub_regra into x from frota.financeiro_transacoes_cartao where id = h1t;
+  casos := casos || text 'H1: pedágio de antes da troca vai para o hub do dia, mesmo se o navegador mandar o atual'; obtidos := obtidos || x; esperados := esperados || text 'true/historico_hub';
+  insert into frota.financeiro_transacoes_cartao (origem, transacao_id_externo, ocorrencia, data_hora, veiculo_id, hub_id, hub_regra, categoria, subtipo, valor, mes_competencia, arquivo_origem)
+  values ('edenred', 'ZZTH1-2', 1, now() - interval '5 days', null, h1b, 'matriz_sem_placa', 'taxa_tag', 'Mensalidade', 10, date_trunc('month', now())::date, 'TESTE') returning id into h1t;
+  select (hub_id = h1b)::text || '/' || hub_regra into x from frota.financeiro_transacoes_cartao where id = h1t;
+  casos := casos || text 'H1: linha sem placa continua com a regra dela (MOURISCO)'; obtidos := obtidos || x; esperados := esperados || text 'true/matriz_sem_placa';
+  begin update frota.veiculos_historico_hub set hub_id = h1a where veiculo_id = h1v and origem = 'implantacao'; x := 'alterou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'H1: histórico de hub não se altera'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.veiculos_historico_hub where veiculo_id = h1v; x := 'apagou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'H1: histórico de hub não se apaga'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  perform set_config('request.jwt.claims', json_build_object('sub', u_fvis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select (count(*) > 0)::text into x from frota.veiculos_historico_hub;
+  casos := casos || text 'H1: quem vê o Financeiro lê o histórico de hub'; obtidos := obtidos || x; esperados := esperados || text 'true';
+  begin insert into frota.veiculos_historico_hub (veiculo_id, hub_id, origem) values (h1v, h1a, 'troca_de_hub'); x := 'gravou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'H1: ninguém grava o histórico pela tela'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop
