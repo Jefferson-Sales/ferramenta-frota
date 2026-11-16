@@ -2,3 +2,5 @@
 *.xlsx
 *.xls
 *.csv
+# exceção: modelo vazio da planilha do Financeiro (só estrutura e fórmulas, sem dados) usado pelo "Exportar fechamento"
+!modelos/fechamento-frota.xlsx

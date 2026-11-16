@@ -882,7 +882,9 @@
       <div class="card" id="fimp-card">
         <div class="card-head"><h2>Fechamento do mês (DRE da frota)</h2><div class="card-head-actions">
           <label class="qf-sub">Competência <input type="month" id="fimp-mes" class="filter-select"></label>
-          <button type="button" class="btn qf-mini" id="fimp-ver">Ver fechamento</button></div></div>
+          <button type="button" class="btn qf-mini" id="fimp-ver">Ver fechamento</button>
+          <button type="button" class="btn qf-mini" id="fimp-exportar" title="Planilha do Financeiro (Fechamento Gerencial, Lançamentos e Soma dos rateios) com os dados da competência">Exportar fechamento (Excel)</button></div></div>
+        <div id="fimp-export-msg"></div>
         <div id="fimp-importar" hidden>
           <p class="section-desc">Importar (só admin): planilha <b>Controle de Notas</b> (.xlsx, aba com a coluna "NÚMERO DO PIPE"; marque "todas as competências" para a carga completa do ano), extrato <b>Ticket Log</b> (RFCV .xlsx), fatura <b>Edenred</b> (.csv) ou <b>Fechamento Mensal - Operações</b> (.xlsx, aba "Rateio", bloco "Motoristas": % de cada BU por hub). O arquivo é lido aqui no navegador; nome de motorista, matrícula, número do cartão, responsável e dados bancários são descartados antes de qualquer envio. Nada é gravado sem a sua confirmação, e importar o mesmo arquivo de novo não duplica.</p>
           <div class="fin-filtros">
@@ -1841,6 +1843,7 @@
 
 <script src="regras.js"></script>
 <script src="js/painel-exec.js"></script>
+<script src="js/fechamento-export.js"></script>
 <script>
 (function(){
   "use strict";
@@ -6564,6 +6567,50 @@
     }).catch(function(e){ host.innerHTML = '<div class="field-err">Erro ao calcular: ' + esc(e.message) + '</div>'; });
   }
   document.getElementById("fimp-ver").addEventListener("click", fimpVerFechamento);
+  // Exportar fechamento (X1): modelo modelos/fechamento-frota.xlsx + dados de frota.financeiro_exportar_fechamento, preenchido no navegador com ExcelJS
+  var EXCELJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js";
+  var EXCELJS_SRI = "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz";
+  var excelJsCarregando = null;
+  function carregarExcelJS(){
+    if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+    if (!excelJsCarregando) excelJsCarregando = new Promise(function(ok, falha){
+      var s = document.createElement("script");
+      s.src = EXCELJS_URL; s.integrity = EXCELJS_SRI; s.crossOrigin = "anonymous";
+      s.onload = function(){ window.ExcelJS ? ok(window.ExcelJS) : falha(new Error("gerador de planilha não carregou")); };
+      s.onerror = function(){ excelJsCarregando = null; falha(new Error("não foi possível baixar o gerador de planilha")); };
+      document.head.appendChild(s);
+    });
+    return excelJsCarregando;
+  }
+  document.getElementById("fimp-exportar").addEventListener("click", function(){
+    var btn = this, mes = document.getElementById("fimp-mes").value, msg = document.getElementById("fimp-export-msg");
+    if (!mes){ toast("Escolha a competência.", true); return; }
+    btn.disabled = true; btn.textContent = "Gerando…"; msg.innerHTML = "";
+    var dados, base, wb;
+    // 1) dados e travas primeiro (sem baixar nada se não der para exportar); 2) gerador + modelo; 3) preenche e baixa
+    rest("rpc/financeiro_exportar_fechamento", { method: "POST", body: { p_mes: mes + "-01" } }).then(function(d){
+      dados = d; base = Regras.baseFechamento(dados);
+      if (base.erros.length){
+        msg.innerHTML = '<div class="ac-hint dn-aviso"><b>Não exportei ' + esc(mes) + ':</b><ul>' + base.erros.map(function(e){ return "<li>" + esc(e) + "</li>"; }).join("") + "</ul></div>";
+        return null;
+      }
+      var modelo = fetch("modelos/fechamento-frota.xlsx", { cache: "no-cache" }).then(function(resp){
+        if (!resp.ok) throw new Error("modelo da planilha não encontrado"); return resp.arrayBuffer(); });
+      return Promise.all([carregarExcelJS(), modelo]).then(function(r){
+        wb = new r[0].Workbook();
+        return wb.xlsx.load(r[1]);
+      }).then(function(){
+        var agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+        return FechamentoExport.preencher(wb, base, { geradoEm: agora + (perfil && perfil.nome ? " por " + perfil.nome : ""), frotaFonte: dados.frota_fonte });
+      }).then(function(){ return wb.xlsx.writeBuffer(); }).then(function(buf){
+        var blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = FechamentoExport.nomeArquivo(mes);
+        document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        msg.innerHTML = '<div class="ac-hint">Planilha de ' + esc(mes) + ' baixada (' + base.notas.length + ' notas). Ao abrir, clique em "Habilitar edição" para o Excel calcular as fórmulas.</div>';
+      });
+    }).catch(function(e){ msg.innerHTML = '<div class="field-err">Não foi possível exportar: ' + esc(e.message) + '</div>'; })
+      .then(function(){ btn.disabled = false; btn.textContent = "Exportar fechamento (Excel)"; });
+  });
   // quadros fora da matriz: o que não entra na DRE da frota, o que falta classificar e as diferenças de cartão já distribuídas
   function fimpInformativoHtml(info){
     var grupos = [["a_classificar", "A classificar (fora da DRE até ter conta)", true], ["fora_dre", "Fora da DRE da frota (informativo)", false], ["distribuido", "Diferenças de cartão já distribuídas na DRE", false]];

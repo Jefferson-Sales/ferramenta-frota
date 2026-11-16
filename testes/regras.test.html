@@ -364,6 +364,26 @@
   igual("Edenred: linhas idênticas viram ocorrência 1 e 2", ed.linhas.filter(function(t){ return t.subtipo === "Estacionamento"; }).map(function(t){ return t.ocorrencia; }).join(","), "1,2");
   igual("Edenred: tag sem placa → MOURISCO", ed.linhas[0].hub + " / " + ed.linhas[0].hub_regra, "MOURISCO / matriz_sem_placa");
   igual("Edenred: cidade e UF pelo endereço", ed.linhas[1].cidade + "-" + ed.linhas[1].uf, "Barueri-SP");
+  // X1: exportar fechamento (planilha do Financeiro)
+  var dadosX = { mes: "2026-10",
+    dre: [{ hub: "Barra da Tijuca", aluguel: 100, combustivel: 50, pedagio_estacionamento: 0, lavagem: 0, garagem: 10 }, { hub: "Alphaville", aluguel: 0, combustivel: 0, pedagio_estacionamento: 0, lavagem: 0, garagem: 0 }],
+    rateio: [{ hub: "Barra da Tijuca", bu: "Lab", percentual: 0.6 }, { hub: "Barra da Tijuca", bu: "Imunizações", percentual: 0.3 }, { hub: "Barra da Tijuca", bu: "Infusão", percentual: 0.1 }, { hub: null, bu: "Lab", percentual: 1 }],
+    frota: [{ hub: "Barra da Tijuca", locadora: "Arval", carros: 3 }], dre_bu: [{ bu: "Imunizações", total: 48 }],
+    conciliacao: [{ origem: "ticket_log", notas: 10, extrato: 8, linhas_sem_hub: 0 }], cartao_manutencao: 1, cartao_lavagem: 2,
+    notas: [{ conta: "GARAGEM", conta_dre: "garagem", fornecedor: "ZZT", hub: null, valor: 10, pipe: null, parte: 1, etapa: "pendente_envio" },
+            { conta: "LOCAÇÃO VEICULAR", conta_dre: "aluguel", fornecedor: "ZZT", hub: "MOURISCO", valor: 100, pipe: "123", parte: 2, etapa: "pago" }] };
+  var bx = R.baseFechamento(dadosX);
+  igual("Fechamento: dados completos não têm erro", bx.erros.join(" | "), "");
+  igual("Fechamento: Barra da Tijuca vira a filial Barra; BUs com os nomes da planilha", bx.base.filter(function(l){ return l[0] === "PCT"; }).map(function(l){ return l[2] + "/" + l[3]; }).join(" "), "Barra/LAB Barra/VACINA Barra/Infusões");
+  igual("Fechamento: contas com os nomes da coluna Linha DRE Traduzida (sem Manutenção)", bx.base.filter(function(l){ return l[0] === "DRE" && l[1] === "Barra da Tijuca"; }).map(function(l){ return l[4]; }).join(","), "ALUGUEL FROTA,LAVAGEM FROTA,COMBUSTÍVEL FROTA,GARAGEM,PEDÁGIO E ESTACIONAMENTO EXTERNO");
+  igual("Fechamento: linha Total do rateio não entra (sede zerada)", bx.base.filter(function(l){ return l[0] === "PCT" && !l[1]; }).length, 0);
+  igual("Fechamento: notas com status, Pipe e conta da planilha", bx.notas.map(function(n){ return [n.filial, n.status, n.pipe, n.linha].join("/"); }).join(" | "), "(sem hub)/Pendente de envio/Sem Pipe/GARAGEM | MOURISCO/Pago/123 (parte 2)/ALUGUEL FROTA");
+  igual("Fechamento: lavagem e pneu/óleo do cartão vão para a conferência", bx.base.filter(function(l){ return /^CARTAO/.test(l[4]); }).map(function(l){ return l[4] + "=" + l[5]; }).join(" "), "CARTAO_MANUTENCAO=1 CARTAO_LAVAGEM=2");
+  igual("Fechamento: sem rateio do mês não exporta (um aviso só, não um por hub)", R.baseFechamento({ mes: "2026-10", dre: dadosX.dre, rateio: [] }).erros.length, 1);
+  igual("Fechamento: hub com custo e sem % não exporta", /Alphaville/.test(R.baseFechamento({ mes: "2026-10", dre: [{ hub: "Alphaville", aluguel: 5 }], rateio: dadosX.rateio }).erros.join()), true);
+  igual("Fechamento: rateio que não soma 100% não exporta", /soma 90%/.test(R.baseFechamento({ mes: "2026-10", dre: dadosX.dre, rateio: dadosX.rateio.slice(0, 2).concat([{ hub: "Barra da Tijuca", bu: "Infusão", percentual: 0 }]) }).erros.join()), true);
+  igual("Fechamento: BU desconhecida não exporta", /Odonto/.test(R.baseFechamento({ mes: "2026-10", dre: dadosX.dre, rateio: dadosX.rateio.concat([{ hub: "Barra da Tijuca", bu: "Odonto", percentual: 0 }]) }).erros.join()), true);
+  igual("Fechamento: hub com custo fora da planilha do Financeiro não exporta", /Recife/.test(R.baseFechamento({ mes: "2026-10", dre: [{ hub: "Recife", aluguel: 5 }], rateio: dadosX.rateio }).erros.join()), true);
   // H1: histórico de hub — o custo vai para o hub em que o carro estava no dia da transação
   var perH = [{ hub: "Alphaville", inicio: null, fim: "2026-11-10T12:00:00Z" }, { hub: "Barra", inicio: "2026-11-10T12:00:00Z", fim: null }];
   igual("Histórico de hub: antes da troca = hub antigo", R.hubNaData(perH, "2026-11-05T10:00:00-03:00"), "Alphaville");

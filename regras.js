@@ -1000,8 +1000,86 @@
     return { linhas: out, bus: bus.map(function(b){ return b.nome; }), naoEncontrados: naoEncontrados, somaErrada: somaErrada, temTotal: !!vistos["(Total)"] };
   }
 
+  // ---------------------------------------------------------------- Exportar fechamento (planilha do Financeiro, X1)
+  // Nomes exatamente como na planilha do Financeiro (colunas "Linha DRE" e "Linha DRE Traduzida"). Manutenção não entra.
+  var FECH_LINHAS = [
+    { conta: "aluguel", dre: "Car Leasing", traduzida: "ALUGUEL FROTA" },
+    { conta: "lavagem", dre: "Car Wash", traduzida: "LAVAGEM FROTA" },
+    { conta: "combustivel", dre: "Fuel Expenses", traduzida: "COMBUSTÍVEL FROTA" },
+    { conta: "garagem", dre: "Garage", traduzida: "GARAGEM" },
+    { conta: "pedagio_estacionamento", dre: "Toll and External Parking", traduzida: "PEDÁGIO E ESTACIONAMENTO EXTERNO" }
+  ];
+  // filiais da planilha (ordem do resumo); "Matriz" fica sempre zerada (a sede é redistribuída pelo sistema)
+  var FECH_FILIAIS = ["Alphaville", "Barra", "Barra Funda", "Brasília", "Campinas", "Guarulhos", "Niterói", "São Bernardo do Campo", "São Cristóvão", "Tatuapé", "Vila Olímpia"];
+  var FECH_BUS = ["LAB", "VACINA", "Infusões"];
+  var FECH_STATUS = { pendente_envio: "Pendente de envio", enviado: "Enviado", pago: "Pago", recusado: "Recusado" };
+  function fechBU(nome) {
+    var n = finNorm(nome);
+    if (n === "LAB") return "LAB";
+    if (n === "IMUNIZACOES" || n === "IMUNIZACAO" || n === "VACINA" || n === "VACINAS") return "VACINA";
+    if (n === "INFUSAO" || n === "INFUSOES") return "Infusões";
+    return null;
+  }
+  function fechFilial(hub) {
+    if (hub == null) return null;
+    if (finNorm(hub) === "BARRA DA TIJUCA") return "Barra";
+    var ach = FECH_FILIAIS.filter(function(f){ return finNorm(f) === finNorm(hub); })[0];
+    return ach || null;
+  }
+  // dados = retorno de frota.financeiro_exportar_fechamento(mês). Devolve as linhas da aba Base, as linhas da aba
+  // Lançamentos e os erros que impedem exportar (número errado não pode ir para o Financeiro).
+  function baseFechamento(dados) {
+    var erros = [], base = [], r2 = function(x){ return Math.round(Number(x || 0) * 100) / 100; };
+    var dre = (dados && dados.dre) || [], rateio = (dados && dados.rateio) || [];
+    if (!dre.length) erros.push("Nada lançado na DRE deste mês.");
+    if (!rateio.length) erros.push("Falta importar a planilha de rateio por BU deste mês (Fechamento Mensal - Operações, aba Rateio).");
+    var pct = {};
+    rateio.forEach(function(r){
+      if (!r.hub) return;                                   // linha "Total" da planilha: não é usada (sede zerada)
+      var bu = fechBU(r.bu), fil = fechFilial(r.hub);
+      if (!bu) { erros.push("BU \"" + r.bu + "\" do rateio não existe na planilha (LAB, VACINA, Infusões)."); return; }
+      if (!fil) return;                                     // hub sem custo e fora da planilha: avisado abaixo se tiver custo
+      pct[r.hub] = pct[r.hub] || {};
+      pct[r.hub][bu] = (pct[r.hub][bu] || 0) + Number(r.percentual || 0);
+      base.push(["PCT", r.hub, fil, bu, null, Number(r.percentual || 0)]);
+    });
+    dre.forEach(function(d){
+      var total = FECH_LINHAS.reduce(function(a, l){ return a + Number(d[l.conta] || 0); }, 0);
+      var fil = fechFilial(d.hub);
+      if (!fil) { if (total) erros.push("O hub \"" + d.hub + "\" tem custo (" + r2(total) + ") e não existe na planilha do Financeiro."); return; }
+      if (total && rateio.length && !pct[d.hub]) erros.push("O hub \"" + d.hub + "\" tem custo e não tem % de rateio por BU no mês.");
+      else if (total && pct[d.hub]) {
+        var soma = FECH_BUS.reduce(function(a, b){ return a + (pct[d.hub][b] || 0); }, 0);
+        if (Math.abs(soma - 1) > 0.001) erros.push("O rateio do hub \"" + d.hub + "\" soma " + (Math.round(soma * 10000) / 100) + "% (precisa ser 100%).");
+      }
+      FECH_LINHAS.forEach(function(l){ base.push(["DRE", d.hub, fil, null, l.traduzida, Number(d[l.conta] || 0)]); });
+    });
+    ((dados && dados.frota) || []).forEach(function(f){ var fil = fechFilial(f.hub); if (fil) base.push(["FROTA", f.hub, fil, null, f.locadora, Number(f.carros || 0)]); });
+    ((dados && dados.dre_bu) || []).forEach(function(b){ var bu = fechBU(b.bu); if (bu) base.push(["SIS_BU", null, null, bu, null, Number(b.total || 0)]); });
+    ((dados && dados.conciliacao) || []).forEach(function(c){
+      var k = c.origem === "ticket_log" ? "TICKET" : "EDENRED";
+      base.push(["CONC", null, null, null, k + "_NF", Number(c.notas || 0)], ["CONC", null, null, null, k + "_EXTRATO", Number(c.extrato || 0)],
+        ["CONC", null, null, null, k + "_SEM_HUB", Number(c.linhas_sem_hub || 0)]);
+    });
+    base.push(["CONC", null, null, null, "CARTAO_MANUTENCAO", Number((dados && dados.cartao_manutencao) || 0)]);
+    base.push(["CONC", null, null, null, "CARTAO_LAVAGEM", Number((dados && dados.cartao_lavagem) || 0)]);
+    var linhaDe = {}; FECH_LINHAS.forEach(function(l){ linhaDe[l.conta] = l.traduzida; });
+    var notas = ((dados && dados.notas) || []).map(function(n){
+      return { conta: n.conta, fornecedor: n.fornecedor || "", filial: n.hub || "(sem hub)", valor: Number(n.valor || 0),
+        pipe: n.pipe ? String(n.pipe) + (n.parte > 1 ? " (parte " + n.parte + ")" : "") : "Sem Pipe",
+        status: FECH_STATUS[n.etapa] || n.etapa || "", linha: linhaDe[n.conta_dre] || "" };
+    });
+    return { erros: erros, base: base, notas: notas, mes: dados && dados.mes };
+  }
+
   global.Regras = {
     finNorm: finNorm,
+    FECH_LINHAS: FECH_LINHAS,
+    FECH_FILIAIS: FECH_FILIAIS,
+    FECH_BUS: FECH_BUS,
+    fechBU: fechBU,
+    fechFilial: fechFilial,
+    baseFechamento: baseFechamento,
     colunaPessoal: colunaPessoal,
     hubDoTexto: hubDoTexto,
     colunaDaConta: colunaDaConta,
