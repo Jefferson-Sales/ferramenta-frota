@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1236,6 +1236,43 @@ begin
   casos := casos || text 'H1: ninguém grava o histórico pela tela'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
+
+  -- ============================================ 29. E-MAIL → TRIAGEM (T2): FORNECEDOR PELO CNPJ OU PELO E-MAIL DO REMETENTE, CHAVE DO WEBHOOK
+  insert into frota.fornecedores (nome, cnpj, contato_email, ativo) values ('TESTE T2 Garagem', '11222333000181', 'NF@Garagem.zzt.invalid', true) returning id into t2f1;
+  insert into frota.fornecedores (nome, cnpj, contato_email, ativo) values ('TESTE T2 Oficina', '11444777000161', 'nf@oficina.zzt.invalid', true) returning id into t2f2;
+  insert into frota.fornecedores (nome, contato_email, ativo) values ('TESTE T2 Dup A', 'faturamento@dup.zzt.invalid', true);
+  insert into frota.fornecedores (nome, contato_email, ativo) values ('TESTE T2 Dup B', 'faturamento@dup.zzt.invalid', true);
+  insert into frota.fornecedores (nome, contato_email, ativo) values ('TESTE T2 Inativo', 'velho@inativo.zzt.invalid', false);
+
+  insert into frota.financeiro_notas_triagem (message_id, remetente) values ('<t2-1@zzt>', '  NF@garagem.ZZT.invalid ') returning id into t2t;
+  select (fornecedor_id = t2f1)::text || '/' || fornecedor_achado_por || '/' || remetente || '/' || status_aprovacao into x from frota.financeiro_notas_triagem where id = t2t;
+  casos := casos || text 'T2: remetente igual ao e-mail de um fornecedor acha o fornecedor (sem diferença de maiúsculas)'; obtidos := obtidos || x; esperados := esperados || text 'true/email/nf@garagem.zzt.invalid/pendente';
+
+  insert into frota.financeiro_notas_triagem (message_id, remetente, cnpj_lido) values ('<t2-2@zzt>', 'nf@garagem.zzt.invalid', '11.444.777/0001-61') returning id into t2t;
+  select (fornecedor_id = t2f2)::text || '/' || fornecedor_achado_por into x from frota.financeiro_notas_triagem where id = t2t;
+  casos := casos || text 'T2: CNPJ lido vale mais que o e-mail do remetente'; obtidos := obtidos || x; esperados := esperados || text 'true/cnpj';
+
+  insert into frota.financeiro_notas_triagem (message_id, remetente) values ('<t2-3@zzt>', 'faturamento@dup.zzt.invalid') returning id into t2t;
+  select coalesce(fornecedor_id::text, 'sem') || '/' || coalesce(fornecedor_achado_por, 'sem') into x from frota.financeiro_notas_triagem where id = t2t;
+  casos := casos || text 'T2: e-mail usado por dois fornecedores não escolhe nenhum'; obtidos := obtidos || x; esperados := esperados || text 'sem/sem';
+
+  insert into frota.financeiro_notas_triagem (message_id, remetente) values ('<t2-4@zzt>', 'velho@inativo.zzt.invalid') returning id into t2t;
+  select coalesce(fornecedor_id::text, 'sem') into x from frota.financeiro_notas_triagem where id = t2t;
+  casos := casos || text 'T2: fornecedor inativo não é achado pelo e-mail'; obtidos := obtidos || x; esperados := esperados || text 'sem';
+
+  update frota.financeiro_notas_triagem set fornecedor_id = t2f1 where id = t2t;
+  select fornecedor_achado_por into x from frota.financeiro_notas_triagem where id = t2t;
+  casos := casos || text 'T2: fornecedor ligado depois fica marcado como "tela"'; obtidos := obtidos || x; esperados := esperados || text 'tela';
+
+  select (frota.verificar_inbound_triagem((select decrypted_secret from vault.decrypted_secrets where name = 'inbound_triagem_chave')))::text || '/' ||
+         frota.verificar_inbound_triagem('errada')::text || '/' || frota.verificar_inbound_triagem(null)::text ||
+         '/' || (select length(decrypted_secret) from vault.decrypted_secrets where name = 'inbound_triagem_chave')::text into x;
+  casos := casos || text 'T2: chave do webhook no Vault (48 caracteres) confere; errada ou vazia não'; obtidos := obtidos || x; esperados := esperados || text 'true/false/false/48';
+
+  select (has_function_privilege('authenticated', 'frota.verificar_inbound_triagem(text)', 'execute') or has_function_privilege('anon', 'frota.verificar_inbound_triagem(text)', 'execute')
+       or has_function_privilege('authenticated', 'frota.triagem_achar_fornecedor(text,text)', 'execute'))::text into x;
+  casos := casos || text 'T2: ninguém logado chama a checagem da chave nem a busca do fornecedor'; obtidos := obtidos || x; esperados := esperados || text 'false';
+
 
   -- ---------------------------------------------------------------- resultado
   for i in 1 .. array_length(casos, 1) loop

@@ -1,0 +1,34 @@
+# Configuração da Supabase CLI para publicar as Edge Functions deste repositório.
+# Uma vez por máquina:  supabase login   e   supabase link --project-ref efmpzjkqiwyuumaoumof
+# Publicar uma função:   supabase functions deploy <nome>      (ex.: supabase functions deploy inbound-triagem-nfs)
+# Segredos NUNCA ficam aqui: ficam no Vault do Supabase ou nos segredos das Edge Functions (painel ou `supabase secrets set`).
+#
+# Todas as funções abaixo fazem a própria autenticação (login do painel, matrícula, chave do Vault) e por isso
+# rodam com verify_jwt = false — com true, o navegador recebe "Failed to fetch" no preflight CORS e os
+# webhooks/cron (sem login) são recusados. Ver CLAUDE.md, "Problemas de configuração já resolvidos", item 5.
+project_id = "ferramenta-frota"
+
+[functions.checklist]
+verify_jwt = false
+
+[functions.alerta-checklist]
+verify_jwt = false
+
+[functions.usuarios]
+verify_jwt = false
+
+[functions.backfill-questar]
+verify_jwt = false
+
+[functions.sync-telemetria-questar]
+verify_jwt = false
+
+[functions.diag-questar-unidade]
+verify_jwt = false
+
+[functions.pipefy-nota]
+verify_jwt = false
+
+# webhook do e-mail frota@ → Triagem de notas (chave do Vault inbound_triagem_chave)
+[functions.inbound-triagem-nfs]
+verify_jwt = false

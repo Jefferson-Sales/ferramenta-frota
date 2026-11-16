@@ -4320,6 +4320,7 @@
     if (!sel){ TRI.sel = null; document.getElementById("tri-split").classList.remove("com-detalhe"); }
     triRenderDetalhe(sel || null);
   }
+  var TRI_ACHADO = { cnpj: "Identificado pelo CNPJ da nota", email: "Identificado pelo e-mail do remetente", tela: "Fornecedor escolhido na tela" };
   function triRenderDetalhe(t){
     var d = document.getElementById("tri-detalhe");
     if (!t){ d.innerHTML = '<div class="tri-vazio">Escolha uma nota na lista para ver o PDF, os dados lidos e decidir.</div>'; return; }
@@ -4337,7 +4338,7 @@
     d.innerHTML =
       '<button type="button" class="btn qf-mini tri-voltar" id="tri-voltar">‹ Voltar à lista</button>' +
       '<div class="tri-cab"><div><h2>' + esc(f ? (f.nome || f.razao_social) : "Fornecedor não identificado") + '</h2>' +
-        '<div class="tri-de">De ' + esc(t.remetente || "—") + ' · recebido em ' + esc(dateTimeBR(t.data_recebimento)) + (t.assunto ? ' · "' + esc(t.assunto) + '"' : '') + '</div></div>' + acoes + '</div>' +
+        '<div class="tri-de">' + (f && TRI_ACHADO[t.fornecedor_achado_por] ? esc(TRI_ACHADO[t.fornecedor_achado_por]) + ' · ' : '') + 'De ' + esc(t.remetente || "—") + ' · recebido em ' + esc(dateTimeBR(t.data_recebimento)) + (t.assunto ? ' · "' + esc(t.assunto) + '"' : '') + '</div></div>' + acoes + '</div>' +
       '<div class="tri-regras">' + pill(h[0], h[1]) + pill(pz[0], pz[1]) + '</div>' +
       '<div class="nfd-grid">' +
         info("CNPJ lido", esc(t.cnpj_lido ? Regras.cnpjFormatado(t.cnpj_lido) : "não lido")) +
