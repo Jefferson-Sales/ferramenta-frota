@@ -478,6 +478,8 @@
   .tri-docs .qf-abas{ margin:0; border-bottom:none; }
   .tri-pdf{ width:100%; height:min(72dvh, 820px); border:1px solid var(--line); border-radius:var(--raio-md); background:var(--surface-2); margin-top:var(--espaco-4); display:block; }
   .tri-voltar{ display:none; }
+  .tri-ligar{ display:flex; flex-direction:column; gap:var(--espaco-3); border:1px dashed var(--accent); border-radius:var(--raio-md); padding:var(--espaco-4) var(--espaco-5); margin:var(--espaco-4) 0; background:var(--surface-2); }
+  .tri-ligar input{ width:100%; }
   .tri-docs a{ color:var(--accent); font-weight:600; font-size:var(--fs-sm-2); text-decoration:none; }
   .tri-docs a:hover{ text-decoration:underline; }
   @media (max-width:900px){
@@ -4328,7 +4330,8 @@
     var info = function(rot, val){ return '<div><div class="qf-sub">' + rot + '</div><b>' + val + '</b></div>'; };
     var acoes = t.status_aprovacao === "pendente"
       ? (pode ? '<div class="tri-acoes"><button type="button" class="btn tri-aprovar" id="tri-aprovar">Aprovar</button><button type="button" class="btn tri-reprovar" id="tri-reprovar">Reprovar</button>' +
-          (f && hk === "pendente" ? '<button type="button" class="btn qf-mini" id="tri-homologar">Homologar fornecedor</button>' : '') + '</div>' : '')
+          (f && hk === "pendente" ? '<button type="button" class="btn qf-mini" id="tri-homologar">Homologar fornecedor</button>' : '') +
+          (f ? '<button type="button" class="btn qf-mini" id="tri-trocar" aria-expanded="' + (TRI.trocando ? "true" : "false") + '">Trocar fornecedor</button>' : '') + '</div>' : '')
       : '<div class="tri-decisao">' + pill(t.status_aprovacao === "aprovada" ? "Aprovada" : "Reprovada", t.status_aprovacao === "aprovada" ? "good" : "crit") +
         ' por ' + esc(t.decidido_por_nome || "—") + ' em ' + esc(dateTimeBR(t.decidido_em)) +
         (t.justificativa_reprovacao ? '<div>Justificativa: ' + esc(t.justificativa_reprovacao) + '</div>' : '') + '</div>';
@@ -4340,6 +4343,11 @@
       '<div class="tri-cab"><div><h2>' + esc(f ? (f.nome || f.razao_social) : "Fornecedor não identificado") + '</h2>' +
         '<div class="tri-de">' + (f && TRI_ACHADO[t.fornecedor_achado_por] ? esc(TRI_ACHADO[t.fornecedor_achado_por]) + ' · ' : '') + 'De ' + esc(t.remetente || "—") + ' · recebido em ' + esc(dateTimeBR(t.data_recebimento)) + (t.assunto ? ' · "' + esc(t.assunto) + '"' : '') + '</div></div>' + acoes + '</div>' +
       '<div class="tri-regras">' + pill(h[0], h[1]) + pill(pz[0], pz[1]) + '</div>' +
+      (t.status_aprovacao === "pendente" && pode && (!f || TRI.trocando) ?
+        '<div class="tri-ligar"><label class="qf-sub" for="tri-forn-busca">' + (f ? 'Trocar o fornecedor desta nota' : 'Fornecedor não identificado: ligue esta nota a um fornecedor') + '</label>' +
+        '<input type="search" id="tri-forn-busca" class="filter-select" placeholder="Nome, razão social ou CNPJ" autocomplete="off">' +
+        '<div class="nfc-lista" id="tri-forn-lista"></div>' +
+        (t.remetente ? '<div class="qf-sub">O sistema aprende: os próximos e-mails de <b>' + esc(t.remetente) + '</b> já chegam com esse fornecedor, mesmo sem CNPJ.</div>' : '') + '</div>' : '') +
       '<div class="nfd-grid">' +
         info("CNPJ lido", esc(t.cnpj_lido ? Regras.cnpjFormatado(t.cnpj_lido) : "não lido")) +
         info("NF nº", esc(t.numero_nota_lido || "não lido")) +
@@ -4353,6 +4361,28 @@
         '<a id="tri-abrir" href="#" target="_blank" rel="noopener" hidden>Abrir PDF em nova aba ↗</a></div>' +
       ((temNf || temBol) ? '<iframe class="tri-pdf" id="tri-pdf" title="Documento da nota"></iframe>' : '<div class="tri-vazio">O e-mail não trouxe PDF.</div>');
     if (temNf || temBol) triCarregarPdf(t, TRI.doc === "nf" ? t.caminho_pdf_nf : t.caminho_pdf_boleto);
+    if (document.getElementById("tri-forn-busca") && !FORN.lista.length) carregarFornecedores();
+  }
+  // liga a nota ao fornecedor escolhido; o banco grava o remetente nos e-mails do fornecedor (tg_triagem_aprende_email)
+  function triLigarFornecedor(t, forn, btn){
+    var antes = t.remetente ? rest("fornecedores_emails_origem?select=fornecedor_id,fornecedores(nome)&ativo=is.true&email=eq." + encodeURIComponent(t.remetente)) : Promise.resolve([]);
+    btn.disabled = true;
+    antes.then(function(rows){
+      var ap = Regras.aprendizadoEmail(t.remetente, (rows || []).map(function(r){ return { fornecedor_id: r.fornecedor_id, nome: r.fornecedores ? r.fornecedores.nome : "outro fornecedor" }; }), forn.id);
+      var txt = "Ligar esta nota a " + forn.nome + "?\n\n" + ({
+        novo: "Os próximos e-mails de " + t.remetente + " vão chegar já identificados como " + forn.nome + ".",
+        ja_conhece: "O e-mail " + t.remetente + " já identifica " + forn.nome + ".",
+        conflito: "Atenção: o e-mail " + t.remetente + " já identifica " + ap.outros.join(", ") + ". Com mais de um fornecedor, o sistema deixa de reconhecer esse e-mail sozinho (deve ser um endereço genérico, como o da prefeitura ou do sistema de nota fiscal).",
+        sem_email: "A nota chegou sem remetente: não há e-mail para aprender."
+      })[ap.tipo];
+      if (!confirm(txt)){ btn.disabled = false; return; }
+      return rest("financeiro_notas_triagem?id=eq." + encodeURIComponent(t.id), { method: "PATCH", body: { fornecedor_id: forn.id } }).then(function(r){
+        if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão).");
+        TRI.trocando = false;
+        toast(ap.tipo === "novo" ? "Fornecedor ligado. O e-mail " + t.remetente + " foi aprendido." : "Fornecedor ligado.");
+        return triCarregar();
+      });
+    }).catch(function(e){ btn.disabled = false; toast(e.message, true); });
   }
   // link assinado (10 min) gerado com o login de quem vê; nunca guardado
   function triCarregarPdf(t, caminho){
@@ -4385,7 +4415,7 @@
   document.querySelectorAll("[data-tri-st]").forEach(function(b){ b.addEventListener("click", function(){ TRI.filtro = b.dataset.triSt; triRender(); }); });
   document.getElementById("tri-lista").addEventListener("click", function(ev){
     var b = ev.target.closest("[data-tri-id]"); if (!b) return;
-    TRI.sel = b.dataset.triId; TRI.doc = "nf";
+    TRI.sel = b.dataset.triId; TRI.doc = "nf"; TRI.trocando = false;
     document.getElementById("tri-split").classList.add("com-detalhe");
     triRender();
   });
@@ -4393,6 +4423,8 @@
     var t = TRI.lista.filter(function(x){ return x.id === TRI.sel; })[0]; if (!t) return;
     var alvo = ev.target.closest("button"); if (!alvo || alvo.disabled) return;
     if (alvo.id === "tri-voltar"){ document.getElementById("tri-split").classList.remove("com-detalhe"); return; }
+    if (alvo.id === "tri-trocar"){ TRI.trocando = !TRI.trocando; triRenderDetalhe(t); var bf = document.getElementById("tri-forn-busca"); if (bf) bf.focus(); return; }
+    if (alvo.dataset.triForn){ var fsel = fornPorId(alvo.dataset.triForn); if (fsel) triLigarFornecedor(t, fsel, alvo); return; }
     if (alvo.dataset.triDoc){ TRI.doc = alvo.dataset.triDoc; triRenderDetalhe(t); return; }
     if (alvo.id === "tri-aprovar"){
       if (!confirm("Aprovar a nota de " + (t.fornecedores ? t.fornecedores.nome : (t.remetente || "remetente desconhecido")) + "?\n\nO envio automático ao Pipefy entra numa próxima etapa.")) return;
@@ -4413,6 +4445,14 @@
         .then(function(r){ if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão)."); toast("Fornecedor homologado."); return triCarregar(); })
         .catch(function(e){ alvo.disabled = false; toast(e.message, true); });
     }
+  });
+  document.getElementById("tri-detalhe").addEventListener("input", function(ev){
+    if (ev.target.id !== "tri-forn-busca") return;
+    var achados = Regras.filtrarFornecedores(FORN.lista, ev.target.value, 8), host = document.getElementById("tri-forn-lista");
+    host.innerHTML = achados.length ? achados.map(function(f){
+      return '<button type="button" data-tri-forn="' + esc(f.id) + '"><b>' + esc(f.nome) + '</b>' + (f.cnpj ? ' <span class="nfl-sub">' + esc(Regras.cnpjFormatado(f.cnpj)) + '</span>' : '') +
+        (f.razao_social && f.razao_social !== f.nome ? ' <span class="nfl-sub">' + esc(f.razao_social) + '</span>' : '') + '</button>';
+    }).join("") : (ev.target.value.trim().length >= 2 ? '<div class="qf-sub">Nenhum fornecedor ativo com esse nome ou CNPJ. Cadastre em Notas e fechamento → Fornecedores.</div>' : '');
   });
   document.getElementById("tri-rep-ok").addEventListener("click", function(){
     var t = TRI.lista.filter(function(x){ return x.id === TRI.sel; })[0], btn = this, err = document.getElementById("tri-rep-err");

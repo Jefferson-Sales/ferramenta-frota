@@ -364,6 +364,16 @@
   igual("Edenred: linhas idênticas viram ocorrência 1 e 2", ed.linhas.filter(function(t){ return t.subtipo === "Estacionamento"; }).map(function(t){ return t.ocorrencia; }).join(","), "1,2");
   igual("Edenred: tag sem placa → MOURISCO", ed.linhas[0].hub + " / " + ed.linhas[0].hub_regra, "MOURISCO / matriz_sem_placa");
   igual("Edenred: cidade e UF pelo endereço", ed.linhas[1].cidade + "-" + ed.linhas[1].uf, "Barueri-SP");
+  // T3: ligar fornecedor na triagem e aprender o e-mail
+  var fornT3 = [{ id: "a", nome: "Garagem Ação", razao_social: "Ação Estacionamentos LTDA", cnpj: "11222333000181" }, { id: "b", nome: "Oficina", cnpj: "11444777000161" }, { id: "c", nome: "Garagem Antiga", ativo: false }];
+  igual("Triagem: busca fornecedor sem acento e caixa, só ativos", R.filtrarFornecedores(fornT3, "garagem acao").map(function(f){ return f.id; }).join(","), "a");
+  igual("Triagem: busca pela razão social e por pedaço do CNPJ", R.filtrarFornecedores(fornT3, "estacionamentos").length + "/" + R.filtrarFornecedores(fornT3, "444.777").map(function(f){ return f.id; }).join(""), "1/b");
+  igual("Triagem: busca com menos de 2 letras não lista nada", R.filtrarFornecedores(fornT3, "g").length, 0);
+  igual("Triagem: e-mail novo será aprendido", R.aprendizadoEmail("nf@x.zzt.invalid", [], "a").tipo, "novo");
+  igual("Triagem: e-mail que já identifica o mesmo fornecedor", R.aprendizadoEmail("nf@x.zzt.invalid", [{ fornecedor_id: "a", nome: "Garagem" }], "a").tipo, "ja_conhece");
+  var cfT3 = R.aprendizadoEmail("nfse@prefeitura.zzt.invalid", [{ fornecedor_id: "b", nome: "Oficina" }], "a");
+  igual("Triagem: e-mail que já identifica outro fornecedor vira conflito (deixa de identificar sozinho)", cfT3.tipo + "/" + cfT3.outros.join(","), "conflito/Oficina");
+  igual("Triagem: sem remetente não há o que aprender", R.aprendizadoEmail(null, [], "a").tipo, "sem_email");
   // X1: exportar fechamento (planilha do Financeiro)
   var dadosX = { mes: "2026-10",
     dre: [{ hub: "Barra da Tijuca", aluguel: 100, combustivel: 50, pedagio_estacionamento: 0, lavagem: 0, garagem: 10 }, { hub: "Alphaville", aluguel: 0, combustivel: 0, pedagio_estacionamento: 0, lavagem: 0, garagem: 0 }],

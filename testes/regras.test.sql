@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid; t3op uuid := gen_random_uuid(); t3vis uuid := gen_random_uuid(); t3f1 uuid; t3f2 uuid; t3t uuid; t3t2 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1272,6 +1272,62 @@ begin
   select (has_function_privilege('authenticated', 'frota.verificar_inbound_triagem(text)', 'execute') or has_function_privilege('anon', 'frota.verificar_inbound_triagem(text)', 'execute')
        or has_function_privilege('authenticated', 'frota.triagem_achar_fornecedor(text,text)', 'execute'))::text into x;
   casos := casos || text 'T2: ninguém logado chama a checagem da chave nem a busca do fornecedor'; obtidos := obtidos || x; esperados := esperados || text 'false';
+
+
+  -- ============================================ 30. TRIAGEM APRENDE O E-MAIL DO FORNECEDOR (T3)
+  insert into auth.users (id, email, aud, role) values (t3op, 'teste.t3op@zzt.invalid', 'authenticated', 'authenticated'), (t3vis, 'teste.t3vis@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (t3op, 'TESTE Operador Fin T3', 'operador', '{financeiro}', '{financeiro}'), (t3vis, 'TESTE Visualizador Fin T3', 'visualizador', '{financeiro}', '{}');
+  insert into frota.fornecedores (nome, cnpj, ativo) values ('TESTE T3 Garagem', '11222333000262', true) returning id into t3f1;
+  insert into frota.fornecedores (nome, cnpj, ativo) values ('TESTE T3 Oficina', '11444777000242', true) returning id into t3f2;
+  insert into frota.financeiro_notas_triagem (message_id, remetente) values ('<t3-1@zzt>', 'nf@semcnpj.zzt.invalid') returning id into t3t;
+  select coalesce(fornecedor_id::text, 'sem') into x from frota.financeiro_notas_triagem where id = t3t;
+  casos := casos || text 'T3: e-mail desconhecido chega sem fornecedor'; obtidos := obtidos || x; esperados := esperados || text 'sem';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', t3op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update frota.financeiro_notas_triagem set fornecedor_id = t3f1 where id = t3t;
+  select o.email || '/' || o.origem || '/' || (o.criado_por = t3op)::text || '/' || o.criado_por_nome || '/' || o.ativo::text into x
+    from frota.fornecedores_emails_origem o where o.fornecedor_id = t3f1;
+  casos := casos || text 'T3: ligar a nota ao fornecedor na tela grava o e-mail de origem (quem e quando pelo login)'; obtidos := obtidos || x;
+  esperados := esperados || text 'nf@semcnpj.zzt.invalid/triagem/true/TESTE Operador Fin T3/true';
+  begin insert into frota.fornecedores_emails_origem (fornecedor_id, email, origem) values (t3f2, 'x@zzt.invalid', 'cadastro'); x := 'gravou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'T3: ninguém grava e-mail aprendido direto pela tela'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+
+  insert into frota.financeiro_notas_triagem (message_id, remetente) values ('<t3-2@zzt>', 'NF@SemCnpj.zzt.invalid') returning id into t3t2;
+  select (fornecedor_id = t3f1)::text || '/' || fornecedor_achado_por into x from frota.financeiro_notas_triagem where id = t3t2;
+  casos := casos || text 'T3: o próximo e-mail do mesmo remetente já chega com o fornecedor (sem CNPJ)'; obtidos := obtidos || x; esperados := esperados || text 'true/email';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', t3op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update frota.financeiro_notas_triagem set fornecedor_id = t3f2 where id = t3t;
+  execute 'reset role';
+  select string_agg(f.nome || '=' || o.ativo::text, ' ' order by f.nome) into x from frota.fornecedores_emails_origem o join frota.fornecedores f on f.id = o.fornecedor_id where o.email = 'nf@semcnpj.zzt.invalid';
+  casos := casos || text 'T3: religar a nota a outro fornecedor desativa o que ela ensinou e ensina o novo'; obtidos := obtidos || x;
+  esperados := esperados || text 'TESTE T3 Garagem=false TESTE T3 Oficina=true';
+  insert into frota.financeiro_notas_triagem (message_id, remetente) values ('<t3-3@zzt>', 'nf@semcnpj.zzt.invalid') returning id into t3t2;
+  select (fornecedor_id = t3f2)::text into x from frota.financeiro_notas_triagem where id = t3t2;
+  casos := casos || text 'T3: depois de religar, o e-mail passa a indicar o fornecedor novo'; obtidos := obtidos || x; esperados := esperados || text 'true';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', t3op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update frota.financeiro_notas_triagem set fornecedor_id = t3f1 where id = t3t2;     -- outra nota do mesmo e-mail ligada ao 1º fornecedor
+  execute 'reset role';
+  insert into frota.financeiro_notas_triagem (message_id, remetente) values ('<t3-4@zzt>', 'nf@semcnpj.zzt.invalid') returning id into t3t2;
+  select coalesce(fornecedor_id::text, 'sem') into x from frota.financeiro_notas_triagem where id = t3t2;
+  casos := casos || text 'T3: e-mail ensinado para dois fornecedores (endereço genérico) não identifica nenhum'; obtidos := obtidos || x; esperados := esperados || text 'sem';
+
+  insert into frota.financeiro_notas_triagem (message_id, remetente, cnpj_lido) values ('<t3-5@zzt>', 'outro@zzt.invalid', '11444777000242') returning id into t3t2;
+  select count(*)::text into x from frota.fornecedores_emails_origem where email = 'outro@zzt.invalid';
+  casos := casos || text 'T3: fornecedor achado pelo CNPJ não ensina e-mail (só a escolha na tela ensina)'; obtidos := obtidos || x; esperados := esperados || text '0';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', t3vis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.fornecedores_emails_origem;
+  casos := casos || text 'T3: quem só vê o Financeiro não lê os e-mails aprendidos'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
 
 
   -- ---------------------------------------------------------------- resultado

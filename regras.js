@@ -1072,8 +1072,29 @@
     return { erros: erros, base: base, notas: notas, mes: dados && dados.mes };
   }
 
+  // ---------------------------------------------------------------- Triagem: ligar fornecedor e aprender o e-mail (T3)
+  // busca por nome/razão social (sem acento e caixa) ou por 3+ dígitos do CNPJ; só ativos
+  function filtrarFornecedores(lista, texto, max) {
+    var t = String(texto || "").trim(), q = finNorm(t), dig = t.replace(/\D/g, "");
+    if (q.length < 2 && dig.length < 3) return [];
+    return (lista || []).filter(function(f){
+      return f.ativo !== false && (finNorm((f.nome || "") + " " + (f.razao_social || "")).indexOf(q) > -1 || (dig.length >= 3 && String(f.cnpj || "").indexOf(dig) > -1));
+    }).slice(0, max || 8);
+  }
+  // o que acontece com o e-mail do remetente ao ligar a nota ao fornecedor (espelho de tg_triagem_aprende_email +
+  // triagem_achar_fornecedor). ativos = [{ fornecedor_id, nome }] com esse e-mail já aprendido.
+  function aprendizadoEmail(remetente, ativos, fornecedorId) {
+    if (!remetente) return { tipo: "sem_email", outros: [] };
+    var outros = (ativos || []).filter(function(a){ return a.fornecedor_id !== fornecedorId; }).map(function(a){ return a.nome; });
+    if (outros.length) return { tipo: "conflito", outros: outros };
+    if ((ativos || []).some(function(a){ return a.fornecedor_id === fornecedorId; })) return { tipo: "ja_conhece", outros: [] };
+    return { tipo: "novo", outros: [] };
+  }
+
   global.Regras = {
     finNorm: finNorm,
+    filtrarFornecedores: filtrarFornecedores,
+    aprendizadoEmail: aprendizadoEmail,
     FECH_LINHAS: FECH_LINHAS,
     FECH_FILIAIS: FECH_FILIAIS,
     FECH_BUS: FECH_BUS,
