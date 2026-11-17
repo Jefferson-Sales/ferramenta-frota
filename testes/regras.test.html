@@ -364,6 +364,28 @@
   igual("Edenred: linhas idênticas viram ocorrência 1 e 2", ed.linhas.filter(function(t){ return t.subtipo === "Estacionamento"; }).map(function(t){ return t.ocorrencia; }).join(","), "1,2");
   igual("Edenred: tag sem placa → MOURISCO", ed.linhas[0].hub + " / " + ed.linhas[0].hub_regra, "MOURISCO / matriz_sem_placa");
   igual("Edenred: cidade e UF pelo endereço", ed.linhas[1].cidade + "-" + ed.linhas[1].uf, "Barueri-SP");
+  // M1: triagem de multas
+  igual("Multa: assunto com infração vai para a fila de multas", R.ehEmailDeMulta("Notificação de infração - FKG1A43", [], "").multa, true);
+  igual("Multa: anexo com AIT no nome vai para a fila de multas", R.ehEmailDeMulta("Documento", ["AIT_123456.pdf"], "").multa, true);
+  igual("Multa: boleto de fornecedor com 'multa de 2%' no PDF NÃO vai para multas", R.ehEmailDeMulta("NF 1234 - novembro", ["boleto.pdf"], "Após o vencimento cobrar multa de 2% e juros de 1% ao mês").multa, false);
+  igual("Multa: PDF com 'Notificação de Autuação' vai para multas", R.ehEmailDeMulta("Documento", ["arquivo.pdf"], "NOTIFICAÇÃO DE AUTUAÇÃO POR INFRAÇÃO DE TRÂNSITO").multa, true);
+  igual("Multa: 'DERIVADOS' no assunto não confunde com DER", R.ehEmailDeMulta("NF combustíveis e derivados", [], "").multa, false);
+  var ntM1 = R.lerNotificacaoMulta("DETRAN-RJ  NOTIFICAÇÃO DE AUTUAÇÃO  Auto de Infração: E12345678  Placa: FKG-1A43  Data da Infração: 05/11/2026  Hora: 14:32  Código da Infração: 745-50  Valor: R$ 130,16", "Notificação de infração");
+  igual("Multa: lê placa, data/hora de Brasília, AIT, órgão, código e valor", [ntM1.placa, ntM1.data_infracao, ntM1.ait, ntM1.orgao, ntM1.codigo, ntM1.valor].join(" | "), "FKG1A43 | 2026-11-05T14:32:00-03:00 | E12345678 | DETRAN RJ | 745-50 | 130.16");
+  igual("Multa: sem texto, a placa sai do assunto", R.lerNotificacaoMulta("", "Notificação de infração - FKG1A43").placa, "FKG1A43");
+  igual("Multa: placa antiga e data com 'às'", (function(){ var x = R.lerNotificacaoMulta("Veículo ABC 1234 autuado em 10/10/2026 às 08h15", ""); return x.placa + " " + x.data_infracao; })(), "ABC1234 2026-10-10T08:15:00-03:00");
+  var colM1 = R.lerNotificacaoMulta("NOTIFICAÇÃO DE AUTUAÇÃO Data de emissão 17/11/2026 00:01 Placa FKG1A43 Data Hora Local 02/11/2026 18:45 Av. Teste Data limite para indicação 15/12/2026", "");
+  igual("Multa: com rótulos em colunas, ignora emissão e limite e pega a data mais antiga", colM1.data_infracao, "2026-11-02T18:45:00-03:00");
+  igual("Multa: data perto de 'infração' tem prioridade", R.lerNotificacaoMulta("Emitida em 20/11/2026. Infração cometida em 09/11/2026 07:10. Recurso até 01/10/2026", "").data_infracao, "2026-11-09T07:10:00-03:00");
+  igual("Multa: ignora a data da notificação da autuação e o prazo de defesa (caso real da CET-SP)", R.lerNotificacaoMulta("Data da Notificação da Autuação 15/11/2026 Prazo para interposição de defesa prévia 14/01/2027 Local Rua Teste 18 Data 26/10/2026 00:01 Gerado em 17/11/2026 11:59", "").data_infracao, "2026-10-26T00:01:00-03:00");
+  igual("Multa: nada lido fica vazio", JSON.stringify(R.lerNotificacaoMulta("texto qualquer", "")), '{"placa":null,"data_infracao":null,"ait":null,"orgao":null,"codigo":null,"valor":null}');
+  // V1: veículos ativos × arquivados e operacional × administrativo
+  var frV1 = [{ placa: "A", ativo: true, finalidade: "operacional", status_operacional: "disponivel" }, { placa: "B", ativo: true, finalidade: "administrativo", status_operacional: "disponivel" },
+    { placa: "C", ativo: true, finalidade: "operacional", status_operacional: "desmobilizar" }, { placa: "D", ativo: false, finalidade: "operacional", status_operacional: "devolvido" }, { placa: "E", ativo: true, finalidade: null }];
+  igual("Frota: arquivados não contam nos ativos; sem finalidade = operacional", JSON.stringify(R.resumoFrota(frV1)), '{"ativos":4,"operacionais":3,"administrativos":1,"desmobilizacao":1,"arquivados":1}');
+  igual("Frota: aba Ativos esconde os arquivados", R.filtrarFrota(frV1, "ativos", "todos").map(function(v){ return v.placa; }).join(""), "ABCE");
+  igual("Frota: aba Arquivados mostra só os arquivados", R.filtrarFrota(frV1, "arquivados", "todos").map(function(v){ return v.placa; }).join(""), "D");
+  igual("Frota: filtro Administrativos / Operacionais", R.filtrarFrota(frV1, "ativos", "administrativo").map(function(v){ return v.placa; }).join("") + "/" + R.filtrarFrota(frV1, "ativos", "operacional").map(function(v){ return v.placa; }).join(""), "B/ACE");
   // T3: ligar fornecedor na triagem e aprender o e-mail
   var fornT3 = [{ id: "a", nome: "Garagem Ação", razao_social: "Ação Estacionamentos LTDA", cnpj: "11222333000181" }, { id: "b", nome: "Oficina", cnpj: "11444777000161" }, { id: "c", nome: "Garagem Antiga", ativo: false }];
   igual("Triagem: busca fornecedor sem acento e caixa, só ativos", R.filtrarFornecedores(fornT3, "garagem acao").map(function(f){ return f.id; }).join(","), "a");

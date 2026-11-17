@@ -478,6 +478,13 @@
   .tri-docs .qf-abas{ margin:0; border-bottom:none; }
   .tri-pdf{ width:100%; height:min(72dvh, 820px); border:1px solid var(--line); border-radius:var(--raio-md); background:var(--surface-2); margin-top:var(--espaco-4); display:block; }
   .tri-voltar{ display:none; }
+  .mtr-sugestao{ border:1px solid var(--line); border-left:3px solid var(--good); border-radius:var(--raio-md); padding:var(--espaco-4) var(--espaco-5); margin:var(--espaco-5) 0; line-height:1.5; }
+  .mtr-sugestao.mtr-sem{ border-left-color:var(--warning-forte); }
+  .mtr-corrigir{ display:flex; flex-direction:column; gap:var(--espaco-3); margin:var(--espaco-4) 0; }
+  .mtr-corrigir-linha{ display:flex; gap:var(--espaco-3); flex-wrap:wrap; align-items:center; }
+  .frota-abas{ margin-bottom:0; }
+  .kpi-clicavel{ cursor:pointer; }
+  .kpi-clicavel:hover{ border-color:var(--accent); }
   .tri-ligar{ display:flex; flex-direction:column; gap:var(--espaco-3); border:1px dashed var(--accent); border-radius:var(--raio-md); padding:var(--espaco-4) var(--espaco-5); margin:var(--espaco-4) 0; background:var(--surface-2); }
   .tri-ligar input{ width:100%; }
   .tri-docs a{ color:var(--accent); font-weight:600; font-size:var(--fs-sm-2); text-decoration:none; }
@@ -627,6 +634,15 @@
           <div class="card frota-sticky-card-head">
             <div class="card-head"><h2>Veículos</h2><div class="card-head-actions"><span class="count" id="frota-veic-count"></span><button class="inline-add-trigger" data-open-modal="modal-veiculo" data-edit="frota">+ Novo veículo</button></div></div>
             <div class="file-row" style="margin-bottom:10px; flex-wrap:wrap;">
+              <div class="qf-abas frota-abas" role="tablist" aria-label="Ativos ou arquivados">
+                <button type="button" role="tab" class="qf-aba on" data-frota-arq="ativos" aria-selected="true">Ativos <span id="frota-n-ativos"></span></button>
+                <button type="button" role="tab" class="qf-aba" data-frota-arq="arquivados" aria-selected="false">Arquivados <span id="frota-n-arquivados"></span></button>
+              </div>
+              <div class="qf-abas frota-abas" role="group" aria-label="Uso do veículo">
+                <button type="button" class="qf-aba on" data-frota-uso="todos" aria-pressed="true">Todos</button>
+                <button type="button" class="qf-aba" data-frota-uso="operacional" aria-pressed="false">Operacionais <span id="frota-n-oper"></span></button>
+                <button type="button" class="qf-aba" data-frota-uso="administrativo" aria-pressed="false">Administrativos <span id="frota-n-adm"></span></button>
+              </div>
               <input type="text" id="frota-busca" placeholder="Buscar placa ou modelo…" class="filter-select" style="min-width:200px;">
               <select id="frota-filtro-contrato" class="filter-select"><option value="">Todos os contratos</option></select>
               <select id="frota-filtro-chip" class="filter-select">
@@ -786,6 +802,7 @@
       <div class="qf-abas" role="tablist" aria-label="Visões de Multas">
         <button type="button" role="tab" class="qf-aba mu-aba on" data-mu-tela="multas" aria-selected="true">Multas registradas</button>
         <button type="button" role="tab" class="qf-aba mu-aba" data-mu-tela="descontos" aria-selected="false">Descontos em folha</button>
+        <button type="button" role="tab" class="qf-aba mu-aba" data-mu-tela="triagem" aria-selected="false" id="mu-aba-triagem-btn" hidden>Triagem de multas <span class="nav-badge" id="mtr-badge" hidden></span></button>
       </div>
 
       <div id="mu-aba-multas">
@@ -829,6 +846,23 @@
           </div>
         </div>
       </div><!-- /mu-aba-descontos -->
+
+      <div id="mu-aba-triagem" hidden>
+        <p class="section-desc">Notificações de infração que chegam por e-mail no frota@. Placa, data/hora, AIT, órgão e valor são lidos do PDF; o condutor é <b>sugerido</b> pelo checklist de Retirada daquele carro no horário da infração — confira antes de registrar.</p>
+        <div class="tri-barra">
+          <div class="tri-filtro" role="group" aria-label="Situação">
+            <button type="button" class="btn qf-mini on" data-mtr-st="pendente">Pendentes</button>
+            <button type="button" class="btn qf-mini" data-mtr-st="registrada">Registradas</button>
+            <button type="button" class="btn qf-mini" data-mtr-st="descartada">Descartadas</button>
+            <button type="button" class="btn qf-mini" data-mtr-st="">Todas</button>
+          </div>
+          <span class="meta" id="mtr-contagem"></span>
+        </div>
+        <div class="tri-split" id="mtr-split">
+          <div class="card tri-lista" id="mtr-lista" aria-label="Notificações recebidas por e-mail"></div>
+          <div class="card tri-detalhe" id="mtr-detalhe" aria-live="polite"></div>
+        </div>
+      </div>
     </section>
 
     <!-- FINANCEIRO -->
@@ -1231,6 +1265,11 @@
         </div>
         <div class="field"><label for="v-contrato">Contrato</label><select id="v-contrato"><option value="">—</option></select></div>
         <div class="field"><label for="v-km-atual">KM atual</label><input id="v-km-atual" type="number" step="1" min="0"></div>
+        <div class="field"><label for="v-finalidade">Uso</label>
+          <select id="v-finalidade"><option value="operacional">Operacional (campo)</option><option value="administrativo">Administrativo</option></select>
+        </div>
+        <div class="field"><label><input type="checkbox" id="v-arquivado"> Arquivado (devolvido / contrato encerrado)</label>
+          <span class="qf-sub">Arquivado some das telas e contadores; o histórico e a DRE continuam.</span></div>
       </div>
       <div class="field-err" id="v-err" hidden></div>
       <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="v-btn-salvar" style="width:auto">Salvar veículo</button></div>
@@ -2371,6 +2410,7 @@
         extras: [{ rot: "em mobilização", n: disp.em_mobilizacao || 0 }, { rot: "a desmobilizar", n: disp.desmobilizar || 0 }, { rot: "outros", n: disp.outros || 0 }],
         ir: disp.indisponivel ? { indisponiveis: true } : null
       });
+      if (disp.total) html += '<p class="ex-nota">Frota ativa: <b>' + P.num(disp.total) + '</b> · ' + P.num(disp.operacional || 0) + ' operacionais · ' + P.num(disp.administrativo || 0) + ' administrativos (arquivados não contam).</p>';
       if (disp.indisponivel) html += '<p class="ex-nota">Clique na disponibilidade para ver os ' + P.num(disp.indisponivel) + ' carros indisponíveis, com prazos e tratativas.</p>';
     } else {
       html += '<div class="ex-vazio"><b>Disponibilidade e preventivas</b>Precisam da visualização de Manutenções (com os hubs) no seu acesso.</div>';
@@ -2548,7 +2588,7 @@
   var contratosCache = [];
   var cadastroFrotaCache = [];
   var poolCache = [];
-  var frotaFiltros = { busca:"", contrato:"", chip:"todos" };
+  var frotaFiltros = { busca:"", contrato:"", chip:"todos", arquivo:"ativos", uso:"todos" };
 
   function loadFrota(){
     rest("hubs?select=*&order=nome").then(function(rows){
@@ -2601,19 +2641,26 @@
   var STATUS_CONTRATO_CALC_LABEL = { ativo:"Ativo", critico:"Vence em ≤30d", vencido:"Vencido", sem_data:"Sem data" };
   var STATUS_CONTRATO_CALC_PILL = { ativo:"good", critico:"warn", vencido:"crit", sem_data:"neutral" };
 
-  function renderFrotaKpis(rows){
-    var total = rows.length;
+  function renderFrotaKpis(todas){
+    var rs = Regras.resumoFrota(todas), rows = Regras.filtrarFrota(todas, "ativos", "todos");
+    document.getElementById("frota-n-ativos").textContent = "(" + rs.ativos + ")";
+    document.getElementById("frota-n-arquivados").textContent = "(" + rs.arquivados + ")";
+    document.getElementById("frota-n-oper").textContent = "(" + rs.operacionais + ")";
+    document.getElementById("frota-n-adm").textContent = "(" + rs.administrativos + ")";
     var vencendo = rows.filter(function(r){ return r.status_contrato_calc === "critico" || r.status_contrato_calc === "vencido"; }).length;
     var comExcedente = rows.filter(function(r){ return r.km_excedente != null && r.km_excedente > 0; }).length;
     var semContrato = rows.filter(function(r){ return !r.contrato_id; }).length;
     var kpis = [
-      { num: total, label: "Veículos cadastrados", cls: "" },
+      { num: rs.ativos, label: "Veículos ativos", cls: "", uso: "todos" },
+      { num: rs.operacionais, label: "Operacionais (campo)", cls: "", uso: "operacional" },
+      { num: rs.administrativos, label: "Administrativos", cls: "", uso: "administrativo" },
+      { num: rs.desmobilizacao, label: "Em desmobilização", cls: rs.desmobilizacao ? "warn" : "" },
       { num: vencendo, label: "Contratos vencendo/vencidos", cls: vencendo ? "warn" : "" },
       { num: comExcedente, label: "Com KM excedente", cls: comExcedente ? "warn" : "" },
       { num: semContrato, label: "Sem contrato mapeado", cls: semContrato ? "crit" : "" }
     ];
     document.getElementById("frota-kpis").innerHTML = kpis.map(function(k){
-      return '<div class="kpi-card ' + k.cls + '"><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></div>";
+      return '<div class="kpi-card ' + k.cls + (k.uso ? ' kpi-clicavel" role="button" tabindex="0" data-frota-uso-kpi="' + k.uso + '"' : '"') + '><div class="kpi-num">' + k.num + '</div><div class="kpi-label">' + esc(k.label) + "</div></div>";
     }).join("");
     ajustarStickyFrota();
   }
@@ -2633,7 +2680,7 @@
   function applyFrotaFiltros(){
     var f = frotaFiltros;
     var busca = (f.busca || "").trim().toUpperCase();
-    var rows = cadastroFrotaCache.filter(function(r){
+    var rows = Regras.filtrarFrota(cadastroFrotaCache, f.arquivo, f.uso).filter(function(r){
       if (busca && (r.placa || "").toUpperCase().indexOf(busca) === -1 && (r.modelo_veiculo || "").toUpperCase().indexOf(busca) === -1) return false;
       if (f.contrato && r.contrato_id !== f.contrato) return false;
       if (f.chip === "vencendo" && !(r.status_contrato_calc === "critico" || r.status_contrato_calc === "vencido")) return false;
@@ -2647,18 +2694,28 @@
   document.getElementById("frota-busca").addEventListener("input", function(ev){ frotaFiltros.busca = ev.target.value; applyFrotaFiltros(); });
   document.getElementById("frota-filtro-contrato").addEventListener("change", function(ev){ frotaFiltros.contrato = ev.target.value; applyFrotaFiltros(); });
   document.getElementById("frota-filtro-chip").addEventListener("change", function(ev){ frotaFiltros.chip = ev.target.value; applyFrotaFiltros(); });
+  function frotaMarcarAbas(){
+    document.querySelectorAll("[data-frota-arq]").forEach(function(b){ var on = b.dataset.frotaArq === frotaFiltros.arquivo; b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); });
+    document.querySelectorAll("[data-frota-uso]").forEach(function(b){ var on = b.dataset.frotaUso === frotaFiltros.uso; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+  }
+  document.querySelectorAll("[data-frota-arq]").forEach(function(b){ b.addEventListener("click", function(){ frotaFiltros.arquivo = b.dataset.frotaArq; frotaMarcarAbas(); applyFrotaFiltros(); }); });
+  document.querySelectorAll("[data-frota-uso]").forEach(function(b){ b.addEventListener("click", function(){ frotaFiltros.uso = b.dataset.frotaUso; frotaMarcarAbas(); applyFrotaFiltros(); }); });
+  document.getElementById("frota-kpis").addEventListener("click", function(ev){
+    var k = ev.target.closest("[data-frota-uso-kpi]"); if (!k) return;
+    frotaFiltros.arquivo = "ativos"; frotaFiltros.uso = k.dataset.frotaUsoKpi; frotaMarcarAbas(); applyFrotaFiltros();
+  });
 
   function renderVeiculos(rows){
     var body = document.getElementById("frota-veic-body");
     document.getElementById("frota-veic-count").textContent = rows.length + (rows.length === 1 ? " veículo" : " veículos") +
-      (rows.length !== cadastroFrotaCache.length ? " (de " + cadastroFrotaCache.length + ")" : "");
+      (frotaFiltros.arquivo === "arquivados" ? (rows.length === 1 ? " arquivado" : " arquivados") : "");
     if (!rows.length){ body.innerHTML = '<tr><td colspan="11" class="empty-row">Nenhum veículo encontrado.</td></tr>'; return; }
     body.innerHTML = rows.map(function(v){
       var kmExc = v.km_excedente;
       var kmExcStr = kmExc == null ? "—" : Number(kmExc).toLocaleString("pt-BR");
       var kmExcCls = kmExc != null && kmExc > 0 ? "style=\"color:var(--critical); font-weight:600;\"" : "";
       return '<tr class="os-row" data-veiculo-id="' + v.veiculo_id + '">' +
-        "<td>" + esc(v.placa) + "</td><td>" + esc(v.contrato || "—") + "</td><td>" + esc(v.locadora || "—") + "</td><td>" +
+        "<td>" + esc(v.placa) + (v.finalidade === "administrativo" ? " " + pill("Adm.", "info") : "") + (v.ativo === false ? " " + pill("Arquivado", "neutral") : "") + "</td><td>" + esc(v.contrato || "—") + "</td><td>" + esc(v.locadora || "—") + "</td><td>" +
         esc(v.modelo_veiculo || "—") + "</td><td>" + esc(v.hub || "—") + "</td><td>" +
         (v.status_operacional ? pill(v.status_operacional.replace(/_/g," "), STATUS_VEICULO_PILL[v.status_operacional]) : "—") + "</td><td>" +
         pill(STATUS_CONTRATO_CALC_LABEL[v.status_contrato_calc] || "—", STATUS_CONTRATO_CALC_PILL[v.status_contrato_calc]) + "</td><td class=\"num\">" +
@@ -2701,7 +2758,8 @@
       '<div><div class="k">Veículo reserva</div>' + esc(v.veiculo_reserva || "—") + '</div>' +
       '<div><div class="k">Valor mensal</div>' + money(v.valor_mensal) + '</div>' +
       '<div><div class="k">Combustível</div>' + esc(v.tipo_combustivel || "—") + '</div>' +
-      '<div><div class="k">Finalidade</div>' + esc(v.finalidade || "—") + '</div>';
+      '<div><div class="k">Uso</div>' + (v.finalidade === "administrativo" ? "Administrativo" : "Operacional (campo)") + '</div>' +
+      '<div><div class="k">Situação no cadastro</div>' + (v.ativo === false ? pill("Arquivado", "neutral") : pill("Ativo", "good")) + '</div>';
     document.getElementById("vd-btn-checklists").hidden = !canView("qualidade");
     openModal("modal-veiculo-detalhe");
   }
@@ -2726,6 +2784,8 @@
     document.getElementById("v-status").value = v.status_operacional || "disponivel";
     document.getElementById("v-contrato").value = v.contrato_id || "";
     document.getElementById("v-km-atual").value = v.km_atual != null ? v.km_atual : "";
+    document.getElementById("v-finalidade").value = v.finalidade === "administrativo" ? "administrativo" : "operacional";
+    document.getElementById("v-arquivado").checked = v.ativo === false;
     document.getElementById("modal-veiculo-titulo").textContent = "Editar veículo";
     document.getElementById("v-btn-salvar").textContent = "Salvar alterações";
     setErr("v-err", "");
@@ -2940,7 +3000,7 @@
   var veiculosOsCache = [];  // placas para o select da abertura de OS (com busca)
 
   function loadManutencao(avisarVencidas){
-    rest("veiculos?select=id,placa&order=placa" + hubsQS("hub_id")).then(function(rows){
+    rest("veiculos?select=id,placa&ativo=is.true&order=placa" + hubsQS("hub_id")).then(function(rows){
       veiculosOsCache = rows || [];
       renderVeiculosOS();
     }).catch(function(){});
@@ -3269,6 +3329,8 @@
   var PONTOS_POR_GRAU = Regras.PONTOS_POR_GRAU;
 
   function loadMultas(){
+    var btnMtr = document.getElementById("mu-aba-triagem-btn");
+    if (btnMtr){ btnMtr.hidden = !mtrPode(); if (mtrPode()) mtrCarregar(); }
     rest("veiculos?select=id,placa&order=placa").then(function(rows){
       fillSelect("mu-veiculo", rows, function(v){ return v.placa; }, "Selecione…");
     }).catch(function(){});
@@ -3356,6 +3418,122 @@
     abrirEdicaoMulta(tr.dataset.multaId);
   });
 
+  // ---------------- Triagem de multas (M1): e-mails de infração, condutor sugerido pelo checklist de Retirada ----------------
+  var MTR = { lista: [], filtro: "pendente", sel: null, urls: {}, registrando: null };
+  var MTR_CONF = { alta: ["Confiança alta", "good"], media: ["Confiança média", "warn"] };
+  function mtrPode(){ return !!perfil && perfil.ativo !== false && (perfil.papel === "admin" || canEdit("multas")); }
+  function mtrCarregar(){
+    if (!mtrPode()) return Promise.resolve();
+    return rest("multas_triagem?select=*,veiculos(placa,modelo,ativo,hubs(nome))&order=data_recebimento.desc&limit=300").then(function(rows){
+      MTR.lista = rows || [];
+      var n = MTR.lista.filter(function(t){ return t.status === "pendente"; }).length, b = document.getElementById("mtr-badge");
+      if (b){ b.textContent = n; b.hidden = !n; }
+      mtrRender();
+    }).catch(function(e){ toast("Erro ao carregar a triagem de multas: " + e.message, true); });
+  }
+  function mtrRender(){
+    var ls = MTR.lista.filter(function(t){ return !MTR.filtro || t.status === MTR.filtro; }), lista = document.getElementById("mtr-lista");
+    if (!lista) return;
+    document.getElementById("mtr-contagem").textContent = ls.length + (ls.length === 1 ? " notificação" : " notificações");
+    document.querySelectorAll("[data-mtr-st]").forEach(function(b){ b.classList.toggle("on", b.dataset.mtrSt === MTR.filtro); });
+    lista.innerHTML = ls.length ? ls.map(function(t){
+      return '<button type="button" class="tri-item' + (MTR.sel === t.id ? " on" : "") + '" data-mtr-id="' + esc(t.id) + '">' +
+        '<div class="tri-nome">' + esc(t.placa_lida || "Placa não lida") + (t.orgao ? ' <span class="nfl-sub">' + esc(t.orgao) + '</span>' : '') + '</div>' +
+        '<div class="tri-linha"><span>' + (t.data_infracao ? esc(dateTimeBR(t.data_infracao)) : "data não lida") + '</span><span>' + (t.valor_lido != null ? esc(money(t.valor_lido)) : "") + '</span></div>' +
+        '<div class="tri-tags">' + (t.veiculo_id ? pill("Carro no cadastro", "good") : pill("Placa fora do cadastro", "crit")) +
+        (t.sugestao_checklist_id ? pill("Condutor sugerido", "good") : pill("Sem checklist no horário", "warn")) +
+        (t.status !== "pendente" ? pill(t.status === "registrada" ? "Registrada" : "Descartada", t.status === "registrada" ? "good" : "neutral") : "") + '</div></button>';
+    }).join("") : '<div class="tri-vazio">' + (MTR.lista.length ? "Nenhuma notificação nesta situação." : "<b>Nenhuma notificação recebida.</b><br>Os e-mails de infração que chegarem no frota@ aparecem aqui.") + '</div>';
+    var sel = MTR.lista.filter(function(t){ return t.id === MTR.sel; })[0];
+    if (!sel){ MTR.sel = null; document.getElementById("mtr-split").classList.remove("com-detalhe"); }
+    mtrRenderDetalhe(sel || null);
+  }
+  function mtrRenderDetalhe(t){
+    var d = document.getElementById("mtr-detalhe");
+    if (!t){ d.innerHTML = '<div class="tri-vazio">Escolha uma notificação para ver o PDF, os dados lidos e o condutor sugerido.</div>'; return; }
+    var v = t.veiculos, pode = mtrPode() && t.status === "pendente";
+    var info = function(rot, val){ return '<div><div class="qf-sub">' + rot + '</div><b>' + val + '</b></div>'; };
+    var acoes = pode ? '<div class="tri-acoes"><button type="button" class="btn btn-primary" id="mtr-registrar" style="width:auto">Registrar multa</button><button type="button" class="btn tri-reprovar" id="mtr-descartar">Descartar</button></div>'
+      : (t.status !== "pendente" ? '<div class="tri-decisao">' + pill(t.status === "registrada" ? "Registrada" : "Descartada", t.status === "registrada" ? "good" : "neutral") +
+          ' por ' + esc(t.decidido_por_nome || "—") + ' em ' + esc(dateTimeBR(t.decidido_em)) + (t.motivo_descarte ? '<div>Motivo: ' + esc(t.motivo_descarte) + '</div>' : '') + '</div>' : '');
+    var sug = t.sugestao_checklist_id
+      ? '<div class="mtr-sugestao"><div class="qf-sub">Condutor sugerido pelo checklist de Retirada</div><b>' + esc(t.sugestao_nome || "—") + '</b>' +
+        (t.sugestao_matricula ? ' <span class="nfl-sub">matrícula ' + esc(t.sugestao_matricula) + '</span>' : '') + ' ' + pill((MTR_CONF[t.sugestao_confianca] || ["Confiança —", "neutral"])[0], (MTR_CONF[t.sugestao_confianca] || [0, "neutral"])[1]) +
+        '<div class="qf-sub">Retirada em ' + esc(dateTimeBR(t.sugestao_retirada_em)) + (t.sugestao_devolvida_em ? ' · devolvida em ' + esc(dateTimeBR(t.sugestao_devolvida_em)) : ' · sem devolução registrada') +
+        ' · ' + esc(t.sugestao_detalhe || "") + ' · checklist nº ' + esc(String(t.sugestao_checklist_id).slice(0, 8)) + '</div></div>'
+      : '<div class="mtr-sugestao mtr-sem"><b>Nenhum checklist de Retirada cobre esse horário.</b><div class="qf-sub">' +
+        (!t.veiculo_id ? "A placa não foi achada no cadastro. Corrija a placa abaixo." : !t.data_infracao ? "A data/hora da infração não foi lida. Preencha abaixo." : "Confira a data/hora lida do PDF; se estiver certa, escolha o motorista no registro da multa.") + '</div></div>';
+    var corrigir = pode ? '<div class="mtr-corrigir"><div class="qf-sub">Corrigir o que foi lido do PDF (a sugestão é recalculada)</div><div class="mtr-corrigir-linha">' +
+      '<input id="mtr-placa" class="filter-select" maxlength="8" placeholder="Placa" value="' + esc(t.placa_lida || "") + '" style="text-transform:uppercase" aria-label="Placa">' +
+      '<input id="mtr-data" type="datetime-local" class="filter-select" value="' + esc(t.data_infracao ? isoParaCampoLocal(t.data_infracao) : "") + '" aria-label="Data e hora da infração">' +
+      '<button type="button" class="btn qf-mini" id="mtr-salvar">Salvar e recalcular</button></div></div>' : '';
+    d.innerHTML =
+      '<button type="button" class="btn qf-mini tri-voltar" id="mtr-voltar">‹ Voltar à lista</button>' +
+      '<div class="tri-cab"><div><h2>Infração — ' + esc(t.placa_lida || "placa não lida") + '</h2>' +
+        '<div class="tri-de">' + (t.origem === "triagem_financeira" ? "Veio da triagem financeira · " : "") + 'De ' + esc(t.remetente || "—") + ' · recebido em ' + esc(dateTimeBR(t.data_recebimento)) + (t.assunto ? ' · "' + esc(t.assunto) + '"' : '') + '</div></div>' + acoes + '</div>' +
+      '<div class="nfd-grid">' +
+        info("Veículo", v ? esc(v.placa + (v.modelo ? " — " + v.modelo : "") + (v.hubs ? " · " + v.hubs.nome : "") + (v.ativo === false ? " (arquivado)" : "")) : "não encontrado no cadastro") +
+        info("Data/hora da infração", esc(t.data_infracao ? dateTimeBR(t.data_infracao) : "não lida")) +
+        info("Auto de infração (AIT)", esc(t.ait || "não lido")) + info("Órgão", esc(t.orgao || "não lido")) +
+        info("Código", esc(t.codigo_infracao || "não lido")) + info("Valor", esc(t.valor_lido != null ? money(t.valor_lido) : "não lido")) +
+      '</div>' + sug + corrigir +
+      (t.caminho_pdf ? '<div class="tri-docs"><b>Notificação (PDF)</b><a id="mtr-abrir" href="#" target="_blank" rel="noopener" hidden>Abrir PDF em nova aba ↗</a></div><iframe class="tri-pdf" id="mtr-pdf" title="Notificação da multa"></iframe>'
+        : '<div class="tri-vazio">O e-mail não trouxe PDF.</div>');
+    if (t.caminho_pdf) mtrCarregarPdf(t);
+  }
+  function mtrCarregarPdf(t){
+    var ir = function(url){ var fr = document.getElementById("mtr-pdf"), a = document.getElementById("mtr-abrir"); if (!fr || MTR.sel !== t.id) return; fr.src = url; a.href = url; a.hidden = false; };
+    var c = MTR.urls[t.id];
+    if (c && c.ate > Date.now()) return ir(c.url);
+    ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/sign/multas-triagem/" + String(t.caminho_pdf).split("/").map(encodeURIComponent).join("/"), {
+        method: "POST", headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 600 }) });
+    }).then(function(r){ return r.ok ? r.json() : r.text().then(function(x){ throw new Error(x || ("Erro " + r.status)); }); })
+      .then(function(j){ var url = SUPA_URL + "/storage/v1" + j.signedURL; MTR.urls[t.id] = { url: url, ate: Date.now() + 540000 }; ir(url); })
+      .catch(function(e){ toast("Não foi possível abrir o PDF: " + e.message, true); });
+  }
+  function mtrAbrirRegistro(t){
+    prepararNovoRegistro("modal-multa");
+    MTR.registrando = t.id;
+    var put = function(id, val){ var el = document.getElementById(id); if (el && val != null && val !== "") el.value = val; };
+    put("mu-veiculo", t.veiculo_id); put("mu-auto", t.ait); put("mu-codigo", t.codigo_infracao);
+    put("mu-data-infracao", t.data_infracao ? isoParaCampoLocal(t.data_infracao) : "");
+    put("mu-data-recebimento", isoParaCampoLocal(t.data_recebimento));
+    put("mu-valor-bruto", t.valor_lido); put("mu-motorista", t.sugestao_motorista_id);
+    put("mu-desc", "Triagem de multas: " + (t.assunto || "notificação por e-mail") + (t.orgao ? " · " + t.orgao : ""));
+    openModal("modal-multa");
+  }
+  document.querySelectorAll("[data-mtr-st]").forEach(function(b){ b.addEventListener("click", function(){ MTR.filtro = b.dataset.mtrSt; mtrRender(); }); });
+  document.getElementById("mtr-lista").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-mtr-id]"); if (!b) return;
+    MTR.sel = b.dataset.mtrId; document.getElementById("mtr-split").classList.add("com-detalhe"); mtrRender();
+  });
+  document.getElementById("mtr-detalhe").addEventListener("click", function(ev){
+    var t = MTR.lista.filter(function(x){ return x.id === MTR.sel; })[0]; if (!t) return;
+    var alvo = ev.target.closest("button"); if (!alvo || alvo.disabled) return;
+    if (alvo.id === "mtr-voltar"){ document.getElementById("mtr-split").classList.remove("com-detalhe"); return; }
+    if (alvo.id === "mtr-registrar"){ mtrAbrirRegistro(t); return; }
+    if (alvo.id === "mtr-descartar"){
+      var motivo = prompt("Motivo do descarte (mínimo 5 letras) — ex.: notificação duplicada, não é da Beep, já registrada:");
+      if (motivo == null) return;
+      if (motivo.trim().length < 5){ toast("Escreva o motivo (mínimo 5 letras).", true); return; }
+      alvo.disabled = true;
+      rest("multas_triagem?id=eq." + encodeURIComponent(t.id), { method: "PATCH", body: { status: "descartada", motivo_descarte: motivo.trim() } })
+        .then(function(r){ if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão)."); toast("Notificação descartada."); return mtrCarregar(); })
+        .catch(function(e){ alvo.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if (alvo.id === "mtr-salvar"){
+      var placa = document.getElementById("mtr-placa").value.toUpperCase().replace(/[^A-Z0-9]/g, ""), dt = document.getElementById("mtr-data").value;
+      if (placa && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa)){ toast("Placa inválida.", true); return; }
+      alvo.disabled = true;
+      rest("multas_triagem?id=eq." + encodeURIComponent(t.id), { method: "PATCH", body: { placa_lida: placa || null, data_infracao: dt ? new Date(dt).toISOString() : null } })
+        .then(function(r){ if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão)."); toast("Dados corrigidos; sugestão recalculada."); return mtrCarregar(); })
+        .catch(function(e){ alvo.disabled = false; toast(e.message, true); });
+    }
+  });
+
   // ---------------- Descontos em folha (aba de Multas) — Etapa 4a: lista e detalhe, só leitura ----------------
   // Dados: descontos_folha (RLS = módulo Multas). Fases e destino do valor em Regras.DESCONTO_FASES / Regras.destinoContabil.
   var DSC = { lista: [], motoristas: {}, filtros: { fase: "", tipo: "", hub: "", destino: "", mes: "" }, atual: null };
@@ -3367,7 +3545,9 @@
     });
     document.getElementById("mu-aba-multas").hidden = tela !== "multas";
     document.getElementById("mu-aba-descontos").hidden = tela !== "descontos";
+    document.getElementById("mu-aba-triagem").hidden = tela !== "triagem";
     if (tela === "descontos") loadDescontos();
+    if (tela === "triagem") mtrCarregar();
   }
   document.querySelectorAll("[data-mu-tela]").forEach(function(b){
     b.addEventListener("click", function(){ muTrocarTela(b.dataset.muTela); });
@@ -4257,7 +4437,14 @@
     var req = editId
       ? rest("multas?id=eq." + encodeURIComponent(editId), {method:"PATCH", body: body})
       : rest("multas", {method:"POST", body: body});
-    req.then(function(){
+    req.then(function(criadas){
+      var deTriagem = !editId && MTR.registrando, nova = criadas && criadas[0];
+      if (deTriagem && nova){
+        rest("multas_triagem?id=eq." + encodeURIComponent(deTriagem), { method: "PATCH", body: { status: "registrada", multa_id: nova.id } })
+          .then(function(){ toast("Multa registrada e retirada da triagem."); mtrCarregar(); })
+          .catch(function(e){ toast("Multa criada, mas a triagem não foi atualizada: " + e.message, true); });
+      }
+      MTR.registrando = null;
       toast(editId ? "Multa atualizada." : "Multa cadastrada.");
       document.getElementById("modal-multa").hidden = true;
       ev.target.reset();
@@ -5014,7 +5201,7 @@
 
   // ---------------- Carros Elétricos ----------------
   function loadEletrificacao(){
-    rest("veiculos?select=id,placa&tipo_combustivel=eq.eletrico&order=placa").then(function(rows){
+    rest("veiculos?select=id,placa&tipo_combustivel=eq.eletrico&ativo=is.true&order=placa").then(function(rows){
       fillSelect("rec-veiculo", rows, function(v){ return v.placa; }, "Selecione…");
     }).catch(function(){});
 
@@ -5247,7 +5434,7 @@
     var a = QF.anom.filter(function(x){ return x.id === id; })[0];
     if (!a) return;
     var garantir = [];
-    if (!veiculosOsCache.length) garantir.push(rest("veiculos?select=id,placa&order=placa" + hubsQS("hub_id")).then(function(rows){ veiculosOsCache = rows || []; }));
+    if (!veiculosOsCache.length) garantir.push(rest("veiculos?select=id,placa&ativo=is.true&order=placa" + hubsQS("hub_id")).then(function(rows){ veiculosOsCache = rows || []; }));
     if (!oficinasCache.length) garantir.push(carregarOficinas().catch(function(){}));
     Promise.all(garantir).then(function(){
       document.getElementById("modal-qf-veiculo").hidden = true;
@@ -5507,6 +5694,7 @@
   // Os botões "+ Novo X" sempre abrem o formulário em modo de criação (zerado),
   // mesmo que o mesmo modal tenha acabado de ser usado para editar um registro existente.
   function prepararNovoRegistro(modalId){
+    if (modalId === "modal-multa" && typeof MTR !== "undefined") MTR.registrando = null;
     if (modalId === "modal-veiculo"){
       document.querySelector('[data-form="veiculo"]').reset();
       document.getElementById("v-id").value = "";
@@ -5569,9 +5757,12 @@
       hub_id: document.getElementById("v-hub").value || null,
       status: document.getElementById("v-status").value,
       contrato_id: document.getElementById("v-contrato").value || null,
-      km_atual: kmAtual ? parseFloat(kmAtual) : null
+      km_atual: kmAtual ? parseFloat(kmAtual) : null,
+      finalidade: document.getElementById("v-finalidade").value,
+      ativo: !document.getElementById("v-arquivado").checked
     };
     var editId = document.getElementById("v-id").value;
+    if (!body.ativo && body.status !== "devolvido" && !confirm("Arquivar " + body.placa + " com status " + body.status.replace(/_/g, " ") + "? Normalmente só se arquiva veículo devolvido.")) return;
     var req = editId
       ? rest("veiculos?id=eq." + encodeURIComponent(editId), {method:"PATCH", body: body})
       : rest("veiculos", {method:"POST", body: body});

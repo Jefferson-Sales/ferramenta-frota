@@ -37,7 +37,7 @@ declare
   dsv1 uuid; anx1 uuid; anx2 uuid;
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
-  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid; t3op uuid := gen_random_uuid(); t3vis uuid := gen_random_uuid(); t3f1 uuid; t3f2 uuid; t3t uuid; t3t2 uuid;
+  u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid; t3op uuid := gen_random_uuid(); t3vis uuid := gen_random_uuid(); t3f1 uuid; t3f2 uuid; t3t uuid; t3t2 uuid; m1op uuid := gen_random_uuid(); m1vis uuid := gen_random_uuid(); m1v uuid; m1m uuid; m1c uuid; m1t uuid; m1mu uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1328,6 +1328,60 @@ begin
   casos := casos || text 'T3: quem só vê o Financeiro não lê os e-mails aprendidos'; obtidos := obtidos || x; esperados := esperados || text '0';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
+
+
+  -- ============================================ 31. TRIAGEM DE MULTAS (M1): CONDUTOR PELO CHECKLIST DE RETIRADA, DECISÃO E ACESSO
+  insert into auth.users (id, email, aud, role) values (m1op, 'teste.m1op@zzt.invalid', 'authenticated', 'authenticated'), (m1vis, 'teste.m1vis@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (m1op, 'TESTE Operador Multas M1', 'operador', '{multas}', '{multas}'), (m1vis, 'TESTE Visualizador Multas M1', 'visualizador', '{multas}', '{}');
+  insert into frota.veiculos (placa, ativo, status) values ('ZZT1M11', false, 'devolvido') returning id into m1v;
+  insert into frota.motoristas (nome, matricula, ativo) values ('ZZT Motorista Teste M1', '99981', true) returning id into m1m;
+  insert into frota.checklists (veiculo_id, tipo, status, enviado_em, colaborador_matricula, fechada_em, fechada_como)
+    values (m1v, 'retirada', 'enviado', '2026-11-05 07:00-03', '99981', '2026-11-05 19:00-03', 'devolucao') returning id into m1c;
+
+  insert into frota.multas_triagem (message_id, remetente, assunto, placa_lida, data_infracao, status)
+    values ('<m1-1@zzt>', 'detran@zzt.invalid', 'Notificação de infração', 'zzt-1m11', '2026-11-05 14:32-03', 'registrada') returning id into m1t;
+  select status || '/' || (veiculo_id = m1v)::text || '/' || (sugestao_checklist_id = m1c)::text || '/' || sugestao_nome || '/' || sugestao_matricula || '/' || sugestao_confianca
+    into x from frota.multas_triagem where id = m1t;
+  casos := casos || text 'M1: chega pendente, acha o carro (mesmo arquivado) e sugere o condutor pelo checklist de Retirada'; obtidos := obtidos || x;
+  esperados := esperados || text 'pendente/true/true/ZZT Motorista Teste M1/99981/alta';
+
+  update frota.multas_triagem set data_infracao = '2026-11-05 21:00-03' where id = m1t;
+  select coalesce(sugestao_nome, 'sem sugestão') into x from frota.multas_triagem where id = m1t;
+  casos := casos || text 'M1: corrigir a hora para depois da devolução tira a sugestão'; obtidos := obtidos || x; esperados := esperados || text 'sem sugestão';
+  update frota.multas_triagem set data_infracao = '2026-11-05 10:00-03' where id = m1t;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', m1op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.multas_triagem where id = m1t;
+  casos := casos || text 'M1: quem opera Multas vê a fila'; obtidos := obtidos || x; esperados := esperados || text '1';
+  begin update frota.multas_triagem set status = 'descartada', motivo_descarte = 'ab' where id = m1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'M1: descartar sem motivo (mínimo 5 letras) é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.multas_triagem set status = 'registrada' where id = m1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'M1: registrar sem a multa criada é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.multas_triagem set remetente = 'outro@zzt.invalid' where id = m1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'M1: dados do e-mail recebido não mudam'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin insert into frota.multas_triagem (message_id) values ('<m1-x@zzt>'); x := 'gravou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'M1: ninguém cria item da fila pela tela'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.multas_triagem where id = m1t; get diagnostics i = row_count; x := i::text; exception when others then x := 'recusou'; end;
+  casos := casos || text 'M1: ninguém apaga item da fila'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  insert into frota.multas (veiculo_id, data_infracao, data_recebimento_email, valor) values (m1v, '2026-11-05 10:00-03', now(), 130.16) returning id into m1mu;
+  execute 'set local role authenticated';
+  update frota.multas_triagem set status = 'registrada', multa_id = m1mu where id = m1t;
+  select status || '/' || (decidido_por = m1op)::text || '/' || decidido_por_nome into x from frota.multas_triagem where id = m1t;
+  casos := casos || text 'M1: registrar com a multa grava quem decidiu pelo login'; obtidos := obtidos || x; esperados := esperados || text 'registrada/true/TESTE Operador Multas M1';
+  begin update frota.multas_triagem set status = 'pendente' where id = m1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'M1: operador não reabre multa já triada (só admin)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', m1vis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.multas_triagem;
+  casos := casos || text 'M1: quem só vê Multas não lê a fila (tem nome de motorista)'; obtidos := obtidos || x; esperados := esperados || text '0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  select public::text || '/' || file_size_limit::text into x from storage.buckets where id = 'multas-triagem';
+  casos := casos || text 'M1: pasta multas-triagem é privada e aceita até 10 MB'; obtidos := obtidos || x; esperados := esperados || text 'false/10485760';
 
 
   -- ---------------------------------------------------------------- resultado

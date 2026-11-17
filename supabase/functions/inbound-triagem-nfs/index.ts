@@ -26,11 +26,27 @@
 //  - JSON normalizado: { remetente, assunto, message_id, anexos: [{ nome, tipo, base64 }] }.
 // Modo teste (cabeçalho x-inbound-teste: 1 ou ?teste=1): lê tudo e responde o que faria, sem gravar nada.
 // Idempotente: o mesmo message_id não cria segunda linha.
+//
+// Triagem de multas (M1, 17/11/2026): e-mail de infração vai para frota.multas_triagem (bucket multas-triagem,
+// {id}/notificacao.pdf) em vez da triagem financeira. Decide Regras.ehEmailDeMulta (assunto/nome do anexo com
+// infração, autuação, penalidade, AIT, DETRAN, DER, DNIT, multa; no texto do PDF só expressões de notificação —
+// boleto com "multa de 2%" não desvia) e lê placa/data/AIT/órgão/código/valor com Regras.lerNotificacaoMulta.
+// O texto do PDF é lido só na memória (unpdf); PDF escaneado fica sem texto e a tela permite completar.
+// Ação ?acao=migrar_financeiro (mesma chave; corpo { triagem_id }): move um item da triagem financeira para a de
+// multas (PDF copiado, linha e arquivos antigos apagados); com ?teste=1 só mostra o que leria.
+//
+// IMPORTANTE: regras-multa.js é GERADO do /regras.js da raiz (fonte única, com testes). Antes de publicar:
+//   node ferramentas/gerar-regras-multa.js
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
+import "./regras-multa.js";
+// deno-lint-ignore no-explicit-any
+const R = (globalThis as any).RegrasMulta;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const BUCKET = "notas-triagem";
+const BUCKET_MULTAS = "multas-triagem";
 const MAX_BYTES = 10 * 1024 * 1024;   // limite do bucket
 const MAX_ANEXOS = 15;
 
@@ -137,21 +153,106 @@ function lerDados(xml: Anexo | null, assunto: string | null) {
   return d;
 }
 
+// ---------- texto dos PDFs (só memória; escaneado = sem texto) ----------
+async function textoDosPdfs(pdfs: Anexo[]) {
+  const partes: string[] = [];
+  for (const a of pdfs.slice(0, 3)) {
+    try {
+      const doc = await getDocumentProxy(new Uint8Array(a.bytes));   // cópia: a leitura pode consumir o buffer
+      const { text } = await extractText(doc, { mergePages: true });
+      partes.push(String(text || "").slice(0, 20000));
+    } catch { /* PDF sem texto ou protegido */ }
+  }
+  return partes.join("\n");
+}
+
+type Subido = { bucket: string; caminho: string };
+async function subirEm(subidos: Subido[], bucket: string, caminho: string, a: Anexo) {
+  const { error } = await admin.storage.from(bucket).upload(caminho, a.bytes, { contentType: "application/pdf", upsert: false });
+  if (error) throw new Falha("Não foi possível guardar o anexo: " + error.message, 500);
+  subidos.push({ bucket, caminho }); return caminho;
+}
+
+// grava (ou, em teste, só mostra) um item da Triagem de multas
+async function gravarMulta(e: { messageId: string | null; remetente: string | null; assunto: string | null; dataRecebimento?: string | null; origem: string },
+                           pdfs: Anexo[], texto: string, motivo: string, teste: boolean, subidos: Subido[]) {
+  const campos = R.lerNotificacaoMulta(texto, e.assunto);
+  if (teste) return { ok: true, teste: true, fila: "multas", motivo, campos, pdfs: pdfs.map((a) => a.nome), texto_lido: texto.length > 0,
+    datas_candidatas: R.datasDaNotificacao(texto).map((c: { iso: string; hora: string | null; antes: string; bloqueada: boolean; infracao: boolean }) =>
+      ({ data: c.iso, hora: c.hora, trecho_antes: c.antes, ignorada: c.bloqueada, perto_de_infracao: c.infracao })) };
+  if (e.messageId) {
+    const { data: ja } = await db().from("multas_triagem").select("id").eq("message_id", e.messageId).maybeSingle();
+    if (ja) return { ok: true, fila: "multas", duplicado: true, id: ja.id };
+  }
+  const id = crypto.randomUUID();
+  const caminho = pdfs[0] ? await subirEm(subidos, BUCKET_MULTAS, `${id}/notificacao.pdf`, pdfs[0]) : null;
+  for (let i = 1; i < pdfs.length; i++) await subirEm(subidos, BUCKET_MULTAS, `${id}/outros/${i}.pdf`, pdfs[i]);
+  const linha: Record<string, unknown> = {
+    id, message_id: e.messageId, origem: e.origem, remetente: e.remetente, assunto: e.assunto, motivo_deteccao: motivo,
+    caminho_pdf: caminho, outros_anexos: Math.max(pdfs.length - 1, 0), placa_lida: campos.placa, data_infracao: campos.data_infracao,
+    ait: campos.ait, orgao: campos.orgao, codigo_infracao: campos.codigo, valor_lido: campos.valor,
+  };
+  if (e.dataRecebimento) linha.data_recebimento = e.dataRecebimento;
+  const { data: gravada, error } = await db().from("multas_triagem").insert(linha).select("veiculo_id, sugestao_checklist_id").single();
+  if (error) throw new Falha("Não foi possível gravar a multa: " + error.message, 500);
+  return { ok: true, fila: "multas", id, placa_lida: !!campos.placa, veiculo: !!gravada?.veiculo_id, condutor_sugerido: !!gravada?.sugestao_checklist_id, pdfs: pdfs.length };
+}
+
+// move um item da triagem financeira para a de multas (pedido do Jefferson: notificação FKG1A43 de 17/11/2026)
+async function migrarFinanceiro(req: Request, teste: boolean, subidos: Subido[]) {
+  const b = await req.json().catch(() => ({}));
+  const tid = String(b?.triagem_id || "");
+  if (!/^[0-9a-f-]{36}$/i.test(tid)) throw new Falha("Informe triagem_id.");
+  const { data: t, error } = await db().from("financeiro_notas_triagem").select("*").eq("id", tid).maybeSingle();
+  if (error) throw new Falha(error.message, 500);
+  if (!t) throw new Falha("Item da triagem financeira não encontrado.", 404);
+  const { data: lista } = await admin.storage.from(BUCKET).list(tid, { limit: 50 });
+  const { data: outros } = await admin.storage.from(BUCKET).list(`${tid}/outros`, { limit: 50 });
+  const caminhos = [...(lista || []).filter((f) => /\.pdf$/i.test(f.name)).map((f) => `${tid}/${f.name}`),
+                    ...(outros || []).filter((f) => /\.pdf$/i.test(f.name)).map((f) => `${tid}/outros/${f.name}`)];
+  const pdfs: Anexo[] = [];
+  for (const c of caminhos) {
+    const { data: blob, error: e2 } = await admin.storage.from(BUCKET).download(c);
+    if (e2 || !blob) throw new Falha("Não foi possível ler o PDF " + c, 500);
+    pdfs.push({ nome: c.split("/").pop() || "anexo.pdf", tipo: "application/pdf", bytes: new Uint8Array(await blob.arrayBuffer()) });
+  }
+  const texto = await textoDosPdfs(pdfs);
+  const det = R.ehEmailDeMulta(t.assunto, pdfs.map((a) => a.nome), texto);
+  const r = await gravarMulta({ messageId: t.message_id, remetente: t.remetente, assunto: t.assunto, dataRecebimento: t.data_recebimento, origem: "triagem_financeira" },
+    pdfs, texto, "migrada da triagem financeira" + (det.multa ? " (" + det.motivo + ")" : ""), teste, subidos);
+  if (teste || (r as { duplicado?: boolean }).duplicado) return { ...r, migrar: { triagem_id: tid, pdfs: caminhos.length } };
+  const { error: e3 } = await db().from("financeiro_notas_triagem").delete().eq("id", tid);
+  if (e3) throw new Falha("Multa gravada, mas não apaguei o item financeiro: " + e3.message, 500);
+  if (caminhos.length) await admin.storage.from(BUCKET).remove(caminhos);
+  return { ...r, migrado_de: tid };
+}
+
 Deno.serve(async (req) => {
-  const subidos: string[] = [];
+  const subidos: Subido[] = [];
   try {
     if (req.method !== "POST") throw new Falha("Use POST.", 405);
     if (!(await chaveValida(chaveRecebida(req)))) throw new Falha("Não autorizado.", 401);
-    const teste = req.headers.get("x-inbound-teste") === "1" || new URL(req.url).searchParams.get("teste") === "1";
+    const url = new URL(req.url);
+    const teste = req.headers.get("x-inbound-teste") === "1" || url.searchParams.get("teste") === "1";
+    if ((url.searchParams.get("acao") || req.headers.get("x-inbound-acao")) === "migrar_financeiro") return json(await migrarFinanceiro(req, teste, subidos));
 
     const email = await lerEmail(req);
     const c = classificar(email.anexos);
     const dados = lerDados(c.xml, email.assunto);
 
+    // multa? (assunto, nome do anexo ou texto do PDF) → fila de multas
+    const pdfsTodos = [c.nf, c.boleto, ...c.outros].filter(Boolean) as Anexo[];
+    const textoPdf = await textoDosPdfs(pdfsTodos);
+    const det = R.ehEmailDeMulta(email.assunto, email.anexos.map((a) => a.nome), textoPdf);
+    if (det.multa) {
+      return json(await gravarMulta({ messageId: email.messageId, remetente: email.remetente, assunto: email.assunto, origem: "email" },
+        pdfsTodos, textoPdf, det.motivo, teste, subidos));
+    }
+
     if (teste) {
       const { data: ach } = await db().rpc("triagem_achar_fornecedor", { p_cnpj: dados.cnpj, p_email: email.remetente });
       const f = Array.isArray(ach) ? ach[0] : null;
-      return json({ ok: true, teste: true, formato: email.formato, remetente: email.remetente, assunto: email.assunto, message_id: email.messageId,
+      return json({ ok: true, teste: true, fila: "financeiro", formato: email.formato, remetente: email.remetente, assunto: email.assunto, message_id: email.messageId,
         nf: c.nf?.nome ?? null, boleto: c.boleto?.nome ?? null, outros_pdfs: c.outros.map((a) => a.nome),
         ignorados_nao_pdf: c.ignorados, pdfs_grandes_demais: c.grandes, lidos: dados,
         fornecedor: f ? { id: f.fornecedor_id, achado_por: f.achado_por } : null });
@@ -164,11 +265,7 @@ Deno.serve(async (req) => {
     if (!c.nf && !c.boleto) return json({ ok: true, ignorado: "e-mail sem anexo PDF", pdfs_grandes_demais: c.grandes });
 
     const id = crypto.randomUUID();
-    const subir = async (caminho: string, a: Anexo) => {
-      const { error } = await admin.storage.from(BUCKET).upload(caminho, a.bytes, { contentType: "application/pdf", upsert: false });
-      if (error) throw new Falha("Não foi possível guardar o anexo: " + error.message, 500);
-      subidos.push(caminho); return caminho;
-    };
+    const subir = (caminho: string, a: Anexo) => subirEm(subidos, BUCKET, caminho, a);
     const caminhoNf = c.nf ? await subir(`${id}/nf.pdf`, c.nf) : null;
     const caminhoBol = c.boleto ? await subir(`${id}/boleto.pdf`, c.boleto) : null;
     for (let i = 0; i < c.outros.length; i++) await subir(`${id}/outros/${i + 1}.pdf`, c.outros[i]);
@@ -181,7 +278,10 @@ Deno.serve(async (req) => {
     if (error) throw new Falha("Não foi possível gravar a nota: " + error.message, 500);
     return json({ ok: true, id, fornecedor: linha?.fornecedor_id ? linha.fornecedor_achado_por : null, pdfs: subidos.length });
   } catch (e) {
-    if (subidos.length) await admin.storage.from(BUCKET).remove(subidos).catch(() => {});   // não deixa arquivo sem linha
+    for (const bk of [BUCKET, BUCKET_MULTAS]) {   // não deixa arquivo sem linha
+      const lista = subidos.filter((s) => s.bucket === bk).map((s) => s.caminho);
+      if (lista.length) await admin.storage.from(bk).remove(lista).catch(() => {});
+    }
     const st = e instanceof Falha ? e.status : 500;
     console.error("inbound-triagem-nfs:", st, (e as Error).message);   // sem conteúdo do e-mail no log
     return json({ erro: (e as Error).message }, st);
