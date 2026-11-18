@@ -398,6 +398,25 @@
   igual("Orçamento: PDFs do mesmo carro ficam num item só", R.separarOrcamentos([txtO1, "anexo sem placa"], "Kwid GDT7I83").length + "/" + R.separarOrcamentos([txtO1, "anexo sem placa"], "Kwid GDT7I83")[0].pdfs.join(","), "1/0,1");
   igual("Mover: item pendente vai para as outras duas filas", R.destinosTriagem("financeiro", "pendente").map(function(d){ return d.fila; }).join(","), "orcamentos,multas");
   igual("Mover: item já decidido não se move", R.destinosTriagem("multas", "registrada").length, 0);
+  // O2: resposta à oficina e Pipefy plano B
+  var mApr = R.mensagemOrcamento("aprovado", { placa: "GDT7I83", valor: 800, assunto: "Kwid placa GDT 7I83 V.O", nome: "Ana" });
+  igual("Resposta: assunto vira Re: do e-mail da oficina", mApr.assunto, "Re: Kwid placa GDT 7I83 V.O");
+  igual("Resposta: aprovado traz placa, valor e pede a NF em nome da Beep", /aprovado para a placa GDT7I83 no valor de R\$ 800,00\. Favor prosseguir com o serviço e emitir a nota fiscal em nome da Beep Saúde/.test(mApr.texto), true);
+  igual("Resposta: não repete Re: Re:", R.mensagemOrcamento("aprovado", { assunto: "RE: orçamento" }).assunto, "RE: orçamento");
+  igual("Resposta: recusa traz o motivo", /não foi aprovado\.\nMotivo: valor acima do combinado/.test(R.mensagemOrcamento("reprovado", { placa: "X", motivo: " valor acima do combinado " }).texto), true);
+  igual("Resposta: R$ com milhar", R.reaisTexto(1234567.5), "R$ 1.234.567,50");
+  igual("Resposta: mailto com cópia para o frota@ e quebras de linha", R.mailtoResposta("of@x.zzt.invalid", "Re: a b", "l1\nl2"), "mailto:of%40x.zzt.invalid?cc=frota%40beepsaude.com.br&subject=Re%3A%20a%20b&body=l1%0D%0Al2");
+  igual("Pipefy: vencimento a 10 dias ou mais vale como pagamento", R.dataPagamentoPipefy("2026-12-01", "2026-11-18").data, "2026-12-01");
+  igual("Pipefy: vencimento a menos de 10 dias vira hoje + 10 corridos", R.dataPagamentoPipefy("2026-11-20", "2026-11-18").data + "/" + R.dataPagamentoPipefy("2026-11-20", "2026-11-18").ajustada, "2026-11-28/true");
+  igual("Pipefy: sem vencimento = hoje + 10", R.dataPagamentoPipefy(null, "2026-11-25").data, "2026-12-05");
+  var rsP = R.resumoPipefyPagamento({ assunto: "Fatura Versa Fuel", remetente: "fin@x.zzt.invalid", data_recebimento: "2026-11-17T22:40:00Z", data_vencimento: "2026-12-10",
+    valor_lido: 1500.5, numero_nota_lido: "123", cnpj_lido: "11222333000181", caminho_pdf_nf: "a/nf.pdf", caminho_pdf_boleto: "a/boleto.pdf" }, { nome: "Versa", forma_pagamento: "BOLETO" }, { filial: "Tatuapé" }, "2026-11-18");
+  igual("Pipefy: resumo segue a ordem do formulário (15 campos + anexo do boleto)", rsP.map(function(l){ return l.n; }).join(","), "1,2,3,4,5,6,7,8,9,10,11,12,13,13a,14,15");
+  igual("Pipefy: competência pelo recebimento em Brasília, mês sem zero", rsP[10].valor + "/" + rsP[11].valor, "2026/11");
+  igual("Pipefy: CNPJ formatado, pagamento no vencimento, valor em R$", [rsP[4].valor, rsP[9].valor, rsP[14].valor].join(" | "), "11.222.333/0001-81 — Versa | 10/12/2026 (no vencimento) | R$ 1.500,50");
+  igual("Pipefy: o que falta preencher fica marcado", rsP.filter(function(l){ return l.valor === "(preencher)"; }).map(function(l){ return l.n; }).join(","), "4,8");
+  igual("Pipefy: PIX pergunta da alteração cadastral", R.resumoPipefyPagamento({}, { forma_pagamento: "PIX" }, {}, "2026-11-18").filter(function(l){ return l.n === "13a"; })[0].campo, "Solicitei alteração cadastral de dados bancários");
+  igual("Pipefy: texto para colar começa pelo nome do formulário", R.textoResumoPipefy(rsP).split("\n")[0] + " / " + R.textoResumoPipefy(rsP).split("\n")[1], "PIPEFY — 90. Pagamento a fornecedor / 1. Descrição do serviço contratado ou mercadoria adquirida: Fatura Versa Fuel");
   // V1: veículos ativos × arquivados e operacional × administrativo
   var frV1 = [{ placa: "A", ativo: true, finalidade: "operacional", status_operacional: "disponivel" }, { placa: "B", ativo: true, finalidade: "administrativo", status_operacional: "disponivel" },
     { placa: "C", ativo: true, finalidade: "operacional", status_operacional: "desmobilizar" }, { placa: "D", ativo: false, finalidade: "operacional", status_operacional: "devolvido" }, { placa: "E", ativo: true, finalidade: null }];

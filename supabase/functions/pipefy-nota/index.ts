@@ -96,6 +96,70 @@ async function descobrir() {
   return r;
 }
 
+// ---------- Pipe "90. Pagamento a fornecedor" (pedido do Jefferson, 18/11/2026) ----------
+// IDs mapeados pelo Jefferson no navegador (não são segredo). Leitura só para conferir o acesso do token
+// e achar os field_id da API e os registros das bases conectadas.
+const PIPE_PAGAMENTO = "301583172";
+const BASES_PAGAMENTO: Record<string, { id: string; registros: boolean }> = {
+  empresa_tomadora: { id: "a104bd7e-f25b-4537-9bac-c7a90df9b0fc", registros: true },
+  filial: { id: "d5a85ffc-23ab-4221-b4b0-4b39939032e3", registros: true },
+  centro_custo: { id: "191af2fc-108f-4dff-8589-03fb0c92601a", registros: true },
+  fornecedor: { id: "b1f552c2-39e6-4d7b-bc6f-99661f9ff0d1", registros: false },   // pode ter CPF: só estrutura e contagem
+};
+// Mapa do formulário inicial (fase 310493754, organização 353414), na ordem da tela do Pipefy. `id` = field_id da API:
+// fica "TODO" até o modo descobrir_pagamento responder (hoje o Pipefy nega acesso ao pipe para o dono do token).
+// `de` = de onde vem o valor (triagem financeira aprovada + cadastro do fornecedor); a mesma ordem e regras estão em
+// Regras.resumoPipefyPagamento (usada no plano B "Copiar resumo para Pipefy").
+// Para virar a chave: rodar descobrir_pagamento, preencher os ids (e o id do registro de cada base conectada),
+// trocar o envio do plano B por createCard + anexos (createPresignedUrl, como desenhado na P1) e gravar o card.
+export const MAPA_PAGAMENTO = [
+  { n: 1, campo: "Descrição do serviço contratado ou mercadoria adquirida", tipo: "short_text", id: "TODO", de: "fornecedores.servico_descricao | assunto do e-mail" },
+  { n: 2, campo: "Empresa tomadora (Beep)", tipo: "connector", base: BASES_PAGAMENTO.empresa_tomadora.id, id: "TODO", de: "registro fixo da Beep" },
+  { n: 3, campo: "Filial", tipo: "connector", base: BASES_PAGAMENTO.filial.id, id: "TODO", de: "hub mais usado nas notas do fornecedor (de-para hub → filial a montar)" },
+  { n: 4, campo: "Centro de custo", tipo: "connector", base: BASES_PAGAMENTO.centro_custo.id, id: "TODO", de: "a definir com o Financeiro (condicional)" },
+  { n: 5, campo: "CNPJ ou CPF do Fornecedor", tipo: "connector", base: BASES_PAGAMENTO.fornecedor.id, id: "TODO", de: "fornecedores.cnpj → registro da base" },
+  { n: 6, campo: "Anexar nota fiscal ou fatura ou recibo", tipo: "attachment", id: "TODO", de: "notas-triagem/{id}/nf.pdf" },
+  { n: 7, campo: "Número do documento anexado", tipo: "short_text", id: "TODO", de: "numero_nota_lido" },
+  { n: 8, campo: "Data de emissão do documento", tipo: "date", id: "TODO", de: "a ler do XML/PDF" },
+  { n: 9, campo: "Data de vencimento", tipo: "date", id: "TODO", de: "data_vencimento" },
+  { n: 10, campo: "Data de pagamento", tipo: "date", id: "TODO", de: "Regras.dataPagamentoPipefy (vencimento, ou hoje + 10 dias corridos)" },
+  { n: 11, campo: "Ano de competência", tipo: "select", id: "TODO", de: "ano da competência (2025/2026/2027)" },
+  { n: 12, campo: "Mês de competência", tipo: "select", id: "TODO", de: "mês da competência (1–12)" },
+  { n: 13, campo: "Forma de pagamento", tipo: "radio_vertical", id: "TODO", de: "fornecedores.forma_pagamento (Boleto, Transferência, Débito Automático, Guia, PIX)" },
+  { n: 13.1, campo: "Anexar boleto (se Boleto)", tipo: "attachment", id: "TODO", de: "notas-triagem/{id}/boleto.pdf" },
+  { n: 13.2, campo: "Solicitei alteração cadastral de dados bancários (se Transferência/PIX)", tipo: "radio_vertical", id: "TODO", de: "Não (padrão)" },
+  { n: 14, campo: "Valor a pagar", tipo: "currency", id: "TODO", de: "valor_lido" },
+  { n: 15, campo: "Observações", tipo: "long_text", id: "TODO", de: "remetente e data de recebimento" },
+];
+const Q_PIPE_PAG = `query($id: ID!) {
+  pipe(id: $id) { id name organizationId
+    start_form_fields { id label type required options description } }
+}`;
+const Q_CONECTORES = `query($id: ID!) {
+  pipe(id: $id) { start_form_fields { id label type connectedRepo { ... on Table { id name } ... on Pipe { id name } } } }
+}`;
+const Q_TABELA = `query($id: ID!) { table(id: $id) { id name table_records_count table_fields { id label type } } }`;
+const Q_TABELA_REG = `query($id: ID!) { table(id: $id) { table_records(first: 100) { edges { node { id title } } } } }`;
+async function descobrirPagamento() {
+  const r: Record<string, unknown> = {};
+  try { await pipefy(Q_TOKEN, {}); r.token = "ok"; } catch (e) { r.token = (e as Error).message; }
+  try { r.pipe = (await pipefy(Q_PIPE_PAG, { id: PIPE_PAGAMENTO })).pipe; } catch (e) { r.pipe_erro = (e as Error).message; }
+  try { r.conectores = (await pipefy(Q_CONECTORES, { id: PIPE_PAGAMENTO })).pipe?.start_form_fields?.filter((f: any) => f.connectedRepo); }
+  catch (e) { r.conectores_erro = (e as Error).message; }
+  const bases: Record<string, unknown> = {};
+  for (const [nome, b] of Object.entries(BASES_PAGAMENTO)) {
+    const x: Record<string, unknown> = {};
+    try { x.tabela = (await pipefy(Q_TABELA, { id: b.id })).table; } catch (e) { x.erro = (e as Error).message; }
+    if (b.registros && !x.erro) {
+      try { x.registros = (await pipefy(Q_TABELA_REG, { id: b.id })).table?.table_records?.edges?.map((ed: any) => ed.node); }
+      catch (e) { x.registros_erro = (e as Error).message; }
+    }
+    bases[nome] = x;
+  }
+  r.bases = bases;
+  return r;
+}
+
 // Criação do card: sempre com variáveis (nunca montar a mutation colando texto da nota).
 const M_CRIAR_CARD = `mutation($input: CreateCardInput!) {
   createCard(input: $input) { card { id title url } }
@@ -151,7 +215,8 @@ Deno.serve(async (req) => {
     if (chave) {
       const { data: ok } = await servico.schema("frota").rpc("verificar_automation_key", { chave });
       if (ok !== true) throw new Falha("Chave inválida.", 401);
-      if (modo !== "descobrir") throw new Falha("Com a chave interna, só o modo descobrir.", 403);
+      if (modo === "descobrir_pagamento") return json(await descobrirPagamento());
+      if (modo !== "descobrir") throw new Falha("Com a chave interna, só os modos de leitura (descobrir).", 403);
       return json(await descobrir());
     }
 

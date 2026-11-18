@@ -31,6 +31,11 @@
 // destino com os mesmos PDFs (lidos de novo), sai da origem (linha e arquivos) e fica registrado em
 // frota.triagem_movimentacoes (imutável). Com ?teste=1 só mostra o que faria.
 //
+// Resposta à oficina (O2, 18/11/2026): ?acao=responder_orcamento, corpo { id }, com o login de quem decidiu
+// (frota.orcamento_resposta_preparar confere acesso e que o orçamento já foi decidido e ainda não respondido).
+// Envia pelo Postmark se houver POSTMARK_SERVER_TOKEN + POSTMARK_FROM; senão devolve os dados para a tela abrir
+// o e-mail da pessoa (mailto). Canal, hora e erro do envio ficam no orçamento (só o sistema grava).
+//
 // Formatos aceitos:
 //  - JSON do Postmark Inbound (FromFull, Subject, Headers, MessageID, Attachments[{Name, ContentType, Content}]);
 //  - multipart/form-data (SendGrid Inbound Parse, Mailgun Routes): from/sender, subject, headers ou Message-Id, arquivos;
@@ -372,6 +377,42 @@ async function mover(req: Request, teste: boolean, subidos: Subido[]) {
   return { ok: true, movido: { de, para, de_id: id, para_ids: novos, pdfs: caminhos.length }, destino: r };
 }
 
+// ---------- resposta à oficina (O2): ?acao=responder_orcamento, corpo { id }, com o login de quem decidiu ----------
+// Postmark quando houver os segredos POSTMARK_SERVER_TOKEN e POSTMARK_FROM (remetente verificado no Postmark):
+// To = remetente do orçamento, Cc = frota@, Reply-To = e-mail de quem decidiu. Sem os segredos (ou se o Postmark
+// recusar), grava canal "mailto" e devolve os dados para a tela abrir o e-mail da própria pessoa.
+const POSTMARK_TOKEN = Deno.env.get("POSTMARK_SERVER_TOKEN") || "";
+const POSTMARK_FROM = Deno.env.get("POSTMARK_FROM") || "";
+const FROTA_EMAIL = "frota@beepsaude.com.br";
+async function responderOrcamento(req: Request) {
+  const b = await req.json().catch(() => ({}));
+  const id = String(b?.id || "");
+  if (!UUID.test(id)) throw new Falha("Orçamento inválido.");
+  const auth = req.headers.get("authorization") || "";
+  if (!/^bearer /i.test(auth)) throw new Falha("Faça login para responder.", 401);
+  const usuario = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
+  const { data: p, error } = await usuario.schema("frota").rpc("orcamento_resposta_preparar", { p_id: id });
+  if (error) throw new Falha("Não foi possível conferir seu acesso (entre de novo).", 401);
+  if (!p?.ok) throw new Falha(p?.motivo || "Sem permissão para responder.", 409);
+  const tabela = () => db().from("manutencao_orcamentos_triagem");
+  const manual = async (erro: string | null) => {
+    await tabela().update({ resposta_canal: "mailto", resposta_enviada_em: new Date().toISOString(), resposta_erro: erro }).eq("id", id);
+    return { ok: true, canal: "mailto", erro, para: p.para, cc: FROTA_EMAIL, assunto: p.assunto, texto: p.texto };
+  };
+  if (!POSTMARK_TOKEN || !POSTMARK_FROM) return manual(null);
+  const r = await fetch("https://api.postmarkapp.com/email", {
+    method: "POST",
+    headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Postmark-Server-Token": POSTMARK_TOKEN },
+    body: JSON.stringify({ From: POSTMARK_FROM, To: p.para, Cc: FROTA_EMAIL, ReplyTo: p.responder_para || FROTA_EMAIL, Subject: p.assunto,
+      TextBody: p.texto + "\n\n—\nRespondido por " + (p.nome || "Frota") + (p.responder_para ? " <" + p.responder_para + ">" : "") + " pela Beep Fleet.",
+      MessageStream: "outbound" }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ErrorCode) return manual(("Postmark: " + (j.Message || "HTTP " + r.status)).slice(0, 300));
+  await tabela().update({ resposta_canal: "postmark", resposta_enviada_em: new Date().toISOString(), resposta_erro: null }).eq("id", id);
+  return { ok: true, canal: "postmark", para: p.para };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   const subidos: Subido[] = [];
@@ -381,6 +422,7 @@ Deno.serve(async (req) => {
     const teste = req.headers.get("x-inbound-teste") === "1" || url.searchParams.get("teste") === "1";
     const acao = url.searchParams.get("acao") || req.headers.get("x-inbound-acao");
     if (acao === "mover") return json(await mover(req, teste, subidos));   // autenticação própria (login ou chave)
+    if (acao === "responder_orcamento") return json(await responderOrcamento(req));   // só com login
 
     if (!(await chaveValida(chaveRecebida(req)))) throw new Falha("Não autorizado.", 401);
     const email = await lerEmail(req);

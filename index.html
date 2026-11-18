@@ -491,6 +491,9 @@
   .orc-os-lista{ display:flex; flex-direction:column; gap:var(--espaco-2); margin-top:var(--espaco-3); }
   .orc-os-lista .orc-os-item{ display:flex; gap:var(--espaco-3); align-items:center; justify-content:space-between; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:var(--espaco-2); }
   .orc-desc{ font-size:var(--fs-sm); color:var(--muted); margin:var(--espaco-3) 0; line-height:1.5; }
+  .orc-texto{ white-space:pre-wrap; font-size:var(--fs-sm); margin-top:var(--espaco-2); line-height:1.5; }
+  .pfy-check{ display:flex; gap:var(--espaco-3); align-items:center; margin-top:var(--espaco-4); font-weight:600; cursor:pointer; }
+  #pfy-texto, #orr-texto{ width:100%; font-family:inherit; font-size:var(--fs-sm); }
   .frota-abas{ margin-bottom:0; }
   .kpi-clicavel{ cursor:pointer; }
   .kpi-clicavel:hover{ border-color:var(--accent); }
@@ -1879,6 +1882,29 @@
     <div class="ac-hint">O envio automático da resposta ao fornecedor entra numa próxima etapa; por enquanto a justificativa fica registrada aqui.</div>
     <div class="login-error" id="tri-rep-err" hidden></div>
     <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="button" class="btn tri-reprovar" id="tri-rep-ok">Reprovar</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-orc-resposta" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3 id="orr-titulo">Aprovar orçamento</h3><button class="modal-close" data-close-modal aria-label="Fechar">×</button></div>
+    <p class="ac-hint" id="orr-resumo"></p>
+    <div class="field" id="orr-motivo-wrap" hidden><label for="orr-motivo">Motivo da recusa (obrigatório)</label>
+      <input id="orr-motivo" class="filter-select" maxlength="300" placeholder="Ex.: valor acima do combinado; serviço não autorizado"></div>
+    <div class="field"><label for="orr-assunto">Assunto</label><input id="orr-assunto" class="filter-select" maxlength="300"></div>
+    <div class="field"><label for="orr-texto">Mensagem para a oficina (pode editar)</label><textarea id="orr-texto" rows="8" maxlength="4000"></textarea></div>
+    <div class="ac-hint" id="orr-envio"></div>
+    <div class="login-error" id="orr-err" hidden></div>
+    <div class="modal-actions"><button type="button" class="btn" data-close-modal>Cancelar</button><button type="button" class="btn tri-aprovar" id="orr-ok">Aprovar e responder</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pipefy" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3>Resumo para o Pipefy</h3><button class="modal-close" data-close-modal aria-label="Fechar">×</button></div>
+    <p class="ac-hint">Formulário <b>90. Pagamento a fornecedor</b>, na ordem dos campos. Os itens "(preencher)" ou marcados para conferir você completa no Pipefy. Pode editar antes de copiar.</p>
+    <div class="field"><label for="pfy-texto">Resumo</label><textarea id="pfy-texto" rows="18"></textarea></div>
+    <div class="modal-actions"><button type="button" class="btn" data-close-modal>Fechar</button><button type="button" class="btn btn-primary" id="pfy-copiar" style="width:auto">Copiar</button></div>
   </div>
 </div>
 
@@ -3653,9 +3679,23 @@
     var v = t.veiculos, pode = orcPode() && t.status === "pendente";
     var info = function(rot, val){ return '<div><div class="qf-sub">' + rot + '</div><b>' + val + '</b></div>'; };
     var acoes = pode ? '<div class="tri-acoes"><button type="button" class="btn tri-aprovar" id="orc-aprovar"' + (t.os_id ? '' : ' disabled title="Ligue a uma OS antes de aprovar"') + '>Aprovar</button>' +
-        '<button type="button" class="btn tri-reprovar" id="orc-reprovar">Reprovar</button></div>'
-      : (t.status !== "pendente" ? '<div class="tri-decisao">' + pill(ORC_ST[t.status][0], ORC_ST[t.status][1]) + ' por ' + esc(t.decidido_por_nome || "—") + ' em ' + esc(dateTimeBR(t.decidido_em)) +
+        '<button type="button" class="btn tri-reprovar" id="orc-reprovar">Recusar</button></div>'
+      : (t.status !== "pendente" ? '<div class="tri-decisao">' + pill(ORC_ST[t.status][0], ORC_ST[t.status][1]) + ' por ' + esc(t.decidido_por_nome || "—") +
+          (t.decidido_por_email ? ' &lt;' + esc(t.decidido_por_email) + '&gt;' : '') + ' em ' + esc(dateTimeBR(t.decidido_em)) +
           (t.motivo_reprovacao ? '<div>Motivo: ' + esc(t.motivo_reprovacao) + '</div>' : '') + '</div>' : '');
+    var resposta = '';
+    if (t.status !== "pendente"){
+      if (t.resposta_canal){
+        resposta = '<div class="orc-os orc-resposta"><div class="qf-sub">Resposta à oficina · ' +
+          (t.resposta_canal === "postmark" ? "enviada por e-mail automático" : "aberta no e-mail de quem decidiu (envio pelo programa de e-mail)") +
+          ' em ' + esc(dateTimeBR(t.resposta_enviada_em)) + ' · para ' + esc(t.remetente || "—") + ', cópia ' + esc(Regras.FROTA_EMAIL) +
+          (t.resposta_erro ? ' · <span style="color:var(--critical)">' + esc(t.resposta_erro) + '</span>' : '') + '</div>' +
+          (t.resposta_assunto ? '<b>' + esc(t.resposta_assunto) + '</b>' : '') + '<div class="orc-texto">' + esc(t.resposta_texto || "") + '</div>' +
+          (t.resposta_canal === "mailto" && orcPode() ? '<div class="tri-acoes" style="margin-top:var(--espaco-3)"><button type="button" class="btn qf-mini" id="orc-reabrir-email">Abrir o e-mail de novo</button></div>' : '') + '</div>';
+      } else if (t.remetente && t.resposta_texto && orcPode()){
+        resposta = '<div class="orc-os orc-sem"><b>A resposta à oficina ainda não saiu.</b><div class="tri-acoes" style="margin-top:var(--espaco-3)"><button type="button" class="btn qf-mini" id="orc-responder">Responder à oficina</button></div></div>';
+      }
+    }
     var os;
     if (t.os){
       os = '<div class="orc-os"><div class="qf-sub">Ligado à OS</div><b>' + esc(orcOsTexto(t.os)) + '</b><div class="tri-acoes" style="margin-top:var(--espaco-3)">' +
@@ -3690,7 +3730,7 @@
         info("Valor total", esc(t.valor_lido != null ? money(t.valor_lido) : "não lido")) +
       '</div>' +
       '<div class="orc-desc">' + (t.descricao_lida ? '<b>Serviços (lidos do PDF):</b> ' + esc(t.descricao_lida) : 'Serviços: veja o PDF abaixo.') + '</div>' +
-      os + corrigir + (pode ? moverHtml("orcamentos") : '') +
+      resposta + os + corrigir + (pode ? moverHtml("orcamentos") : '') +
       (nDocs ? '<div class="tri-docs">' + (nDocs > 1 ? '<div class="qf-abas" role="tablist" aria-label="PDFs">' + Array.apply(null, Array(nDocs)).map(function(_, i){
           return '<button type="button" role="tab" class="qf-aba' + (ORC.doc === i ? " on" : "") + '" data-orc-doc="' + i + '">PDF ' + (i + 1) + '</button>'; }).join("") + '</div>' : '<b>Orçamento (PDF)</b>') +
         '<a id="orc-abrir" href="#" target="_blank" rel="noopener" hidden>Abrir PDF em nova aba ↗</a></div><iframe class="tri-pdf" id="orc-pdf" title="PDF do orçamento"></iframe>'
@@ -3754,6 +3794,69 @@
     if (osCache.some(function(o){ return o.id === osId; })) abrirDetalheOS(osId);
     else { osAbrirDepois = osId; carregarOS(); }
   }
+  // Aprovar/Recusar: janela com a mensagem padrão (editável) para a oficina; a decisão e o texto são gravados juntos,
+  // e a Edge Function envia (Postmark) ou devolve os dados para abrir o e-mail de quem decidiu (mailto).
+  var ORR = { t: null, decisao: null, mexeu: false };
+  function meuEmail(){ return (session && session.user && session.user.email) || ""; }
+  function abrirMailto(url){ window.__ultimoMailto = url; var a = document.createElement("a"); a.href = url; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove(); }
+  function orcMensagem(){
+    var t = ORR.t;
+    return Regras.mensagemOrcamento(ORR.decisao, { placa: t.placa_lida, valor: t.valor_lido, assunto: t.assunto, nome: perfil && perfil.nome,
+      motivo: document.getElementById("orr-motivo").value });
+  }
+  function orcAbrirResposta(t, decisao){
+    ORR = { t: t, decisao: decisao, mexeu: false };
+    var apr = decisao === "aprovado", m;
+    document.getElementById("orr-titulo").textContent = apr ? "Aprovar orçamento" : "Recusar orçamento";
+    document.getElementById("orr-resumo").textContent = (t.placa_lida || "Placa não lida") + (t.valor_lido != null ? " · " + money(t.valor_lido) : "") +
+      (t.os ? " · OS: " + orcOsTexto(t.os) : "") + (apr && t.valor_lido != null ? " · o valor vai para a OS se ela ainda estiver sem valor" : "");
+    document.getElementById("orr-motivo-wrap").hidden = apr;
+    document.getElementById("orr-motivo").value = "";
+    m = orcMensagem();
+    document.getElementById("orr-assunto").value = m.assunto;
+    document.getElementById("orr-texto").value = m.texto;
+    document.getElementById("orr-envio").innerHTML = t.remetente
+      ? "Para <b>" + esc(t.remetente) + "</b>, com cópia para " + esc(Regras.FROTA_EMAIL) + ". As respostas da oficina chegam no seu e-mail" + (meuEmail() ? " (" + esc(meuEmail()) + ")" : "") +
+        ". Se o envio automático ainda não estiver ligado, o seu programa de e-mail abre com tudo preenchido — confira e envie."
+      : "O e-mail chegou sem remetente: a decisão fica registrada, mas não há para quem responder.";
+    var ok = document.getElementById("orr-ok");
+    ok.textContent = apr ? "Aprovar e responder" : "Recusar e responder";
+    ok.className = "btn " + (apr ? "tri-aprovar" : "tri-reprovar");
+    document.getElementById("orr-err").hidden = true;
+    openModal("modal-orc-resposta");
+    document.getElementById(apr ? "orr-texto" : "orr-motivo").focus();
+  }
+  function orcResponder(id){
+    return ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/functions/v1/inbound-triagem-nfs?acao=responder_orcamento", { method: "POST",
+        headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id }) });
+    }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if (!r.ok) throw new Error(j.erro || ("Erro " + r.status)); return j; }); })
+      .then(function(j){
+        if (j.canal === "postmark"){ toast("Resposta enviada para " + j.para + " (cópia para o frota@)."); return; }
+        abrirMailto(Regras.mailtoResposta(j.para, j.assunto, j.texto));
+        toast("Seu e-mail abriu com a resposta pronta" + (j.erro ? " (o envio automático falhou)" : "") + ". Confira e clique em enviar.");
+      }).catch(function(e){ toast("Decisão gravada, mas a resposta não saiu: " + e.message + ". Use “Responder à oficina”.", true); });
+  }
+  document.getElementById("orr-motivo").addEventListener("input", function(){ if (!ORR.mexeu) document.getElementById("orr-texto").value = orcMensagem().texto; });
+  document.getElementById("orr-texto").addEventListener("input", function(){ ORR.mexeu = true; });
+  document.getElementById("orr-ok").addEventListener("click", function(){
+    var t = ORR.t, apr = ORR.decisao === "aprovado", btn = this, err = document.getElementById("orr-err");
+    var motivo = document.getElementById("orr-motivo").value.trim(), assunto = document.getElementById("orr-assunto").value.trim(), texto = document.getElementById("orr-texto").value.trim();
+    var falha = !apr && motivo.length < 5 ? "Escreva o motivo da recusa (mínimo 5 letras)." : texto.length < 10 ? "Escreva a mensagem para a oficina." : null;
+    if (falha){ err.textContent = falha; err.hidden = false; return; }
+    var corpo = { status: ORR.decisao, resposta_assunto: assunto || null, resposta_texto: texto };
+    if (!apr) corpo.motivo_reprovacao = motivo;
+    btn.disabled = true; err.hidden = true;
+    rest("manutencao_orcamentos_triagem?id=eq." + encodeURIComponent(t.id), { method: "PATCH", body: corpo }).then(function(r){
+      if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão ou já decidido).");
+      document.getElementById("modal-orc-resposta").hidden = true;
+      toast(apr ? "Orçamento aprovado." : "Orçamento recusado.");
+      return t.remetente ? orcResponder(t.id) : null;
+    }).then(function(){ ORC.osCarro = {}; return orcCarregar(); })
+      .catch(function(e){ err.textContent = e.message; err.hidden = false; })
+      .then(function(){ btn.disabled = false; });
+  });
   document.querySelectorAll("[data-orc-st]").forEach(function(b){ b.addEventListener("click", function(){ ORC.filtro = b.dataset.orcSt; orcRender(); }); });
   document.getElementById("orc-lista").addEventListener("click", function(ev){
     var b = ev.target.closest("[data-orc-id]"); if (!b) return;
@@ -3769,16 +3872,10 @@
     if (alvo.dataset.orcLigar){ orcPatch(t, { os_id: alvo.dataset.orcLigar }, "Orçamento ligado à OS.", alvo); return; }
     if (alvo.id === "orc-desligar"){ orcPatch(t, { os_id: null }, "Orçamento desligado da OS.", alvo); return; }
     if (alvo.id === "orc-nova-os"){ orcAbrirNovaOS(t); return; }
-    if (alvo.id === "orc-aprovar"){
-      if (!confirm("Aprovar o orçamento" + (t.valor_lido != null ? " de " + money(t.valor_lido) : "") + " para " + (t.placa_lida || "este carro") + "?\n\nFica registrado na OS como tratativa.")) return;
-      orcPatch(t, { status: "aprovado" }, "Orçamento aprovado.", alvo); return;
-    }
-    if (alvo.id === "orc-reprovar"){
-      var motivo = prompt("Motivo da reprovação (mínimo 5 letras) — ex.: valor acima do combinado, serviço não autorizado:");
-      if (motivo == null) return;
-      if (motivo.trim().length < 5){ toast("Escreva o motivo (mínimo 5 letras).", true); return; }
-      orcPatch(t, { status: "reprovado", motivo_reprovacao: motivo.trim() }, "Orçamento reprovado.", alvo); return;
-    }
+    if (alvo.id === "orc-aprovar"){ orcAbrirResposta(t, "aprovado"); return; }
+    if (alvo.id === "orc-reprovar"){ orcAbrirResposta(t, "reprovado"); return; }
+    if (alvo.id === "orc-responder"){ alvo.disabled = true; orcResponder(t.id).then(orcCarregar); return; }
+    if (alvo.id === "orc-reabrir-email"){ abrirMailto(Regras.mailtoResposta(t.remetente, t.resposta_assunto, t.resposta_texto)); return; }
     if (alvo.id === "orc-salvar-placa"){
       var placa = document.getElementById("orc-placa").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (placa && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa)){ toast("Placa inválida.", true); return; }
@@ -4732,7 +4829,7 @@
   }
   function triCarregar(){
     if (!canEdit("financeiro")) return Promise.resolve();
-    return rest("financeiro_notas_triagem?select=*,fornecedores(id,nome,razao_social,cnpj,status_homologacao)&order=data_recebimento.desc&limit=500").then(function(rows){
+    return rest("financeiro_notas_triagem?select=*,fornecedores(id,nome,razao_social,cnpj,status_homologacao,servico_descricao,forma_pagamento)&order=data_recebimento.desc&limit=500").then(function(rows){
       TRI.lista = rows || [];
       var pend = TRI.lista.filter(function(t){ return t.status_aprovacao === "pendente"; }).length, b = document.getElementById("tri-badge");
       b.textContent = pend; b.hidden = !pend;
@@ -4754,7 +4851,8 @@
           '<div class="tri-nome">' + esc(f ? (f.nome || f.razao_social) : (t.remetente || "Remetente desconhecido")) + '</div>' +
           '<div class="tri-linha"><span>' + (t.valor_lido != null ? esc(money(t.valor_lido)) : "valor não lido") + '</span><span>' + esc(dateTimeBR(t.data_recebimento)) + '</span></div>' +
           '<div class="tri-tags">' + pill(h[1] === "good" ? "Homologado" : h[0], h[1]) + pill(pz[2].status === "sem_vencimento" ? "Sem vencimento" : (pz[2].ok ? "Prazo ok" : "Prazo curto"), pz[1]) +
-          (t.status_aprovacao !== "pendente" ? pill(t.status_aprovacao === "aprovada" ? "Aprovada" : "Reprovada", t.status_aprovacao === "aprovada" ? "good" : "neutral") : "") + '</div></button>';
+          (t.status_aprovacao !== "pendente" ? pill(t.status_aprovacao === "aprovada" ? "Aprovada" : "Reprovada", t.status_aprovacao === "aprovada" ? "good" : "neutral") : "") +
+          (t.status_aprovacao === "aprovada" ? pill(t.protocolado_pipefy_em ? "Protocolada no Pipefy" : "Falta protocolar no Pipefy", t.protocolado_pipefy_em ? "good" : "warn") : "") + '</div></button>';
       }).join("");
     }
     var sel = TRI.lista.filter(function(t){ return t.id === TRI.sel; })[0];
@@ -4788,6 +4886,12 @@
         '<div class="nfc-lista" id="tri-forn-lista"></div>' +
         (t.remetente ? '<div class="qf-sub">O sistema aprende: os próximos e-mails de <b>' + esc(t.remetente) + '</b> já chegam com esse fornecedor, mesmo sem CNPJ.</div>' : '') + '</div>' : '') +
       (t.status_aprovacao === "pendente" && pode ? moverHtml("financeiro") : '') +
+      (t.status_aprovacao === "aprovada" && pode ? '<div class="orc-os pfy-bloco"><div class="qf-sub">Pipefy — <b>90. Pagamento a fornecedor</b>. O envio automático aguarda o acesso ao pipe; por enquanto, protocole à mão:</div>' +
+        '<div class="tri-acoes" style="margin-top:var(--espaco-3)"><button type="button" class="btn btn-primary" id="tri-pfy-copiar" style="width:auto">Copiar resumo para Pipefy</button>' +
+        (temNf ? '<button type="button" class="btn qf-mini" data-tri-baixar="nf">Baixar NF</button>' : '') +
+        (temBol ? '<button type="button" class="btn qf-mini" data-tri-baixar="boleto">Baixar boleto</button>' : '') + '</div>' +
+        '<label class="pfy-check"><input type="checkbox" id="tri-pfy-protocolo"' + (t.protocolado_pipefy_em ? " checked" : "") + '> Protocolado no Pipefy</label>' +
+        (t.protocolado_pipefy_em ? ' <span class="qf-sub">por ' + esc(t.protocolado_pipefy_por_nome || "—") + ' em ' + esc(dateTimeBR(t.protocolado_pipefy_em)) + '</span>' : '') + '</div>' : '') +
       '<div class="nfd-grid">' +
         info("CNPJ lido", esc(t.cnpj_lido ? Regras.cnpjFormatado(t.cnpj_lido) : "não lido")) +
         info("NF nº", esc(t.numero_nota_lido || "não lido")) +
@@ -4864,6 +4968,8 @@
     var alvo = ev.target.closest("button"); if (!alvo || alvo.disabled) return;
     if (alvo.id === "tri-voltar"){ document.getElementById("tri-split").classList.remove("com-detalhe"); return; }
     if (alvo.dataset.moverOk){ triagemMover("financeiro", t.id, alvo); return; }
+    if (alvo.id === "tri-pfy-copiar"){ triResumoPipefy(t, alvo); return; }
+    if (alvo.dataset.triBaixar){ triBaixarPdf(t, alvo.dataset.triBaixar); return; }
     if (alvo.id === "tri-trocar"){ TRI.trocando = !TRI.trocando; triRenderDetalhe(t); var bf = document.getElementById("tri-forn-busca"); if (bf) bf.focus(); return; }
     if (alvo.dataset.triForn){ var fsel = fornPorId(alvo.dataset.triForn); if (fsel) triLigarFornecedor(t, fsel, alvo); return; }
     if (alvo.dataset.triDoc){ TRI.doc = alvo.dataset.triDoc; triRenderDetalhe(t); return; }
@@ -4886,6 +4992,48 @@
         .then(function(r){ if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão)."); toast("Fornecedor homologado."); return triCarregar(); })
         .catch(function(e){ alvo.disabled = false; toast(e.message, true); });
     }
+  });
+  // ---- Pipefy plano B (enquanto o token não tem acesso ao pipe 301583172): resumo dos 15 campos, PDFs e protocolo manual
+  function hojeBrasilia(){ return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); }
+  function triResumoPipefy(t, btn){
+    var f = t.fornecedores;
+    btn.disabled = true;
+    var hist = f ? rest("notas_fiscais?select=hub_id,categoria_id,forma_pagamento,mes_referencia,data_emissao,data_vencimento,aprovacao,hubs(nome)&fornecedor_id=eq." +
+      encodeURIComponent(f.id) + "&order=mes_referencia.desc&limit=12").catch(function(){ return []; }) : Promise.resolve([]);
+    hist.then(function(rows){
+      var s = Regras.sugestoesNota(rows || []), h = (rows || []).filter(function(n){ return n.hub_id === s.hub_id && n.hubs; })[0];
+      var linhas = Regras.resumoPipefyPagamento(t, f || {}, { filial: h ? h.hubs.nome + " (pelo histórico do fornecedor — confira)" : null }, hojeBrasilia());
+      document.getElementById("pfy-texto").value = Regras.textoResumoPipefy(linhas);
+      openModal("modal-pipefy");
+    }).then(function(){ btn.disabled = false; });
+  }
+  document.getElementById("pfy-copiar").addEventListener("click", function(){
+    var ta = document.getElementById("pfy-texto"), feito = function(){ toast("Resumo copiado. Cole no Pipefy e anexe os PDFs."); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(feito, function(){ ta.select(); document.execCommand("copy"); feito(); });
+    else { ta.select(); document.execCommand("copy"); feito(); }
+  });
+  // baixa o PDF por um link assinado de 5 min (com nome de arquivo); nada fica guardado
+  function triBaixarPdf(t, qual){
+    var caminho = qual === "boleto" ? t.caminho_pdf_boleto : t.caminho_pdf_nf;
+    var f = t.fornecedores, nome = ((qual === "boleto" ? "Boleto" : "NF") + "-" + (f ? f.nome : "fornecedor") + (t.numero_nota_lido ? "-" + t.numero_nota_lido : "") + ".pdf")
+      .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9._-]+/g, "_");
+    ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/sign/notas-triagem/" + String(caminho).split("/").map(encodeURIComponent).join("/"), {
+        method: "POST", headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 300 }) });
+    }).then(function(r){ return r.ok ? r.json() : r.text().then(function(x){ throw new Error(x || ("Erro " + r.status)); }); })
+      .then(function(j){
+        var a = document.createElement("a"); a.href = SUPA_URL + "/storage/v1" + j.signedURL + "&download=" + encodeURIComponent(nome); a.rel = "noopener";
+        window.__ultimoDownload = a.href; document.body.appendChild(a); a.click(); a.remove();
+      }).catch(function(e){ toast("Não foi possível baixar o PDF: " + e.message, true); });
+  }
+  document.getElementById("tri-detalhe").addEventListener("change", function(ev){
+    if (ev.target.id !== "tri-pfy-protocolo") return;
+    var t = TRI.lista.filter(function(x){ return x.id === TRI.sel; })[0], cb = ev.target; if (!t) return;
+    cb.disabled = true;
+    rest("financeiro_notas_triagem?id=eq." + encodeURIComponent(t.id), { method: "PATCH", body: { protocolado_pipefy_em: cb.checked ? new Date().toISOString() : null } })
+      .then(function(r){ if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão)."); toast(cb.checked ? "Marcada como protocolada no Pipefy." : "Protocolo desmarcado."); return triCarregar(); })
+      .catch(function(e){ cb.checked = !cb.checked; cb.disabled = false; toast(e.message, true); });
   });
   document.getElementById("tri-detalhe").addEventListener("input", function(ev){
     if (ev.target.id !== "tri-forn-busca") return;

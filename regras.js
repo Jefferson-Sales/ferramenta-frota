@@ -1112,6 +1112,75 @@
     });
   }
 
+  // ---------------------------------------------------------------- Resposta à oficina (O2) e Pipefy plano B (P4)
+  // Dados de faturamento que vão na resposta de orçamento aprovado. CNPJ vazio = a frase sai sem o número
+  // (preencher quando o Jefferson informar o CNPJ que deve ir na NF da oficina).
+  var BEEP_FATURAMENTO = { nome: "Beep Saúde", cnpj: "" };
+  var FROTA_EMAIL = "frota@beepsaude.com.br";
+  function reaisTexto(v) {
+    var n = Number(v); if (!isFinite(n)) return "";
+    var p = Math.abs(n).toFixed(2).split("."), int = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return (n < 0 ? "-" : "") + "R$ " + int + "," + p[1];
+  }
+  // mensagem padrão (editável na tela) para a oficina; decisao = "aprovado" | "reprovado"
+  function mensagemOrcamento(decisao, d) {
+    d = d || {};
+    var placa = d.placa || "o veículo", valor = d.valor != null && d.valor !== "" ? reaisTexto(d.valor) : "";
+    var base = String(d.assunto || ("Orçamento" + (d.placa ? " " + d.placa : ""))).trim();
+    var assunto = (/^re:/i.test(base) ? base : "Re: " + base).slice(0, 300);
+    var cnpj = BEEP_FATURAMENTO.cnpj ? " (CNPJ " + cnpjFormatado(BEEP_FATURAMENTO.cnpj) + ")" : "";
+    var assinatura = "\n\nObrigado,\n" + (d.nome ? d.nome + " — " : "") + "Frota " + BEEP_FATURAMENTO.nome;
+    var texto = decisao === "aprovado"
+      ? "Olá,\n\nOrçamento aprovado para a placa " + placa + (valor ? " no valor de " + valor : "") + ". Favor prosseguir com o serviço e emitir a nota fiscal em nome da " + BEEP_FATURAMENTO.nome + cnpj + "." + assinatura
+      : "Olá,\n\nO orçamento para a placa " + placa + (valor ? " no valor de " + valor : "") + " não foi aprovado.\nMotivo: " + String(d.motivo || "").trim() + assinatura;
+    return { assunto: assunto, texto: texto };
+  }
+  // link de e-mail (plano B quando o envio automático não está configurado): abre o e-mail de quem decidiu, com cópia para o frota@
+  function mailtoResposta(para, assunto, texto) {
+    return "mailto:" + encodeURIComponent(String(para || "")) + "?cc=" + encodeURIComponent(FROTA_EMAIL) +
+      "&subject=" + encodeURIComponent(String(assunto || "")) + "&body=" + encodeURIComponent(String(texto || "").replace(/\r?\n/g, "\r\n"));
+  }
+  // Pipefy "90. Pagamento a fornecedor": pagamento pedido com 10 dias corridos de antecedência —
+  // vale o vencimento se ele cair a partir de hoje + 10; senão (ou sem vencimento), hoje + 10.
+  var PIPEFY_ANTECEDENCIA = 10;
+  function dataPagamentoPipefy(vencimento, hoje) {
+    var min = isoMaisDias(String(hoje).slice(0, 10), PIPEFY_ANTECEDENCIA), v = vencimento ? String(vencimento).slice(0, 10) : null;
+    if (!v) return { data: min, ajustada: true, regra: "sem vencimento: hoje + " + PIPEFY_ANTECEDENCIA + " dias" };
+    if (v >= min) return { data: v, ajustada: false, regra: "no vencimento" };
+    return { data: min, ajustada: true, regra: "vencimento a menos de " + PIPEFY_ANTECEDENCIA + " dias: hoje + " + PIPEFY_ANTECEDENCIA };
+  }
+  var PIPEFY_FORMA = { boleto: "Boleto", transferencia: "Transferência", pix: "PIX", debito_automatico: "Débito Automático" };
+  function dataBRcurta(iso) { var s = String(iso || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.slice(8, 10) + "/" + s.slice(5, 7) + "/" + s.slice(0, 4) : ""; }
+  // os 15 campos do formulário inicial, na ordem; falta = true quando a pessoa precisa preencher/conferir no Pipefy
+  function resumoPipefyPagamento(t, forn, extra, hoje) {
+    t = t || {}; forn = forn || {}; extra = extra || {};
+    var linhas = [], add = function(n, campo, valor, falta){ linhas.push({ n: n, campo: campo, valor: valor || "(preencher)", falta: !!falta || !valor }); };
+    var receb = t.data_recebimento ? new Date(Date.parse(t.data_recebimento) - 3 * 3600e3).toISOString().slice(0, 10) : null;
+    var forma = PIPEFY_FORMA[formaPagamentoChave(forn.forma_pagamento)] || (t.caminho_pdf_boleto ? "Boleto" : null);
+    var pag = dataPagamentoPipefy(t.data_vencimento, hoje), comp = String(extra.competencia || receb || "").slice(0, 7);
+    add("1", "Descrição do serviço contratado ou mercadoria adquirida", forn.servico_descricao || t.assunto || null);
+    add("2", "Empresa tomadora (Beep)", extra.empresa || BEEP_FATURAMENTO.nome, true);
+    add("3", "Filial", extra.filial || null, true);
+    add("4", "Centro de custo", extra.centro_custo || null, true);
+    add("5", "CNPJ ou CPF do Fornecedor", (forn.cnpj || t.cnpj_lido) ? cnpjFormatado(forn.cnpj || t.cnpj_lido) + (forn.razao_social || forn.nome ? " — " + (forn.razao_social || forn.nome) : "") : null);
+    add("6", "Anexar nota fiscal ou fatura ou recibo", t.caminho_pdf_nf ? "anexar o PDF da nota (botão Baixar NF)" : null);
+    add("7", "Número do documento anexado", t.numero_nota_lido || null);
+    add("8", "Data de emissão do documento", extra.emissao ? dataBRcurta(extra.emissao) : null);
+    add("9", "Data de vencimento", t.data_vencimento ? dataBRcurta(t.data_vencimento) : null);
+    add("10", "Data de pagamento", dataBRcurta(pag.data) + " (" + pag.regra + ")", pag.ajustada);
+    add("11", "Ano de competência", comp ? comp.slice(0, 4) : null, !extra.competencia);
+    add("12", "Mês de competência", comp ? String(Number(comp.slice(5, 7))) : null, !extra.competencia);
+    add("13", "Forma de pagamento", forma);
+    if (forma === "Boleto") add("13a", "Anexar boleto", t.caminho_pdf_boleto ? "anexar o PDF do boleto (botão Baixar boleto)" : null);
+    if (forma === "Transferência" || forma === "PIX") add("13a", "Solicitei alteração cadastral de dados bancários", "Não", true);
+    add("14", "Valor a pagar", t.valor_lido != null ? reaisTexto(t.valor_lido) : null);
+    add("15", "Observações", "Recebida por e-mail de " + (t.remetente || "—") + (receb ? " em " + dataBRcurta(receb) : "") + " (Triagem de notas da Beep Fleet).");
+    return linhas;
+  }
+  function textoResumoPipefy(linhas) {
+    return "PIPEFY — 90. Pagamento a fornecedor\n" + (linhas || []).map(function(l){ return l.n + ". " + l.campo + ": " + l.valor; }).join("\n");
+  }
+
   // ---------------------------------------------------------------- Triagem de multas (M1)
   // Usado no navegador e na Edge Function inbound-triagem-nfs (que leva uma cópia deste arquivo).
   // Assunto e nome do anexo: as palavras pedidas pelo Jefferson. Texto do PDF: só expressões de notificação — boleto de
@@ -1249,6 +1318,15 @@
     ehEmailDeOrcamento: ehEmailDeOrcamento,
     lerOrcamento: lerOrcamento,
     separarOrcamentos: separarOrcamentos,
+    BEEP_FATURAMENTO: BEEP_FATURAMENTO,
+    FROTA_EMAIL: FROTA_EMAIL,
+    reaisTexto: reaisTexto,
+    mensagemOrcamento: mensagemOrcamento,
+    mailtoResposta: mailtoResposta,
+    PIPEFY_ANTECEDENCIA: PIPEFY_ANTECEDENCIA,
+    dataPagamentoPipefy: dataPagamentoPipefy,
+    resumoPipefyPagamento: resumoPipefyPagamento,
+    textoResumoPipefy: textoResumoPipefy,
     FILAS_TRIAGEM: FILAS_TRIAGEM,
     destinosTriagem: destinosTriagem,
     resumoFrota: resumoFrota,

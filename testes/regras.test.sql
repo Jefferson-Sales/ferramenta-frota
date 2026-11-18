@@ -39,6 +39,7 @@ declare
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
   u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid; t3op uuid := gen_random_uuid(); t3vis uuid := gen_random_uuid(); t3f1 uuid; t3f2 uuid; t3t uuid; t3t2 uuid; m1op uuid := gen_random_uuid(); m1vis uuid := gen_random_uuid(); m1v uuid; m1m uuid; m1c uuid; m1t uuid; m1mu uuid;
   o1op uuid := gen_random_uuid(); o1outro uuid := gen_random_uuid(); o1vis uuid := gen_random_uuid(); o1h uuid; o1h2 uuid; o1v uuid; o1v2 uuid; o1os uuid; o1os2 uuid; o1t uuid; o1t2 uuid;
+  o2op uuid := gen_random_uuid(); o2h uuid; o2v uuid; o2os uuid; o2os2 uuid; o2t uuid; o2t2 uuid; o2n uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1466,6 +1467,66 @@ begin
   casos := casos || text 'O1: o registro do "Mover para…" não muda'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
   select public::text || '/' || file_size_limit::text into x from storage.buckets where id = 'manutencao-orcamentos';
   casos := casos || text 'O1: pasta manutencao-orcamentos é privada e aceita até 10 MB'; obtidos := obtidos || x; esperados := esperados || text 'false/10485760';
+
+
+  -- ============================================ 33. RESPOSTA À OFICINA, VALOR NA OS E PROTOCOLO NO PIPEFY (O2)
+  insert into frota.hubs (nome) values ('TESTE Hub O2') returning id into o2h;
+  insert into auth.users (id, email, aud, role) values (o2op, 'teste.o2op@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (o2op, 'TESTE Operador O2', 'operador', '{manutencao,financeiro}', '{manutencao,financeiro}');
+  insert into frota.usuarios_hubs (user_id, hub_id) values (o2op, o2h);
+  insert into frota.veiculos (placa, ativo, status, hub_id) values ('ZZT1O22', true, 'disponivel', o2h) returning id into o2v;
+  insert into frota.ordens_servico (veiculo_id, tipo, status, motivo) values (o2v, 'corretiva', 'agendada', 'TESTE O2 sem valor') returning id into o2os;
+  insert into frota.ordens_servico (veiculo_id, tipo, status, motivo, valor_total) values (o2v, 'corretiva', 'agendada', 'TESTE O2 com valor', 500) returning id into o2os2;
+  insert into frota.manutencao_orcamentos_triagem (message_id, remetente, assunto, placa_lida, valor_lido) values ('<o2-1@zzt>', 'oficina@zzt.invalid', 'Orçamento ZZT1O22', 'ZZT1O22', 800) returning id into o2t;
+  insert into frota.manutencao_orcamentos_triagem (message_id, remetente, assunto, placa_lida, valor_lido) values ('<o2-2@zzt>', 'oficina@zzt.invalid', 'Orçamento 2', 'ZZT1O22', 300) returning id into o2t2;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', o2op, 'role', 'authenticated', 'email', 'Teste.O2op@zzt.invalid')::text, true);
+  execute 'set local role authenticated';
+  x := frota.orcamento_resposta_preparar(o2t) ->> 'ok';
+  casos := casos || text 'O2: não responde orçamento ainda pendente'; obtidos := obtidos || x; esperados := esperados || text 'false';
+  update frota.manutencao_orcamentos_triagem set os_id = o2os where id = o2t;
+  update frota.manutencao_orcamentos_triagem set status = 'aprovado', resposta_assunto = 'Re: Orçamento ZZT1O22', resposta_texto = '  Orçamento aprovado. Pode seguir.  ' where id = o2t;
+  select decidido_por_email || '/' || resposta_texto into x from frota.manutencao_orcamentos_triagem where id = o2t;
+  casos := casos || text 'O2: aprovar grava o e-mail de quem decidiu (login) e o texto da resposta'; obtidos := obtidos || x;
+  esperados := esperados || text 'teste.o2op@zzt.invalid/Orçamento aprovado. Pode seguir.';
+  select count(*)::text into x from frota.os_tratativas where os_id = o2os and texto like '%R$ 800,00 APROVADO.%Resposta à oficina por TESTE Operador O2 <teste.o2op@zzt.invalid>: "Orçamento aprovado. Pode seguir."';
+  casos := casos || text 'O2: tratativa na OS com quem respondeu (nome e e-mail) e o texto'; obtidos := obtidos || x; esperados := esperados || text '1';
+  select valor_total::numeric(12,2)::text into x from frota.ordens_servico where id = o2os;
+  casos := casos || text 'O2: aprovar preenche o valor da OS que estava vazio'; obtidos := obtidos || x; esperados := esperados || text '800.00';
+  begin update frota.manutencao_orcamentos_triagem set resposta_texto = 'outro texto' where id = o2t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O2: texto enviado não muda depois da decisão'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.manutencao_orcamentos_triagem set resposta_canal = 'postmark' where id = o2t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O2: a tela não marca o envio (só o sistema)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select (j ->> 'ok') || '/' || (j ->> 'para') || '/' || (j ->> 'assunto') || '/' || (j ->> 'responder_para') into x from (select frota.orcamento_resposta_preparar(o2t) j) q;
+  casos := casos || text 'O2: preparar a resposta devolve para quem, assunto e responder-para (login)'; obtidos := obtidos || x;
+  esperados := esperados || text 'true/oficina@zzt.invalid/Re: Orçamento ZZT1O22/teste.o2op@zzt.invalid';
+  update frota.manutencao_orcamentos_triagem set os_id = o2os2 where id = o2t2;
+  update frota.manutencao_orcamentos_triagem set status = 'aprovado', resposta_texto = 'ok' where id = o2t2;
+  select valor_total::numeric(12,2)::text into x from frota.ordens_servico where id = o2os2;
+  casos := casos || text 'O2: aprovar não troca o valor que a OS já tinha'; obtidos := obtidos || x; esperados := esperados || text '500.00';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);   -- o sistema (Edge Function) grava o envio sem login
+  update frota.manutencao_orcamentos_triagem set resposta_canal = 'mailto', resposta_enviada_em = now() where id = o2t;
+  perform set_config('request.jwt.claims', json_build_object('sub', o2op, 'role', 'authenticated', 'email', 'Teste.O2op@zzt.invalid')::text, true);
+  execute 'set local role authenticated';
+  x := frota.orcamento_resposta_preparar(o2t) ->> 'ok';
+  casos := casos || text 'O2: resposta já registrada não é enviada de novo'; obtidos := obtidos || x; esperados := esperados || text 'false';
+
+  execute 'reset role';
+  insert into frota.financeiro_notas_triagem (message_id, remetente, assunto) values ('<o2-n@zzt>', 'nf@zzt.invalid', 'NF teste') returning id into o2n;
+  execute 'set local role authenticated';
+  begin update frota.financeiro_notas_triagem set protocolado_pipefy_em = now() where id = o2n; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O2: nota pendente não é protocolada no Pipefy'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  update frota.financeiro_notas_triagem set status_aprovacao = 'aprovada' where id = o2n;
+  update frota.financeiro_notas_triagem set protocolado_pipefy_em = '2020-01-01', protocolado_pipefy_por_nome = 'outro' where id = o2n;
+  select (protocolado_pipefy_em > now() - interval '1 minute')::text || '/' || (protocolado_pipefy_por = o2op)::text || '/' || protocolado_pipefy_por_nome into x from frota.financeiro_notas_triagem where id = o2n;
+  casos := casos || text 'O2: protocolar nota aprovada grava quem e quando pelo login (ignora o que a tela mandar)'; obtidos := obtidos || x; esperados := esperados || text 'true/true/TESTE Operador O2';
+  update frota.financeiro_notas_triagem set protocolado_pipefy_em = null where id = o2n;
+  select coalesce(protocolado_pipefy_por_nome, 'limpo') into x from frota.financeiro_notas_triagem where id = o2n;
+  casos := casos || text 'O2: desmarcar o protocolo limpa quem protocolou'; obtidos := obtidos || x; esperados := esperados || text 'limpo';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
 
 
   -- ---------------------------------------------------------------- resultado
