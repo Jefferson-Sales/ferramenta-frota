@@ -1,5 +1,5 @@
 // Gera supabase/functions/inbound-triagem-nfs/regras-multa.js a partir do /regras.js (fonte única, com testes).
-// Recorta finNorm e a seção "Triagem de multas (M1)" e expõe globalThis.RegrasMulta. Rodar antes de publicar a função:
+// Recorta finNorm e as seções "Triagem de multas (M1)" e "Triagem de orçamentos (O1)" e expõe globalThis.RegrasMulta. Rodar antes de publicar a função:
 //   node ferramentas/gerar-regras-multa.js
 const fs = require("fs"), path = require("path");
 const raiz = path.join(__dirname, "..");
@@ -14,7 +14,8 @@ const multa = pega("  // -------------------------------------------------------
 const out = `// GERADO por ferramentas/gerar-regras-multa.js a partir de /regras.js — não editar aqui.
 (function (global) {
 ${finNorm}${multa}
-  global.RegrasMulta = { finNorm: finNorm, ehEmailDeMulta: ehEmailDeMulta, lerNotificacaoMulta: lerNotificacaoMulta, datasDaNotificacao: datasDaNotificacao };
+  global.RegrasMulta = { finNorm: finNorm, ehEmailDeMulta: ehEmailDeMulta, lerNotificacaoMulta: lerNotificacaoMulta, datasDaNotificacao: datasDaNotificacao,
+    ehEmailDeOrcamento: ehEmailDeOrcamento, lerOrcamento: lerOrcamento, separarOrcamentos: separarOrcamentos, FILAS_TRIAGEM: FILAS_TRIAGEM };
 })(globalThis);
 `;
 fs.writeFileSync(path.join(raiz, "supabase/functions/inbound-triagem-nfs/regras-multa.js"), out);

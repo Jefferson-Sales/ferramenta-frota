@@ -379,6 +379,25 @@
   igual("Multa: data perto de 'infração' tem prioridade", R.lerNotificacaoMulta("Emitida em 20/11/2026. Infração cometida em 09/11/2026 07:10. Recurso até 01/10/2026", "").data_infracao, "2026-11-09T07:10:00-03:00");
   igual("Multa: ignora a data da notificação da autuação e o prazo de defesa (caso real da CET-SP)", R.lerNotificacaoMulta("Data da Notificação da Autuação 15/11/2026 Prazo para interposição de defesa prévia 14/01/2027 Local Rua Teste 18 Data 26/10/2026 00:01 Gerado em 17/11/2026 11:59", "").data_infracao, "2026-10-26T00:01:00-03:00");
   igual("Multa: nada lido fica vazio", JSON.stringify(R.lerNotificacaoMulta("texto qualquer", "")), '{"placa":null,"data_infracao":null,"ait":null,"orgao":null,"codigo":null,"valor":null}');
+  // O1: triagem de orçamentos e "Mover para…"
+  var txtO1 = "Cliente Telefone Veículo Placa Data de Criação Jefferson beep KWID V.O GDT 7I83 17/11/2026 Valor R$ 450,00 R$ 350,00 5 dias Valor Total R$ 800,00 c/ desconto Pintura paralama CNPJ: 62.177.544/0001-80 Estimativa de prazo de execução Ao aprovar o orçamento, o cliente concorda. Garantia não cobre quebra das peças reparadas.";
+  var txtO1b = "Cliente Telefone Veículo Placa KWID tatuapé STL 3I44 17/11/2026 Valor R$ 250,00 R$ 750,00 Valor Total R$ 1.250,00 c/ desconto Estimativa de prazo";
+  igual("Orçamento: PDF com 'estimativa de prazo' vai para orçamentos mesmo sem a palavra no assunto (caso real GDT7I83)", R.ehEmailDeOrcamento("Kwid placa GDT 7I83 V.O", ["Documento.pdf"], txtO1).orcamento, true);
+  igual("Orçamento: 'orçamento' no assunto", R.ehEmailDeOrcamento("orçamento kwid placa svs7B03 hUB V.O", [], "").motivo, "assunto: orcamento");
+  igual("Orçamento: nota fiscal que cita o orçamento continua no Financeiro", R.ehEmailDeOrcamento("NF 123 referente ao orçamento 55", ["nf.pdf"], "").orcamento, false);
+  igual("Orçamento: boleto no nome do anexo continua no Financeiro", R.ehEmailDeOrcamento("Proposta aprovada", ["boleto_123.pdf"], "").orcamento, false);
+  igual("Orçamento: DANFE no texto do PDF continua no Financeiro", R.ehEmailDeOrcamento("Documento", [], "DANFE Documento auxiliar da nota fiscal eletrônica orçamento").orcamento, false);
+  igual("Orçamento: e-mail comum não é orçamento", R.ehEmailDeOrcamento("Fatura de outubro", [], "").orcamento, false);
+  var lidoO1 = R.lerOrcamento(txtO1, "Kwid placa GDT 7I83 V.O");
+  igual("Orçamento: lê placa do assunto, CNPJ e valor total (caso real)", [lidoO1.placa, lidoO1.cnpjs.join(","), lidoO1.valor].join(" | "), "GDT7I83 | 62177544000180 | 800");
+  igual("Orçamento: sem rótulo de serviços a descrição fica vazia (não pega o texto da garantia)", lidoO1.descricao, null);
+  igual("Orçamento: 'Total geral' vence o subtotal; descrição pelo rótulo", (function(){ var x = R.lerOrcamento("Descrição dos serviços: troca de pastilhas Subtotal R$ 300,00 Total geral R$ 350,00", ""); return x.valor + " | " + x.descricao; })(), "350 | Descrição dos serviços: troca de pastilhas");
+  igual("Orçamento: sem 'total', um único valor em R$ vale", R.lerOrcamento("Serviço de alinhamento R$ 120,00", "").valor, 120);
+  var sepO1 = R.separarOrcamentos([txtO1, txtO1b], "Kwid placa GDT 7I83 V.O");
+  igual("Orçamento: 2 PDFs de placas diferentes viram 2 itens, cada um com a própria placa e valor", sepO1.map(function(g){ return g.campos.placa + "=" + g.campos.valor; }).join(", "), "GDT7I83=800, STL3I44=1250");
+  igual("Orçamento: PDFs do mesmo carro ficam num item só", R.separarOrcamentos([txtO1, "anexo sem placa"], "Kwid GDT7I83").length + "/" + R.separarOrcamentos([txtO1, "anexo sem placa"], "Kwid GDT7I83")[0].pdfs.join(","), "1/0,1");
+  igual("Mover: item pendente vai para as outras duas filas", R.destinosTriagem("financeiro", "pendente").map(function(d){ return d.fila; }).join(","), "orcamentos,multas");
+  igual("Mover: item já decidido não se move", R.destinosTriagem("multas", "registrada").length, 0);
   // V1: veículos ativos × arquivados e operacional × administrativo
   var frV1 = [{ placa: "A", ativo: true, finalidade: "operacional", status_operacional: "disponivel" }, { placa: "B", ativo: true, finalidade: "administrativo", status_operacional: "disponivel" },
     { placa: "C", ativo: true, finalidade: "operacional", status_operacional: "desmobilizar" }, { placa: "D", ativo: false, finalidade: "operacional", status_operacional: "devolvido" }, { placa: "E", ativo: true, finalidade: null }];

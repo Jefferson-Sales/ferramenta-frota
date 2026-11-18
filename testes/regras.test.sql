@@ -38,6 +38,7 @@ declare
   u_fvis uuid; fha uuid; fhb uuid; floc uuid; ftk uuid; fct uuid; fv1 uuid; fv2 uuid; fv3 uuid;
   dha uuid; dhb uuid; dhs uuid; dloc uuid; dlx uuid; dtk uuid; ded uuid; dpo uuid; dct uuid; dv1 uuid; dv2 uuid;
   u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid; t3op uuid := gen_random_uuid(); t3vis uuid := gen_random_uuid(); t3f1 uuid; t3f2 uuid; t3t uuid; t3t2 uuid; m1op uuid := gen_random_uuid(); m1vis uuid := gen_random_uuid(); m1v uuid; m1m uuid; m1c uuid; m1t uuid; m1mu uuid;
+  o1op uuid := gen_random_uuid(); o1outro uuid := gen_random_uuid(); o1vis uuid := gen_random_uuid(); o1h uuid; o1h2 uuid; o1v uuid; o1v2 uuid; o1os uuid; o1os2 uuid; o1t uuid; o1t2 uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1382,6 +1383,89 @@ begin
   perform set_config('request.jwt.claims', '', true);
   select public::text || '/' || file_size_limit::text into x from storage.buckets where id = 'multas-triagem';
   casos := casos || text 'M1: pasta multas-triagem é privada e aceita até 10 MB'; obtidos := obtidos || x; esperados := esperados || text 'false/10485760';
+
+
+  -- ============================================ 32. TRIAGEM DE ORÇAMENTOS (O1): CARRO, OS SUGERIDA, DECISÃO, HUB E "MOVER PARA…"
+  insert into frota.hubs (nome) values ('TESTE Hub O1 A') returning id into o1h;
+  insert into frota.hubs (nome) values ('TESTE Hub O1 B') returning id into o1h2;
+  insert into auth.users (id, email, aud, role) values (o1op, 'teste.o1op@zzt.invalid', 'authenticated', 'authenticated'),
+    (o1outro, 'teste.o1outro@zzt.invalid', 'authenticated', 'authenticated'), (o1vis, 'teste.o1vis@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (o1op, 'TESTE Operador Manutenção O1', 'operador', '{manutencao}', '{manutencao}'),
+    (o1outro, 'TESTE Operador Outro Hub O1', 'operador', '{manutencao}', '{manutencao}'),
+    (o1vis, 'TESTE Visualizador Manutenção O1', 'visualizador', '{manutencao}', '{}');
+  insert into frota.usuarios_hubs (user_id, hub_id) values (o1op, o1h), (o1outro, o1h2), (o1vis, o1h);
+  insert into frota.veiculos (placa, ativo, status, hub_id) values ('ZZT1O11', true, 'disponivel', o1h) returning id into o1v;
+  insert into frota.veiculos (placa, ativo, status, hub_id) values ('ZZT2O22', true, 'disponivel', o1h) returning id into o1v2;
+  insert into frota.ordens_servico (veiculo_id, tipo, status, motivo) values (o1v, 'corretiva', 'agendada', 'TESTE O1') returning id into o1os;
+  insert into frota.ordens_servico (veiculo_id, tipo, status, motivo) values (o1v2, 'corretiva', 'agendada', 'TESTE O1 outro carro') returning id into o1os2;
+
+  insert into frota.manutencao_orcamentos_triagem (message_id, remetente, assunto, placa_lida, cnpjs_lidos, valor_lido, status, os_id)
+    values ('<o1-1@zzt>', 'oficina@zzt.invalid', 'Kwid placa ZZT 1O11', 'zzt 1o11', '{00000000000000}', 800, 'aprovado', o1os2) returning id into o1t;
+  select status || '/' || (veiculo_id = o1v)::text || '/' || (os_sugerida_id = o1os)::text || '/' || coalesce(os_id::text, 'sem OS') || '/' || cnpj_lido
+    into x from frota.manutencao_orcamentos_triagem where id = o1t;
+  casos := casos || text 'O1: chega pendente e sem OS, acha o carro pela placa e sugere a OS aberta dele'; obtidos := obtidos || x;
+  esperados := esperados || text 'pendente/true/true/sem OS/00000000000000';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', o1op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.manutencao_orcamentos_triagem where id = o1t;
+  casos := casos || text 'O1: quem opera Manutenções no hub do carro vê o orçamento'; obtidos := obtidos || x; esperados := esperados || text '1';
+  begin update frota.manutencao_orcamentos_triagem set status = 'aprovado' where id = o1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: aprovar sem OS ligada é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.manutencao_orcamentos_triagem set os_id = o1os2 where id = o1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: ligar a OS de outro carro é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin update frota.manutencao_orcamentos_triagem set remetente = 'outro@zzt.invalid' where id = o1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: dados do e-mail recebido não mudam'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select (frota.triagem_mover_autorizacao('orcamentos', o1t)->>'ok') into x;
+  casos := casos || text 'O1: quem opera a fila pode mover item pendente'; obtidos := obtidos || x; esperados := esperados || text 'true';
+  begin insert into frota.manutencao_orcamentos_triagem (message_id) values ('<o1-x@zzt>'); x := 'gravou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: ninguém cria orçamento pela tela'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  begin delete from frota.manutencao_orcamentos_triagem where id = o1t; get diagnostics i = row_count; x := i::text; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: ninguém apaga orçamento'; obtidos := obtidos || x; esperados := esperados || text '0';
+  select count(*)::text into x from frota.os_tratativas where os_id = o1os;
+  update frota.manutencao_orcamentos_triagem set os_id = o1os where id = o1t;
+  begin update frota.manutencao_orcamentos_triagem set placa_lida = 'ZZT2O22' where id = o1t; x := x || '/aceitou'; exception when others then x := x || '/recusou'; end;
+  update frota.manutencao_orcamentos_triagem set status = 'aprovado' where id = o1t;
+  select x || '/' || status || '/' || (decidido_por = o1op)::text || '/' || decidido_por_nome || '/' ||
+         (select count(*)::text from frota.os_tratativas tr where tr.os_id = o1os and tr.texto like '%R$ 800,00 APROVADO.' and tr.autor_id = o1op)
+    into x from frota.manutencao_orcamentos_triagem where id = o1t;
+  casos := casos || text 'O1: com a OS ligada, trocar a placa é recusado; aprovar grava quem decidiu e deixa tratativa na OS'; obtidos := obtidos || x;
+  esperados := esperados || text '0/recusou/aprovado/true/TESTE Operador Manutenção O1/1';
+  begin update frota.manutencao_orcamentos_triagem set status = 'pendente' where id = o1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: operador não reabre orçamento decidido (só admin)'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select (frota.triagem_mover_autorizacao('orcamentos', o1t)->>'ok') into x;
+  casos := casos || text 'O1: item já decidido não se move'; obtidos := obtidos || x; esperados := esperados || text 'false';
+  execute 'reset role';
+
+  insert into frota.manutencao_orcamentos_triagem (message_id, assunto) values ('<o1-2@zzt>', 'orçamento sem placa') returning id into o1t2;
+  execute 'set local role authenticated';
+  update frota.manutencao_orcamentos_triagem set os_id = o1os2 where id = o1t2;
+  select placa_lida || '/' || (veiculo_id = o1v2)::text into x from frota.manutencao_orcamentos_triagem where id = o1t2;
+  casos := casos || text 'O1: orçamento sem placa: ligar a OS preenche o carro'; obtidos := obtidos || x; esperados := esperados || text 'ZZT2O22/true';
+  begin update frota.manutencao_orcamentos_triagem set status = 'reprovado', motivo_reprovacao = 'caro' where id = o1t2; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: reprovar sem motivo (mínimo 5 letras) é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', o1outro, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text || '/' || (frota.triagem_mover_autorizacao('orcamentos', o1t2)->>'ok') into x from frota.manutencao_orcamentos_triagem where id in (o1t, o1t2);
+  casos := casos || text 'O1: operador de outro hub não vê nem move o orçamento'; obtidos := obtidos || x; esperados := esperados || text '0/false';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', o1vis, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text || '/' || (frota.triagem_mover_autorizacao('orcamentos', o1t2)->>'ok') into x from frota.manutencao_orcamentos_triagem where id in (o1t, o1t2);
+  begin update frota.manutencao_orcamentos_triagem set status = 'reprovado', motivo_reprovacao = 'valor alto' where id = o1t2; get diagnostics i = row_count; x := x || '/' || i::text;
+  exception when others then x := x || '/recusou'; end;
+  casos := casos || text 'O1: quem só vê Manutenções lê, mas não decide nem move'; obtidos := obtidos || x; esperados := esperados || text '2/false/0';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+  insert into frota.triagem_movimentacoes (de_fila, de_id, para_fila, para_id) values ('financeiro', o1t, 'orcamentos', o1t2);
+  begin update frota.triagem_movimentacoes set motivo = 'x' where de_id = o1t; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'O1: o registro do "Mover para…" não muda'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  select public::text || '/' || file_size_limit::text into x from storage.buckets where id = 'manutencao-orcamentos';
+  casos := casos || text 'O1: pasta manutencao-orcamentos é privada e aceita até 10 MB'; obtidos := obtidos || x; esperados := esperados || text 'false/10485760';
 
 
   -- ---------------------------------------------------------------- resultado

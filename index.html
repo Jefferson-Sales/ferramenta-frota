@@ -482,6 +482,15 @@
   .mtr-sugestao.mtr-sem{ border-left-color:var(--warning-forte); }
   .mtr-corrigir{ display:flex; flex-direction:column; gap:var(--espaco-3); margin:var(--espaco-4) 0; }
   .mtr-corrigir-linha{ display:flex; gap:var(--espaco-3); flex-wrap:wrap; align-items:center; }
+  .tri-mover{ border:1px dashed var(--line); border-radius:var(--raio-md); padding:var(--espaco-3) var(--espaco-5); margin:var(--espaco-4) 0; font-size:var(--fs-sm); }
+  .tri-mover summary{ cursor:pointer; color:var(--accent); font-weight:600; }
+  .tri-mover-corpo{ display:flex; gap:var(--espaco-3); flex-wrap:wrap; align-items:center; margin:var(--espaco-3) 0 var(--espaco-2); }
+  .tri-mover-corpo input{ flex:1 1 200px; }
+  .orc-os{ border:1px solid var(--line); border-left:3px solid var(--accent-marca); border-radius:var(--raio-md); padding:var(--espaco-4) var(--espaco-5); margin:var(--espaco-5) 0; line-height:1.5; }
+  .orc-os.orc-sem{ border-left-color:var(--warning-forte); }
+  .orc-os-lista{ display:flex; flex-direction:column; gap:var(--espaco-2); margin-top:var(--espaco-3); }
+  .orc-os-lista .orc-os-item{ display:flex; gap:var(--espaco-3); align-items:center; justify-content:space-between; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:var(--espaco-2); }
+  .orc-desc{ font-size:var(--fs-sm); color:var(--muted); margin:var(--espaco-3) 0; line-height:1.5; }
   .frota-abas{ margin-bottom:0; }
   .kpi-clicavel{ cursor:pointer; }
   .kpi-clicavel:hover{ border-color:var(--accent); }
@@ -711,7 +720,26 @@
     <!-- MANUTENÇÃO -->
     <section class="panel" data-panel="manutencao">
       <div class="topline"><h1>Manutenções</h1></div>
-      <div class="qf-abas man-abas" role="tablist" aria-label="Manutenções"><button type="button" role="tab" class="qf-aba on" data-man-aba="manutencao" aria-selected="true">Ordens de serviço</button><button type="button" role="tab" class="qf-aba" data-man-aba="gestao_manutencao" aria-selected="false">Painel de gestão</button></div>
+      <div class="qf-abas man-abas" role="tablist" aria-label="Manutenções" id="man-abas-os"><button type="button" role="tab" class="qf-aba on" data-man-aba="manutencao" aria-selected="true">Ordens de serviço</button><button type="button" role="tab" class="qf-aba" data-man-aba="gestao_manutencao" aria-selected="false">Painel de gestão</button><button type="button" role="tab" class="qf-aba" data-man-aba="orcamentos" aria-selected="false">Triagem de orçamentos <span class="nav-badge" id="orc-badge" hidden></span></button></div>
+
+      <div id="man-tela-orc" hidden>
+        <p class="section-desc">Orçamentos de oficina que chegam por e-mail no frota@. Placa, CNPJ e valor são lidos do PDF e a OS aberta do carro é <b>sugerida</b> — confira, ligue à OS certa (ou abra uma nova) e aprove ou reprove. Ao decidir, fica uma tratativa no histórico da OS.</p>
+        <div class="tri-barra">
+          <div class="tri-filtro" role="group" aria-label="Situação">
+            <button type="button" class="btn qf-mini on" data-orc-st="pendente">Pendentes</button>
+            <button type="button" class="btn qf-mini" data-orc-st="aprovado">Aprovados</button>
+            <button type="button" class="btn qf-mini" data-orc-st="reprovado">Reprovados</button>
+            <button type="button" class="btn qf-mini" data-orc-st="">Todos</button>
+          </div>
+          <span class="meta" id="orc-contagem"></span>
+        </div>
+        <div class="tri-split" id="orc-split">
+          <div class="card tri-lista" id="orc-lista" aria-label="Orçamentos recebidos por e-mail"></div>
+          <div class="card tri-detalhe" id="orc-detalhe" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <div id="man-tela-os">
       <p class="section-desc">Ordens de serviço, oficinas e tempo parado por veículo. Clique numa OS para ver detalhes, anexar orçamento/NF ou fechar.</p>
 
       <div class="kpi-row" id="man-kpis"></div>
@@ -792,6 +820,7 @@
           </table>
         </div>
       </div>
+      </div><!-- /man-tela-os -->
     </section>
 
     <!-- MULTAS -->
@@ -968,7 +997,7 @@
     <!-- QUALIDADE DA FROTA (checklists) -->
     <section class="panel" data-panel="gestao_manutencao">
       <div class="topline"><h1>Manutenções</h1><span class="meta" id="gm-atualizado"></span></div>
-      <div class="qf-abas man-abas" role="tablist" aria-label="Manutenções"><button type="button" role="tab" class="qf-aba" data-man-aba="manutencao" aria-selected="false">Ordens de serviço</button><button type="button" role="tab" class="qf-aba on" data-man-aba="gestao_manutencao" aria-selected="true">Painel de gestão</button></div>
+      <div class="qf-abas man-abas" role="tablist" aria-label="Manutenções"><button type="button" role="tab" class="qf-aba" data-man-aba="manutencao" aria-selected="false">Ordens de serviço</button><button type="button" role="tab" class="qf-aba on" data-man-aba="gestao_manutencao" aria-selected="true">Painel de gestão</button><button type="button" role="tab" class="qf-aba" data-man-aba="orcamentos" aria-selected="false">Triagem de orçamentos</button></div>
       <p class="section-desc">Visão de gestão da manutenção: disponibilidade, oficinas, quebras, custo, cumprimento do checklist, anomalias e revisões preventivas. Tudo considera só os hubs liberados para você, inclusive totais e planilhas.</p>
       <div class="gm-filtros">
         <label>Período <select id="gm-periodo" class="filter-select">
@@ -2524,8 +2553,25 @@
     setTimeout(function(){ b.disabled = false; b.classList.remove("girando"); }, 800);
     carregarPainel(currentPanel, false);
   });
+  // abas de Manutenções: "Ordens de serviço" e "Triagem de orçamentos" são o mesmo painel (manutencao); "Painel de gestão" é outro
+  var manTela = "os";
+  function manMostrarTela(tela){
+    manTela = tela;
+    document.getElementById("man-tela-os").hidden = tela !== "os";
+    document.getElementById("man-tela-orc").hidden = tela !== "orc";
+    document.querySelectorAll("#man-abas-os [data-man-aba]").forEach(function(b){
+      var on = (b.dataset.manAba === "orcamentos") === (tela === "orc") && b.dataset.manAba !== "gestao_manutencao";
+      b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (tela === "orc") orcCarregar();
+  }
   document.querySelectorAll("[data-man-aba]").forEach(function(b){
-    b.addEventListener("click", function(){ if (currentPanel !== b.dataset.manAba) showPanel(b.dataset.manAba); });
+    b.addEventListener("click", function(){
+      var alvo = b.dataset.manAba;
+      if (alvo === "orcamentos"){ if (currentPanel !== "manutencao") showPanel("manutencao"); manMostrarTela("orc"); return; }
+      if (alvo === "manutencao"){ if (currentPanel !== "manutencao") showPanel("manutencao"); manMostrarTela("os"); return; }
+      if (currentPanel !== alvo) showPanel(alvo);
+    });
   });
   document.addEventListener("keydown", function(ev){
     if (ev.key === "Escape" && document.getElementById("view-app").classList.contains("menu-aberto")){
@@ -3011,6 +3057,7 @@
 
     carregarOficinas();
     carregarOS(avisarVencidas);
+    orcCarregar();
     carregarSlaOficina();
     carregarRankingQuebra();
     carregarCustoManutencao();
@@ -3470,13 +3517,13 @@
     d.innerHTML =
       '<button type="button" class="btn qf-mini tri-voltar" id="mtr-voltar">‹ Voltar à lista</button>' +
       '<div class="tri-cab"><div><h2>Infração — ' + esc(t.placa_lida || "placa não lida") + '</h2>' +
-        '<div class="tri-de">' + (t.origem === "triagem_financeira" ? "Veio da triagem financeira · " : "") + 'De ' + esc(t.remetente || "—") + ' · recebido em ' + esc(dateTimeBR(t.data_recebimento)) + (t.assunto ? ' · "' + esc(t.assunto) + '"' : '') + '</div></div>' + acoes + '</div>' +
+        '<div class="tri-de">' + (t.origem === "triagem_financeira" ? "Veio da triagem financeira · " : t.origem === "movida" ? "Movida de outra fila · " : "") + 'De ' + esc(t.remetente || "—") + ' · recebido em ' + esc(dateTimeBR(t.data_recebimento)) + (t.assunto ? ' · "' + esc(t.assunto) + '"' : '') + '</div></div>' + acoes + '</div>' +
       '<div class="nfd-grid">' +
         info("Veículo", v ? esc(v.placa + (v.modelo ? " — " + v.modelo : "") + (v.hubs ? " · " + v.hubs.nome : "") + (v.ativo === false ? " (arquivado)" : "")) : "não encontrado no cadastro") +
         info("Data/hora da infração", esc(t.data_infracao ? dateTimeBR(t.data_infracao) : "não lida")) +
         info("Auto de infração (AIT)", esc(t.ait || "não lido")) + info("Órgão", esc(t.orgao || "não lido")) +
         info("Código", esc(t.codigo_infracao || "não lido")) + info("Valor", esc(t.valor_lido != null ? money(t.valor_lido) : "não lido")) +
-      '</div>' + sug + corrigir +
+      '</div>' + sug + corrigir + (pode ? moverHtml("multas") : '') +
       (t.caminho_pdf ? '<div class="tri-docs"><b>Notificação (PDF)</b><a id="mtr-abrir" href="#" target="_blank" rel="noopener" hidden>Abrir PDF em nova aba ↗</a></div><iframe class="tri-pdf" id="mtr-pdf" title="Notificação da multa"></iframe>'
         : '<div class="tri-vazio">O e-mail não trouxe PDF.</div>');
     if (t.caminho_pdf) mtrCarregarPdf(t);
@@ -3514,6 +3561,7 @@
     var alvo = ev.target.closest("button"); if (!alvo || alvo.disabled) return;
     if (alvo.id === "mtr-voltar"){ document.getElementById("mtr-split").classList.remove("com-detalhe"); return; }
     if (alvo.id === "mtr-registrar"){ mtrAbrirRegistro(t); return; }
+    if (alvo.dataset.moverOk){ triagemMover("multas", t.id, alvo); return; }
     if (alvo.id === "mtr-descartar"){
       var motivo = prompt("Motivo do descarte (mínimo 5 letras) — ex.: notificação duplicada, não é da Beep, já registrada:");
       if (motivo == null) return;
@@ -3531,6 +3579,210 @@
       rest("multas_triagem?id=eq." + encodeURIComponent(t.id), { method: "PATCH", body: { placa_lida: placa || null, data_infracao: dt ? new Date(dt).toISOString() : null } })
         .then(function(r){ if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão)."); toast("Dados corrigidos; sugestão recalculada."); return mtrCarregar(); })
         .catch(function(e){ alvo.disabled = false; toast(e.message, true); });
+    }
+  });
+
+  // ---------------- "Mover para…" entre as três filas de triagem (O1) ----------------
+  // Quem move é a Edge Function inbound-triagem-nfs (?acao=mover) com o login de quem clicou: o banco confere
+  // (triagem_mover_autorizacao) que o item está pendente e que a pessoa opera a fila de origem, e registra tudo.
+  function moverHtml(de){
+    var ds = Regras.destinosTriagem(de, "pendente");
+    return '<details class="tri-mover"><summary>Mover para outra fila…</summary><div class="tri-mover-corpo">' +
+      '<select class="filter-select" data-mover-para aria-label="Fila de destino"><option value="">Escolha a fila…</option>' +
+      ds.map(function(d){ return '<option value="' + d.fila + '">' + esc(d.nome) + '</option>'; }).join("") + '</select>' +
+      '<input class="filter-select" data-mover-motivo maxlength="300" placeholder="Motivo (opcional)" aria-label="Motivo da mudança">' +
+      '<button type="button" class="btn qf-mini" data-mover-ok="' + de + '">Mover</button></div>' +
+      '<div class="qf-sub">Para quando o e-mail caiu na fila errada (ex.: PDF em imagem). O item e os PDFs saem daqui e entram pendentes na outra fila; fica registrado quem moveu.</div></details>';
+  }
+  function triagemMover(de, id, btn){
+    var box = btn.closest(".tri-mover"), para = box.querySelector("[data-mover-para]").value, motivo = box.querySelector("[data-mover-motivo]").value.trim();
+    if (!para){ toast("Escolha a fila de destino.", true); return; }
+    var nome = Regras.FILAS_TRIAGEM[para].nome;
+    if (!confirm("Mover este item para " + nome + "?\n\nEle sai desta fila e entra pendente na outra, com os mesmos PDFs.")) return;
+    btn.disabled = true;
+    ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/functions/v1/inbound-triagem-nfs?acao=mover", { method: "POST",
+        headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+        body: JSON.stringify({ de: de, id: id, para: para, motivo: motivo || null }) });
+    }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if (!r.ok) throw new Error(j.erro || ("Erro " + r.status)); return j; }); })
+      .then(function(j){
+        var n = j.movido && j.movido.para_ids ? j.movido.para_ids.length : 1;
+        toast("Movido para " + nome + (n > 1 ? " — virou " + n + " orçamentos, um por placa." : "."));
+        TRI.sel = null; MTR.sel = null; ORC.sel = null;
+        return Promise.all([triCarregar(), mtrCarregar(), orcCarregar()]);
+      }).catch(function(e){ btn.disabled = false; toast("Não foi possível mover: " + e.message, true); });
+  }
+
+  // ---------------- Triagem de orçamentos (O1, aba de Manutenções) ----------------
+  // Dados: manutencao_orcamentos_triagem (RLS = Manutenções com hub). PDF no bucket privado manutencao-orcamentos (link assinado de 10 min).
+  var ORC = { lista: [], filtro: "pendente", sel: null, urls: {}, doc: 0, osCarro: {}, criandoOs: null };
+  var ORC_SEL = "manutencao_orcamentos_triagem?select=*,veiculos(placa,modelo,ativo,hubs(nome)),oficinas(nome)," +
+    "os:ordens_servico!manutencao_orcamentos_triagem_os_id_fkey(id,status,tipo,motivo,created_at)," +
+    "sug:ordens_servico!manutencao_orcamentos_triagem_os_sugerida_id_fkey(id,status,tipo,motivo,created_at)&order=data_recebimento.desc&limit=300";
+  var ORC_ST = { pendente: ["Pendente", "warn"], aprovado: ["Aprovado", "good"], reprovado: ["Reprovado", "crit"] };
+  function orcPode(){ return souAdmin() || canEdit("manutencao"); }
+  function orcCarregar(){
+    if (!canView("manutencao")) return Promise.resolve();
+    return rest(ORC_SEL).then(function(rows){
+      ORC.lista = rows || [];
+      var n = ORC.lista.filter(function(t){ return t.status === "pendente"; }).length, b = document.getElementById("orc-badge");
+      if (b){ b.textContent = n; b.hidden = !n; }
+      if (!document.getElementById("man-tela-orc").hidden) orcRender();
+    }).catch(function(e){ var l = document.getElementById("orc-lista"); if (l) l.innerHTML = '<div class="tri-vazio">Não foi possível carregar: ' + esc(e.message) + '</div>'; });
+  }
+  function orcOsTexto(o){ return (o.tipo || "OS") + " · " + String(o.status || "").replace(/_/g, " ") + (o.motivo ? " · " + o.motivo : "") + " · aberta em " + dateBR(o.created_at); }
+  function orcRender(){
+    var ls = ORC.lista.filter(function(t){ return !ORC.filtro || t.status === ORC.filtro; }), lista = document.getElementById("orc-lista");
+    document.getElementById("orc-contagem").textContent = ls.length + (ls.length === 1 ? " orçamento" : " orçamentos");
+    document.querySelectorAll("[data-orc-st]").forEach(function(b){ b.classList.toggle("on", b.dataset.orcSt === ORC.filtro); });
+    lista.innerHTML = ls.length ? ls.map(function(t){
+      return '<button type="button" class="tri-item' + (ORC.sel === t.id ? " on" : "") + '" data-orc-id="' + esc(t.id) + '">' +
+        '<div class="tri-nome">' + esc(t.placa_lida || "Placa não lida") + ' <span class="nfl-sub">' + esc(t.oficinas ? t.oficinas.nome : (t.remetente || "")) + '</span></div>' +
+        '<div class="tri-linha"><span>' + (t.valor_lido != null ? esc(money(t.valor_lido)) : "valor não lido") + '</span><span>' + esc(dateTimeBR(t.data_recebimento)) + '</span></div>' +
+        '<div class="tri-tags">' + (t.veiculo_id ? pill("Carro no cadastro", "good") : pill("Placa fora do cadastro", "crit")) +
+        (t.os_id ? pill("Ligado à OS", "good") : t.os_sugerida_id ? pill("OS aberta sugerida", "warn") : pill("Sem OS aberta", "neutral")) +
+        (t.status !== "pendente" ? pill(ORC_ST[t.status][0], ORC_ST[t.status][1]) : "") + '</div></button>';
+    }).join("") : '<div class="tri-vazio">' + (ORC.lista.length ? "Nenhum orçamento nesta situação." : "<b>Nenhum orçamento recebido.</b><br>Os orçamentos de oficina que chegarem no frota@ aparecem aqui.") + '</div>';
+    var sel = ORC.lista.filter(function(t){ return t.id === ORC.sel; })[0];
+    if (!sel){ ORC.sel = null; document.getElementById("orc-split").classList.remove("com-detalhe"); }
+    orcRenderDetalhe(sel || null);
+  }
+  function orcRenderDetalhe(t){
+    var d = document.getElementById("orc-detalhe");
+    if (!t){ d.innerHTML = '<div class="tri-vazio">Escolha um orçamento para ver o PDF, ligar à OS e decidir.</div>'; return; }
+    var v = t.veiculos, pode = orcPode() && t.status === "pendente";
+    var info = function(rot, val){ return '<div><div class="qf-sub">' + rot + '</div><b>' + val + '</b></div>'; };
+    var acoes = pode ? '<div class="tri-acoes"><button type="button" class="btn tri-aprovar" id="orc-aprovar"' + (t.os_id ? '' : ' disabled title="Ligue a uma OS antes de aprovar"') + '>Aprovar</button>' +
+        '<button type="button" class="btn tri-reprovar" id="orc-reprovar">Reprovar</button></div>'
+      : (t.status !== "pendente" ? '<div class="tri-decisao">' + pill(ORC_ST[t.status][0], ORC_ST[t.status][1]) + ' por ' + esc(t.decidido_por_nome || "—") + ' em ' + esc(dateTimeBR(t.decidido_em)) +
+          (t.motivo_reprovacao ? '<div>Motivo: ' + esc(t.motivo_reprovacao) + '</div>' : '') + '</div>' : '');
+    var os;
+    if (t.os){
+      os = '<div class="orc-os"><div class="qf-sub">Ligado à OS</div><b>' + esc(orcOsTexto(t.os)) + '</b><div class="tri-acoes" style="margin-top:var(--espaco-3)">' +
+        '<button type="button" class="btn qf-mini" data-orc-abrir-os="' + esc(t.os.id) + '">Abrir OS</button>' +
+        (pode ? '<button type="button" class="btn qf-mini" id="orc-desligar">Desligar</button>' : '') + '</div></div>';
+    } else if (pode){
+      var abertas = ORC.osCarro[t.veiculo_id];
+      os = '<div class="orc-os orc-sem"><b>' + (t.veiculo_id ? "Ligue este orçamento a uma OS do carro" : "Placa não achada no cadastro — corrija a placa abaixo") + '</b>' +
+        (t.veiculo_id ? (abertas ? (abertas.length ? '<div class="orc-os-lista">' + abertas.map(function(o){
+            return '<div class="orc-os-item"><span>' + esc(orcOsTexto(o)) + (o.id === t.os_sugerida_id ? ' ' + pill("sugerida", "good") : '') + '</span>' +
+              '<button type="button" class="btn qf-mini" data-orc-ligar="' + esc(o.id) + '">Ligar a esta OS</button></div>';
+          }).join("") + '</div>' : '<div class="qf-sub">Nenhuma OS aberta para este carro.</div>') : '<div class="qf-sub">Buscando as OS abertas…</div>') : '') +
+        '<div class="tri-acoes" style="margin-top:var(--espaco-3)"><button type="button" class="btn qf-mini" id="orc-nova-os">+ Abrir nova OS a partir deste orçamento</button></div></div>';
+      if (t.veiculo_id && !abertas) orcBuscarOS(t.veiculo_id);
+    } else {
+      os = '<div class="orc-os orc-sem"><b>Sem OS ligada.</b></div>';
+    }
+    var corrigir = pode && !t.os_id ? '<div class="mtr-corrigir"><div class="qf-sub">Placa lida errada? Corrija (o carro e a OS sugerida são recalculados)</div><div class="mtr-corrigir-linha">' +
+      '<input id="orc-placa" class="filter-select" maxlength="8" placeholder="Placa" value="' + esc(t.placa_lida || "") + '" style="text-transform:uppercase" aria-label="Placa">' +
+      '<button type="button" class="btn qf-mini" id="orc-salvar-placa">Salvar placa</button></div></div>' : '';
+    var nDocs = (t.caminho_pdf ? 1 : 0) + (t.outros_anexos || 0);
+    if (ORC.doc >= nDocs) ORC.doc = 0;
+    d.innerHTML =
+      '<button type="button" class="btn qf-mini tri-voltar" id="orc-voltar">‹ Voltar à lista</button>' +
+      '<div class="tri-cab"><div><h2>Orçamento — ' + esc(t.placa_lida || "placa não lida") + '</h2>' +
+        '<div class="tri-de">' + (t.origem === "movida" ? "Movido de outra fila · " : "") + 'De ' + esc(t.remetente || "—") + ' · recebido em ' + esc(dateTimeBR(t.data_recebimento)) + (t.assunto ? ' · "' + esc(t.assunto) + '"' : '') + '</div>' +
+        (t.motivo_deteccao ? '<div class="tri-de">Detectado por: ' + esc(t.motivo_deteccao) + '</div>' : '') + '</div>' + acoes + '</div>' +
+      '<div class="nfd-grid">' +
+        info("Veículo", v ? esc(v.placa + (v.modelo ? " — " + v.modelo : "") + (v.hubs ? " · " + v.hubs.nome : "") + (v.ativo === false ? " (arquivado)" : "")) : "não encontrado no cadastro") +
+        info("Oficina", esc(t.oficinas ? t.oficinas.nome : "não identificada")) +
+        info("CNPJ lido", esc(t.cnpj_lido ? Regras.cnpjFormatado(t.cnpj_lido) : "não lido")) +
+        info("Valor total", esc(t.valor_lido != null ? money(t.valor_lido) : "não lido")) +
+      '</div>' +
+      '<div class="orc-desc">' + (t.descricao_lida ? '<b>Serviços (lidos do PDF):</b> ' + esc(t.descricao_lida) : 'Serviços: veja o PDF abaixo.') + '</div>' +
+      os + corrigir + (pode ? moverHtml("orcamentos") : '') +
+      (nDocs ? '<div class="tri-docs">' + (nDocs > 1 ? '<div class="qf-abas" role="tablist" aria-label="PDFs">' + Array.apply(null, Array(nDocs)).map(function(_, i){
+          return '<button type="button" role="tab" class="qf-aba' + (ORC.doc === i ? " on" : "") + '" data-orc-doc="' + i + '">PDF ' + (i + 1) + '</button>'; }).join("") + '</div>' : '<b>Orçamento (PDF)</b>') +
+        '<a id="orc-abrir" href="#" target="_blank" rel="noopener" hidden>Abrir PDF em nova aba ↗</a></div><iframe class="tri-pdf" id="orc-pdf" title="PDF do orçamento"></iframe>'
+        : '<div class="tri-vazio">O e-mail não trouxe PDF.</div>');
+    if (nDocs) orcCarregarPdf(t, ORC.doc === 0 ? t.caminho_pdf : t.id + "/outros/" + ORC.doc + ".pdf");
+  }
+  function orcBuscarOS(veiculo){
+    rest("ordens_servico?select=id,status,tipo,motivo,created_at&veiculo_id=eq." + encodeURIComponent(veiculo) + "&status=not.in.(concluida,cancelada)&order=created_at.desc")
+      .then(function(rows){ ORC.osCarro[veiculo] = rows || []; }).catch(function(){ ORC.osCarro[veiculo] = []; })
+      .then(function(){ var t = ORC.lista.filter(function(x){ return x.id === ORC.sel; })[0]; if (t && t.veiculo_id === veiculo) orcRenderDetalhe(t); });
+  }
+  function orcCarregarPdf(t, caminho){
+    var chave = caminho, ir = function(url){ var fr = document.getElementById("orc-pdf"), a = document.getElementById("orc-abrir"); if (!fr || ORC.sel !== t.id) return; fr.src = url; a.href = url; a.hidden = false; };
+    var c = ORC.urls[chave];
+    if (c && c.ate > Date.now()) return ir(c.url);
+    ensureFreshSession().then(function(){
+      return fetch(SUPA_URL + "/storage/v1/object/sign/manutencao-orcamentos/" + String(caminho).split("/").map(encodeURIComponent).join("/"), {
+        method: "POST", headers: { "apikey": SUPA_ANON, "Authorization": "Bearer " + (session ? session.access_token : ""), "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 600 }) });
+    }).then(function(r){ return r.ok ? r.json() : r.text().then(function(x){ throw new Error(x || ("Erro " + r.status)); }); })
+      .then(function(j){ var url = SUPA_URL + "/storage/v1" + j.signedURL; ORC.urls[chave] = { url: url, ate: Date.now() + 540000 }; ir(url); })
+      .catch(function(e){ toast("Não foi possível abrir o PDF: " + e.message, true); });
+  }
+  function orcPatch(t, corpo, ok, btn){
+    if (btn) btn.disabled = true;
+    return rest("manutencao_orcamentos_triagem?id=eq." + encodeURIComponent(t.id), { method: "PATCH", body: corpo })
+      .then(function(r){ if (!r || !r.length) throw new Error("Nada foi alterado (sem permissão ou já decidido)."); toast(ok); ORC.osCarro = {}; return orcCarregar(); })
+      .catch(function(e){ if (btn) btn.disabled = false; toast(e.message, true); });
+  }
+  // "Abrir nova OS": o formulário normal de OS, preenchido; ao salvar, a OS criada é ligada ao orçamento
+  function orcAbrirNovaOS(t){
+    var garantir = [];
+    if (!veiculosOsCache.length) garantir.push(rest("veiculos?select=id,placa&ativo=is.true&order=placa" + hubsQS("hub_id")).then(function(rows){ veiculosOsCache = rows || []; }));
+    if (!oficinasCache.length) garantir.push(carregarOficinas().catch(function(){}));
+    Promise.all(garantir).then(function(){
+      var form = document.querySelector('[data-form="os"]');
+      form.reset(); setErr("os-err", ""); osaLimpar();
+      document.getElementById("os-contato").dataset.auto = "";
+      document.getElementById("os-data-parou-wrap").style.display = "";
+      if (t.placa_lida) document.getElementById("os-busca-placa").value = t.placa_lida;
+      renderVeiculosOS();
+      if (t.veiculo_id) document.getElementById("os-veiculo").value = t.veiculo_id;
+      document.getElementById("os-tipo").value = "corretiva";
+      document.getElementById("os-motivo").value = (t.descricao_lida || ("Orçamento por e-mail" + (t.assunto ? ": " + t.assunto : ""))).slice(0, 300);
+      if (t.oficina_id) document.getElementById("os-oficina").value = t.oficina_id;
+      document.getElementById("os-obs").value = "Aberta a partir do orçamento recebido por e-mail" + (t.remetente ? " (" + t.remetente + ")" : "") +
+        (t.valor_lido != null ? " de " + money(t.valor_lido) : "") + " em " + dateTimeBR(t.data_recebimento) + ".";
+      ORC.criandoOs = t.id;
+      openModal("modal-os");
+    }).catch(function(e){ toast("Não foi possível abrir o formulário de OS: " + e.message, true); });
+  }
+  function orcLigarOsCriada(osId){
+    var oid = ORC.criandoOs; ORC.criandoOs = null;
+    if (!oid || !osId) return;
+    rest("manutencao_orcamentos_triagem?id=eq." + encodeURIComponent(oid), { method: "PATCH", body: { os_id: osId } })
+      .then(function(r){ if (!r || !r.length) throw new Error("sem permissão"); toast("Orçamento ligado à OS nova."); ORC.osCarro = {}; return orcCarregar(); })
+      .catch(function(e){ toast("OS criada, mas não foi possível ligar o orçamento: " + e.message, true); });
+  }
+  function orcAbrirOS(osId){
+    manMostrarTela("os");
+    if (osCache.some(function(o){ return o.id === osId; })) abrirDetalheOS(osId);
+    else { osAbrirDepois = osId; carregarOS(); }
+  }
+  document.querySelectorAll("[data-orc-st]").forEach(function(b){ b.addEventListener("click", function(){ ORC.filtro = b.dataset.orcSt; orcRender(); }); });
+  document.getElementById("orc-lista").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-orc-id]"); if (!b) return;
+    ORC.sel = b.dataset.orcId; ORC.doc = 0; document.getElementById("orc-split").classList.add("com-detalhe"); orcRender();
+  });
+  document.getElementById("orc-detalhe").addEventListener("click", function(ev){
+    var t = ORC.lista.filter(function(x){ return x.id === ORC.sel; })[0]; if (!t) return;
+    var alvo = ev.target.closest("button"); if (!alvo || alvo.disabled) return;
+    if (alvo.id === "orc-voltar"){ document.getElementById("orc-split").classList.remove("com-detalhe"); return; }
+    if (alvo.dataset.orcDoc){ ORC.doc = +alvo.dataset.orcDoc; orcRenderDetalhe(t); return; }
+    if (alvo.dataset.orcAbrirOs){ orcAbrirOS(alvo.dataset.orcAbrirOs); return; }
+    if (alvo.dataset.moverOk){ triagemMover("orcamentos", t.id, alvo); return; }
+    if (alvo.dataset.orcLigar){ orcPatch(t, { os_id: alvo.dataset.orcLigar }, "Orçamento ligado à OS.", alvo); return; }
+    if (alvo.id === "orc-desligar"){ orcPatch(t, { os_id: null }, "Orçamento desligado da OS.", alvo); return; }
+    if (alvo.id === "orc-nova-os"){ orcAbrirNovaOS(t); return; }
+    if (alvo.id === "orc-aprovar"){
+      if (!confirm("Aprovar o orçamento" + (t.valor_lido != null ? " de " + money(t.valor_lido) : "") + " para " + (t.placa_lida || "este carro") + "?\n\nFica registrado na OS como tratativa.")) return;
+      orcPatch(t, { status: "aprovado" }, "Orçamento aprovado.", alvo); return;
+    }
+    if (alvo.id === "orc-reprovar"){
+      var motivo = prompt("Motivo da reprovação (mínimo 5 letras) — ex.: valor acima do combinado, serviço não autorizado:");
+      if (motivo == null) return;
+      if (motivo.trim().length < 5){ toast("Escreva o motivo (mínimo 5 letras).", true); return; }
+      orcPatch(t, { status: "reprovado", motivo_reprovacao: motivo.trim() }, "Orçamento reprovado.", alvo); return;
+    }
+    if (alvo.id === "orc-salvar-placa"){
+      var placa = document.getElementById("orc-placa").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (placa && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa)){ toast("Placa inválida.", true); return; }
+      orcPatch(t, { placa_lida: placa || null }, "Placa corrigida.", alvo);
     }
   });
 
@@ -4535,6 +4787,7 @@
         '<input type="search" id="tri-forn-busca" class="filter-select" placeholder="Nome, razão social ou CNPJ" autocomplete="off">' +
         '<div class="nfc-lista" id="tri-forn-lista"></div>' +
         (t.remetente ? '<div class="qf-sub">O sistema aprende: os próximos e-mails de <b>' + esc(t.remetente) + '</b> já chegam com esse fornecedor, mesmo sem CNPJ.</div>' : '') + '</div>' : '') +
+      (t.status_aprovacao === "pendente" && pode ? moverHtml("financeiro") : '') +
       '<div class="nfd-grid">' +
         info("CNPJ lido", esc(t.cnpj_lido ? Regras.cnpjFormatado(t.cnpj_lido) : "não lido")) +
         info("NF nº", esc(t.numero_nota_lido || "não lido")) +
@@ -4610,6 +4863,7 @@
     var t = TRI.lista.filter(function(x){ return x.id === TRI.sel; })[0]; if (!t) return;
     var alvo = ev.target.closest("button"); if (!alvo || alvo.disabled) return;
     if (alvo.id === "tri-voltar"){ document.getElementById("tri-split").classList.remove("com-detalhe"); return; }
+    if (alvo.dataset.moverOk){ triagemMover("financeiro", t.id, alvo); return; }
     if (alvo.id === "tri-trocar"){ TRI.trocando = !TRI.trocando; triRenderDetalhe(t); var bf = document.getElementById("tri-forn-busca"); if (bf) bf.focus(); return; }
     if (alvo.dataset.triForn){ var fsel = fornPorId(alvo.dataset.triForn); if (fsel) triLigarFornecedor(t, fsel, alvo); return; }
     if (alvo.dataset.triDoc){ TRI.doc = alvo.dataset.triDoc; triRenderDetalhe(t); return; }
@@ -5433,6 +5687,7 @@
   function abrirOSDeAnomalia(id){
     var a = QF.anom.filter(function(x){ return x.id === id; })[0];
     if (!a) return;
+    ORC.criandoOs = null;
     var garantir = [];
     if (!veiculosOsCache.length) garantir.push(rest("veiculos?select=id,placa&ativo=is.true&order=placa" + hubsQS("hub_id")).then(function(rows){ veiculosOsCache = rows || []; }));
     if (!oficinasCache.length) garantir.push(carregarOficinas().catch(function(){}));
@@ -5459,6 +5714,7 @@
     }).catch(function(e){ toast("Não foi possível abrir o formulário de OS: " + e.message, true); });
   }
   document.querySelector('[data-open-modal="modal-os"]').addEventListener("click", osaLimpar);
+  document.querySelector('[data-open-modal="modal-os"]').addEventListener("click", function(){ ORC.criandoOs = null; }); // OS avulsa não liga orçamento
   document.getElementById("os-veiculo").addEventListener("change", function(){
     if (OSA.veiculo && this.value !== OSA.veiculo) osaLimpar(); // trocou de carro: as anomalias eram do outro
   });
@@ -5960,6 +6216,7 @@
       toast(rodando ? "OS de sinistro aberta — carro continua rodando (segue disponível)." : agendada ? "OS agendada com sucesso (carro segue disponível)." : "OS aberta com sucesso — carro marcado indisponível.");
       if (rows && rows[0] && !comPlano) clonarChecklistPadrao(rows[0].id, body.tipo); // com plano, o banco já criou os itens do marco
       osaLigar(rows && rows[0] && rows[0].id, osaSelecionadas());
+      orcLigarOsCriada(rows && rows[0] && rows[0].id);
       osaLimpar();
       document.getElementById("modal-os").hidden = true;
       ev.target.reset();
