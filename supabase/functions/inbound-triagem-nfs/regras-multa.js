@@ -3,6 +3,17 @@
   function finNorm(s) {
     return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   }
+  function cnpjValido(c) {
+    var d = String(c == null ? "" : c).replace(/\D/g, "");
+    if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+    var dv = function(base){
+      var pesos = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], s = 0;
+      for (var i = 0; i < base.length; i++) s += Number(base[i]) * pesos[i];
+      var r = s % 11; return r < 2 ? 0 : 11 - r;
+    };
+    var d1 = dv(d.slice(0, 12)), d2 = dv(d.slice(0, 12) + d1);
+    return d1 === Number(d[12]) && d2 === Number(d[13]);
+  }
   // ---------------------------------------------------------------- Triagem de multas (M1)
   // Usado no navegador e na Edge Function inbound-triagem-nfs (que leva uma cópia deste arquivo).
   // Assunto e nome do anexo: as palavras pedidas pelo Jefferson. Texto do PDF: só expressões de notificação — boleto de
@@ -121,6 +132,21 @@
     }
     return [{ pdfs: (textos || []).map(function(_, i){ return i; }), campos: lerOrcamento((textos || [])[0] || "", assunto) }];
   }
+  // CNPJ da Beep (tomadora/pagadora) no texto da NF ou do boleto (F5): primeiro um CNPJ válido com a raiz de um CNPJ
+  // da Beep já conhecido; senão um CNPJ válido com "BEEP" logo antes. Null quando não acha.
+  var BEEP_RAIZES = ["28286170"];
+  function cnpjTomadorBeep(texto, raizes) {
+    var s = String(texto || "").replace(/\s+/g, " "), rz = raizes && raizes.length ? raizes : BEEP_RAIZES, achados = [], m;
+    var re = /(\d{2})\.?(\d{3})\.?(\d{3})\/?(\d{4})-?(\d{2})/g;
+    while ((m = re.exec(s))) {
+      var c = m[1] + m[2] + m[3] + m[4] + m[5];
+      if (cnpjValido(c)) achados.push({ c: c, antes: finNorm(s.slice(Math.max(0, m.index - 80), m.index)) });
+    }
+    var pelaRaiz = achados.filter(function(a){ return rz.indexOf(a.c.slice(0, 8)) >= 0; })[0];
+    if (pelaRaiz) return pelaRaiz.c;
+    var pertoBeep = achados.filter(function(a){ return /\bBEEP\b/.test(a.antes); })[0];
+    return pertoBeep ? pertoBeep.c : null;
+  }
   // "Mover para…": as três filas de triagem; só item pendente sai, e só para outra fila
   var FILAS_TRIAGEM = {
     financeiro: { nome: "Triagem financeira", modulo: "financeiro" },
@@ -133,5 +159,5 @@
   }
 
   global.RegrasMulta = { finNorm: finNorm, ehEmailDeMulta: ehEmailDeMulta, lerNotificacaoMulta: lerNotificacaoMulta, datasDaNotificacao: datasDaNotificacao,
-    ehEmailDeOrcamento: ehEmailDeOrcamento, lerOrcamento: lerOrcamento, separarOrcamentos: separarOrcamentos, FILAS_TRIAGEM: FILAS_TRIAGEM };
+    ehEmailDeOrcamento: ehEmailDeOrcamento, lerOrcamento: lerOrcamento, separarOrcamentos: separarOrcamentos, cnpjTomadorBeep: cnpjTomadorBeep, FILAS_TRIAGEM: FILAS_TRIAGEM };
 })(globalThis);

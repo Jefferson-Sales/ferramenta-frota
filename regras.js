@@ -1128,7 +1128,9 @@
     var placa = d.placa || "o veículo", valor = d.valor != null && d.valor !== "" ? reaisTexto(d.valor) : "";
     var base = String(d.assunto || ("Orçamento" + (d.placa ? " " + d.placa : ""))).trim();
     var assunto = (/^re:/i.test(base) ? base : "Re: " + base).slice(0, 300);
-    var cnpj = BEEP_FATURAMENTO.cnpj ? " (CNPJ " + cnpjFormatado(BEEP_FATURAMENTO.cnpj) + ")" : "";
+    // filial escolhida (hub do carro, trocável na tela): "— Filial Tatuapé, CNPJ 28.286.170/0013-37"
+    var cnpj = d.filial && d.filial.cnpj ? " — Filial " + (d.filial.hub || "") + ", CNPJ " + cnpjFormatado(d.filial.cnpj)
+      : BEEP_FATURAMENTO.cnpj ? " (CNPJ " + cnpjFormatado(BEEP_FATURAMENTO.cnpj) + ")" : "";
     var assinatura = "\n\nObrigado,\n" + (d.nome ? d.nome + " — " : "") + "Frota " + BEEP_FATURAMENTO.nome;
     var texto = decisao === "aprovado"
       ? "Olá,\n\nOrçamento aprovado para a placa " + placa + (valor ? " no valor de " + valor : "") + ". Favor prosseguir com o serviço e emitir a nota fiscal em nome da " + BEEP_FATURAMENTO.nome + cnpj + "." + assinatura
@@ -1152,6 +1154,29 @@
   var PIPEFY_FORMA = { boleto: "Boleto", transferencia: "Transferência", pix: "PIX", debito_automatico: "Débito Automático" };
   function dataBRcurta(iso) { var s = String(iso || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.slice(8, 10) + "/" + s.slice(5, 7) + "/" + s.slice(0, 4) : ""; }
   // os 15 campos do formulário inicial, na ordem; falta = true quando a pessoa precisa preencher/conferir no Pipefy
+  // placas no texto (antiga ou Mercosul, com espaço ou hífen), sem repetir — a tela confere no cadastro
+  function placasDoTexto(texto) {
+    var t = finNorm(texto), re = /\b([A-Z]{3}) ?([0-9])([A-Z0-9])([0-9]{2})\b/g, m, out = [];
+    while ((m = re.exec(t))) { var p = m[1] + m[2] + m[3] + m[4]; if (out.indexOf(p) < 0) out.push(p); }
+    return out;
+  }
+  // filial da Beep (CNPJ) cadastrada para o hub
+  function filialDoHub(hubId, filiais) { return (filiais || []).filter(function(f){ return hubId && f.hub_id === hubId; })[0] || null; }
+  // hub de uma nota da triagem: 1) CNPJ da Beep lido na nota; 2) nome do hub no assunto; 3) placa do assunto que está no
+  // cadastro; 4) hub mais usado nas notas do fornecedor. { hub_id, fonte } ou null.
+  function hubDaTriagem(t, hubs, filiais, veiculos, hubHistorico) {
+    t = t || {};
+    var f = t.cnpj_tomador_lido ? (filiais || []).filter(function(x){ return x.cnpj === t.cnpj_tomador_lido; })[0] : null;
+    if (f) return { hub_id: f.hub_id, fonte: "pelo CNPJ da Beep na nota" };
+    var a = " " + finNorm(t.assunto) + " ";
+    var h = (hubs || []).filter(function(x){ return x.nome && a.indexOf(" " + finNorm(x.nome) + " ") >= 0; })
+      .sort(function(x, y){ return y.nome.length - x.nome.length; })[0];
+    if (h) return { hub_id: h.id, fonte: "pelo nome do hub no assunto" };
+    var ps = placasDoTexto(t.assunto), v = (veiculos || []).filter(function(x){ return x.hub_id && ps.indexOf(x.placa) >= 0; })[0];
+    if (v) return { hub_id: v.hub_id, fonte: "pela placa " + v.placa };
+    if (hubHistorico) return { hub_id: hubHistorico, fonte: "pelo histórico do fornecedor" };
+    return null;
+  }
   function resumoPipefyPagamento(t, forn, extra, hoje) {
     t = t || {}; forn = forn || {}; extra = extra || {};
     var linhas = [], add = function(n, campo, valor, falta){ linhas.push({ n: n, campo: campo, valor: valor || "(preencher)", falta: !!falta || !valor }); };
@@ -1160,7 +1185,13 @@
     var pag = dataPagamentoPipefy(t.data_vencimento, hoje), comp = String(extra.competencia || receb || "").slice(0, 7);
     add("1", "Descrição do serviço contratado ou mercadoria adquirida", forn.servico_descricao || t.assunto || null);
     add("2", "Empresa tomadora (Beep)", extra.empresa || BEEP_FATURAMENTO.nome, true);
-    add("3", "Filial", extra.filial || null, true);
+    // referência para quem lança (não é campo do formulário): placas, hub e filial/CNPJ da Beep
+    var ref = function(campo, valor){ linhas.push({ n: "ref", ref: true, campo: campo, valor: valor, falta: /não identificad/.test(valor) }); };
+    ref("Placa(s)", (extra.placas || []).length ? extra.placas.join(", ") : "não identificada (confira no PDF)");
+    ref("Hub / Base do veículo", extra.hub ? extra.hub + (extra.hub_fonte ? " (" + extra.hub_fonte + ")" : "") : "não identificado");
+    ref("Filial / CNPJ Beep", extra.filial_cnpj ? (extra.hub || "") + " — CNPJ " + cnpjFormatado(extra.filial_cnpj) + (extra.cnpj_da_nota ? " (o mesmo da nota)" : " (pelo hub)")
+      : extra.cnpj_da_nota ? "CNPJ " + cnpjFormatado(extra.cnpj_da_nota) + " (lido na nota; hub ainda sem filial cadastrada)" : "não identificada (cadastre o CNPJ do hub em Filiais da Beep)");
+    add("3", "Filial", extra.filial || (extra.hub ? extra.hub + (extra.filial_cnpj ? " — CNPJ " + cnpjFormatado(extra.filial_cnpj) : "") : null), true);
     add("4", "Centro de custo", extra.centro_custo || null, true);
     add("5", "CNPJ ou CPF do Fornecedor", (forn.cnpj || t.cnpj_lido) ? cnpjFormatado(forn.cnpj || t.cnpj_lido) + (forn.razao_social || forn.nome ? " — " + (forn.razao_social || forn.nome) : "") : null);
     add("6", "Anexar nota fiscal ou fatura ou recibo", t.caminho_pdf_nf ? "anexar o PDF da nota (botão Baixar NF)" : null);
@@ -1178,7 +1209,11 @@
     return linhas;
   }
   function textoResumoPipefy(linhas) {
-    return "PIPEFY — 90. Pagamento a fornecedor\n" + (linhas || []).map(function(l){ return l.n + ". " + l.campo + ": " + l.valor; }).join("\n");
+    var ls = linhas || [];
+    var refs = ls.filter(function(l){ return l.ref; }), campos = ls.filter(function(l){ return !l.ref; });
+    return "PIPEFY — 90. Pagamento a fornecedor\n" +
+      (refs.length ? "REFERÊNCIA PARA O LANÇAMENTO\n" + refs.map(function(l){ return "• " + l.campo + ": " + l.valor; }).join("\n") + "\n\nCAMPOS DO FORMULÁRIO\n" : "") +
+      campos.map(function(l){ return l.n + ". " + l.campo + ": " + l.valor; }).join("\n");
   }
 
   // ---------------------------------------------------------------- Triagem de multas (M1)
@@ -1299,6 +1334,21 @@
     }
     return [{ pdfs: (textos || []).map(function(_, i){ return i; }), campos: lerOrcamento((textos || [])[0] || "", assunto) }];
   }
+  // CNPJ da Beep (tomadora/pagadora) no texto da NF ou do boleto (F5): primeiro um CNPJ válido com a raiz de um CNPJ
+  // da Beep já conhecido; senão um CNPJ válido com "BEEP" logo antes. Null quando não acha.
+  var BEEP_RAIZES = ["28286170"];
+  function cnpjTomadorBeep(texto, raizes) {
+    var s = String(texto || "").replace(/\s+/g, " "), rz = raizes && raizes.length ? raizes : BEEP_RAIZES, achados = [], m;
+    var re = /(\d{2})\.?(\d{3})\.?(\d{3})\/?(\d{4})-?(\d{2})/g;
+    while ((m = re.exec(s))) {
+      var c = m[1] + m[2] + m[3] + m[4] + m[5];
+      if (cnpjValido(c)) achados.push({ c: c, antes: finNorm(s.slice(Math.max(0, m.index - 80), m.index)) });
+    }
+    var pelaRaiz = achados.filter(function(a){ return rz.indexOf(a.c.slice(0, 8)) >= 0; })[0];
+    if (pelaRaiz) return pelaRaiz.c;
+    var pertoBeep = achados.filter(function(a){ return /\bBEEP\b/.test(a.antes); })[0];
+    return pertoBeep ? pertoBeep.c : null;
+  }
   // "Mover para…": as três filas de triagem; só item pendente sai, e só para outra fila
   var FILAS_TRIAGEM = {
     financeiro: { nome: "Triagem financeira", modulo: "financeiro" },
@@ -1318,6 +1368,10 @@
     ehEmailDeOrcamento: ehEmailDeOrcamento,
     lerOrcamento: lerOrcamento,
     separarOrcamentos: separarOrcamentos,
+    cnpjTomadorBeep: cnpjTomadorBeep,
+    placasDoTexto: placasDoTexto,
+    hubDaTriagem: hubDaTriagem,
+    filialDoHub: filialDoHub,
     BEEP_FATURAMENTO: BEEP_FATURAMENTO,
     FROTA_EMAIL: FROTA_EMAIL,
     reaisTexto: reaisTexto,

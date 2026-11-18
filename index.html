@@ -978,6 +978,17 @@
           </table>
         </div>
       </div>
+
+      <div class="card" id="fil-card">
+        <div class="card-head"><h2>Filiais da Beep (CNPJ por hub)</h2><div class="card-head-actions"><span class="count" id="fil-count"></span></div></div>
+        <p class="section-desc">CNPJ da Beep que vai na nota fiscal de cada hub. Usado na resposta de orçamento às oficinas e no resumo do Pipefy. Os lidos das notas ficam "a conferir" até alguém marcar <b>Conferido</b>.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Hub</th><th>CNPJ da Beep</th><th>De onde veio</th><th>Conferido</th><th></th></tr></thead>
+            <tbody id="fil-body"><tr><td colspan="5" class="empty-row">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
       </div><!-- /fin-tela-notas -->
     </section>
 
@@ -1891,6 +1902,8 @@
     <p class="ac-hint" id="orr-resumo"></p>
     <div class="field" id="orr-motivo-wrap" hidden><label for="orr-motivo">Motivo da recusa (obrigatório)</label>
       <input id="orr-motivo" class="filter-select" maxlength="300" placeholder="Ex.: valor acima do combinado; serviço não autorizado"></div>
+    <div class="field" id="orr-filial-wrap"><label for="orr-filial">Filial da Beep para a nota fiscal</label>
+      <select id="orr-filial" class="filter-select"></select><div class="qf-sub" id="orr-filial-dica"></div></div>
     <div class="field"><label for="orr-assunto">Assunto</label><input id="orr-assunto" class="filter-select" maxlength="300"></div>
     <div class="field"><label for="orr-texto">Mensagem para a oficina (pode editar)</label><textarea id="orr-texto" rows="8" maxlength="4000"></textarea></div>
     <div class="ac-hint" id="orr-envio"></div>
@@ -3642,7 +3655,7 @@
   // ---------------- Triagem de orçamentos (O1, aba de Manutenções) ----------------
   // Dados: manutencao_orcamentos_triagem (RLS = Manutenções com hub). PDF no bucket privado manutencao-orcamentos (link assinado de 10 min).
   var ORC = { lista: [], filtro: "pendente", sel: null, urls: {}, doc: 0, osCarro: {}, criandoOs: null };
-  var ORC_SEL = "manutencao_orcamentos_triagem?select=*,veiculos(placa,modelo,ativo,hubs(nome)),oficinas(nome)," +
+  var ORC_SEL = "manutencao_orcamentos_triagem?select=*,veiculos(placa,modelo,ativo,hub_id,hubs(nome)),oficinas(nome)," +
     "os:ordens_servico!manutencao_orcamentos_triagem_os_id_fkey(id,status,tipo,motivo,created_at)," +
     "sug:ordens_servico!manutencao_orcamentos_triagem_os_sugerida_id_fkey(id,status,tipo,motivo,created_at)&order=data_recebimento.desc&limit=300";
   var ORC_ST = { pendente: ["Pendente", "warn"], aprovado: ["Aprovado", "good"], reprovado: ["Reprovado", "crit"] };
@@ -3799,20 +3812,41 @@
   var ORR = { t: null, decisao: null, mexeu: false };
   function meuEmail(){ return (session && session.user && session.user.email) || ""; }
   function abrirMailto(url){ window.__ultimoMailto = url; var a = document.createElement("a"); a.href = url; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove(); }
-  function orcMensagem(){
+  // filial escolhida no seletor (hub → CNPJ da Beep); null quando "sem filial"
+  function orcFilial(hubId){
+    var f = Regras.filialDoHub(hubId === undefined ? document.getElementById("orr-filial").value : hubId, FIL.lista);
+    return f ? { hub: filHubNome(f.hub_id), cnpj: f.cnpj } : null;
+  }
+  function orcMensagem(filial){
     var t = ORR.t;
     return Regras.mensagemOrcamento(ORR.decisao, { placa: t.placa_lida, valor: t.valor_lido, assunto: t.assunto, nome: perfil && perfil.nome,
-      motivo: document.getElementById("orr-motivo").value });
+      motivo: document.getElementById("orr-motivo").value, filial: filial === undefined ? orcFilial() : filial });
   }
-  function orcAbrirResposta(t, decisao){
-    ORR = { t: t, decisao: decisao, mexeu: false };
+  function orcPreencherFiliais(t){
+    var sel = document.getElementById("orr-filial"), hubCarro = t.veiculos && t.veiculos.hub_id, dica = document.getElementById("orr-filial-dica");
+    var comCnpj = FIL.hubs.filter(function(h){ return Regras.filialDoHub(h.id, FIL.lista); });
+    sel.innerHTML = '<option value="">Sem filial (a mensagem sai sem CNPJ)</option>' + comCnpj.map(function(h){
+      var f = Regras.filialDoHub(h.id, FIL.lista);
+      return '<option value="' + esc(h.id) + '">' + esc(h.nome + " — CNPJ " + Regras.cnpjFormatado(f.cnpj) + (f.conferido ? "" : " (a conferir)")) + '</option>';
+    }).join("");
+    sel.value = hubCarro && Regras.filialDoHub(hubCarro, FIL.lista) ? hubCarro : "";
+    ORR.filialAntes = orcFilial();
+    dica.textContent = !hubCarro ? "Carro sem hub no cadastro: escolha a filial." :
+      sel.value ? "Filial do hub do carro (" + (filHubNome(hubCarro) || "") + "). Troque se a NF deve sair em outra filial." :
+      "O hub do carro (" + (filHubNome(hubCarro) || "—") + ") ainda não tem CNPJ cadastrado (Financeiro → Filiais da Beep). Escolha outra filial ou envie sem CNPJ.";
+  }
+  function orcAbrirResposta(t, decisao){ carregarFiliais().then(function(){ orcAbrirRespostaJa(t, decisao); }); }
+  function orcAbrirRespostaJa(t, decisao){
+    ORR = { t: t, decisao: decisao, mexeu: false, filialAntes: null };
     var apr = decisao === "aprovado", m;
     document.getElementById("orr-titulo").textContent = apr ? "Aprovar orçamento" : "Recusar orçamento";
     document.getElementById("orr-resumo").textContent = (t.placa_lida || "Placa não lida") + (t.valor_lido != null ? " · " + money(t.valor_lido) : "") +
       (t.os ? " · OS: " + orcOsTexto(t.os) : "") + (apr && t.valor_lido != null ? " · o valor vai para a OS se ela ainda estiver sem valor" : "");
     document.getElementById("orr-motivo-wrap").hidden = apr;
     document.getElementById("orr-motivo").value = "";
-    m = orcMensagem();
+    document.getElementById("orr-filial-wrap").hidden = !apr;
+    if (apr) orcPreencherFiliais(t);
+    m = orcMensagem(apr ? undefined : null);
     document.getElementById("orr-assunto").value = m.assunto;
     document.getElementById("orr-texto").value = m.texto;
     document.getElementById("orr-envio").innerHTML = t.remetente
@@ -3838,7 +3872,17 @@
         toast("Seu e-mail abriu com a resposta pronta" + (j.erro ? " (o envio automático falhou)" : "") + ". Confira e clique em enviar.");
       }).catch(function(e){ toast("Decisão gravada, mas a resposta não saiu: " + e.message + ". Use “Responder à oficina”.", true); });
   }
-  document.getElementById("orr-motivo").addEventListener("input", function(){ if (!ORR.mexeu) document.getElementById("orr-texto").value = orcMensagem().texto; });
+  document.getElementById("orr-motivo").addEventListener("input", function(){ if (!ORR.mexeu) document.getElementById("orr-texto").value = orcMensagem(null).texto; });
+  // trocar a filial: refaz a mensagem; se a pessoa já editou o texto, troca só o trecho da filial
+  document.getElementById("orr-filial").addEventListener("change", function(){
+    var nova = orcFilial(), ta = document.getElementById("orr-texto");
+    var base = "emitir a nota fiscal em nome da " + Regras.BEEP_FATURAMENTO.nome;
+    var trecho = function(f){ return base + (f ? " — Filial " + f.hub + ", CNPJ " + Regras.cnpjFormatado(f.cnpj) : ""); };
+    if (!ORR.mexeu) ta.value = orcMensagem(nova).texto;
+    else if (ta.value.indexOf(trecho(ORR.filialAntes)) >= 0) ta.value = ta.value.replace(trecho(ORR.filialAntes), trecho(nova));
+    else toast("Você editou a mensagem: ajuste a filial no texto.", true);
+    ORR.filialAntes = nova;
+  });
   document.getElementById("orr-texto").addEventListener("input", function(){ ORR.mexeu = true; });
   document.getElementById("orr-ok").addEventListener("click", function(){
     var t = ORR.t, apr = ORR.decisao === "aprovado", btn = this, err = document.getElementById("orr-err");
@@ -4897,6 +4941,7 @@
         info("NF nº", esc(t.numero_nota_lido || "não lido")) +
         info("Valor", esc(t.valor_lido != null ? money(t.valor_lido) : "não lido")) +
         info("Vencimento", esc(t.data_vencimento ? dateBR(t.data_vencimento) : "não lido")) +
+        info("CNPJ da Beep na nota", esc(t.cnpj_tomador_lido ? Regras.cnpjFormatado(t.cnpj_tomador_lido) : "não lido")) +
         info("Razão social", esc(f && f.razao_social ? f.razao_social : "—")) +
       '</div>' +
       '<div class="tri-docs"><div class="qf-abas" role="tablist" aria-label="Documento">' +
@@ -4993,16 +5038,57 @@
         .catch(function(e){ alvo.disabled = false; toast(e.message, true); });
     }
   });
+  // ---- Filiais da Beep: CNPJ por hub (F5) — usado na resposta de orçamento e no resumo do Pipefy
+  var FIL = { lista: [], hubs: [], carregado: null };
+  function carregarFiliais(forcar){
+    if (FIL.carregado && !forcar) return FIL.carregado;
+    FIL.carregado = Promise.all([rest("beep_filiais?select=*"), rest("hubs?select=id,nome,sede,ativo&order=nome")])
+      .then(function(r){ FIL.lista = r[0] || []; FIL.hubs = r[1] || []; return FIL; })
+      .catch(function(){ FIL.carregado = null; return FIL; });
+    return FIL.carregado;
+  }
+  function filHubNome(id){ var h = FIL.hubs.filter(function(x){ return x.id === id; })[0]; return h ? h.nome : null; }
+  function filPode(){ return souAdmin() || canEdit("financeiro"); }
+  function filRender(){
+    var body = document.getElementById("fil-body"); if (!body) return;
+    var hubs = FIL.hubs.filter(function(h){ return h.ativo !== false; }), pode = filPode();
+    document.getElementById("fil-count").textContent = FIL.lista.length + " de " + hubs.length + " hubs com CNPJ";
+    body.innerHTML = hubs.map(function(h){
+      var f = Regras.filialDoHub(h.id, FIL.lista), cnpj = f ? Regras.cnpjFormatado(f.cnpj) : "";
+      return '<tr data-fil-hub="' + esc(h.id) + '"><td><b>' + esc(h.nome) + '</b>' + (h.sede ? ' <span class="nfl-sub">sede</span>' : '') + '</td>' +
+        '<td>' + (pode ? '<input class="filter-select" data-fil-cnpj maxlength="18" placeholder="00.000.000/0000-00" value="' + esc(cnpj) + '" aria-label="CNPJ da Beep em ' + esc(h.nome) + '">' : esc(cnpj || "—")) + '</td>' +
+        '<td class="nfl-sub">' + (f ? esc((f.origem === "nf_pdf" ? "Lido da nota: " : "Cadastrado na tela") + (f.origem === "nf_pdf" ? (f.evidencia || "") : "") + (f.atualizado_por_nome ? " · " + f.atualizado_por_nome : "")) : "sem CNPJ cadastrado") + '</td>' +
+        '<td>' + (f ? (pode ? '<label class="pfy-check" style="margin:0"><input type="checkbox" data-fil-conf' + (f.conferido ? " checked" : "") + '> ' + (f.conferido ? "Sim" : "A conferir") + '</label>' : (f.conferido ? "Sim" : "A conferir")) : "—") + '</td>' +
+        '<td>' + (pode ? '<button type="button" class="btn qf-mini" data-fil-salvar>Salvar</button>' : '') + '</td></tr>';
+    }).join("") || '<tr><td colspan="5" class="empty-row">Nenhum hub.</td></tr>';
+  }
+  document.getElementById("fil-body").addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-fil-salvar]"); if (!b) return;
+    var tr = b.closest("tr"), hub = tr.dataset.filHub, cnpj = tr.querySelector("[data-fil-cnpj]").value.replace(/\D/g, ""), conf = tr.querySelector("[data-fil-conf]");
+    if (!Regras.cnpjValido(cnpj)){ toast("CNPJ inválido: confira os 14 dígitos.", true); return; }
+    var existe = Regras.filialDoHub(hub, FIL.lista);
+    b.disabled = true;
+    (existe ? rest("beep_filiais?hub_id=eq." + encodeURIComponent(hub), { method: "PATCH", body: { cnpj: cnpj, conferido: conf ? conf.checked : existe.conferido } })
+            : rest("beep_filiais", { method: "POST", body: { hub_id: hub, cnpj: cnpj, conferido: true } }))
+      .then(function(r){ if (!r || !r.length) throw new Error("Nada foi gravado (sem permissão)."); toast("Filial salva."); return carregarFiliais(true); })
+      .then(filRender).catch(function(e){ b.disabled = false; toast(e.message, true); });
+  });
+
   // ---- Pipefy plano B (enquanto o token não tem acesso ao pipe 301583172): resumo dos 15 campos, PDFs e protocolo manual
   function hojeBrasilia(){ return new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); }
   function triResumoPipefy(t, btn){
-    var f = t.fornecedores;
+    var f = t.fornecedores, placas = Regras.placasDoTexto(t.assunto);
     btn.disabled = true;
     var hist = f ? rest("notas_fiscais?select=hub_id,categoria_id,forma_pagamento,mes_referencia,data_emissao,data_vencimento,aprovacao,hubs(nome)&fornecedor_id=eq." +
       encodeURIComponent(f.id) + "&order=mes_referencia.desc&limit=12").catch(function(){ return []; }) : Promise.resolve([]);
-    hist.then(function(rows){
-      var s = Regras.sugestoesNota(rows || []), h = (rows || []).filter(function(n){ return n.hub_id === s.hub_id && n.hubs; })[0];
-      var linhas = Regras.resumoPipefyPagamento(t, f || {}, { filial: h ? h.hubs.nome + " (pelo histórico do fornecedor — confira)" : null }, hojeBrasilia());
+    var veic = placas.length ? rest("veiculos?select=placa,hub_id&placa=in.(" + placas.map(encodeURIComponent).join(",") + ")").catch(function(){ return []; }) : Promise.resolve([]);
+    Promise.all([hist, carregarFiliais(), veic]).then(function(r){
+      var rows = r[0] || [], vs = r[2] || [], s = Regras.sugestoesNota(rows);
+      var achado = Regras.hubDaTriagem(t, FIL.hubs, FIL.lista, vs, s.hub_id);
+      var fil = achado ? Regras.filialDoHub(achado.hub_id, FIL.lista) : null;
+      var extra = { placas: vs.map(function(v){ return v.placa; }), hub: achado ? filHubNome(achado.hub_id) : null, hub_fonte: achado ? achado.fonte : null,
+        filial_cnpj: t.cnpj_tomador_lido || (fil ? fil.cnpj : null), cnpj_da_nota: t.cnpj_tomador_lido || null };
+      var linhas = Regras.resumoPipefyPagamento(t, f || {}, extra, hojeBrasilia());
       document.getElementById("pfy-texto").value = Regras.textoResumoPipefy(linhas);
       openModal("modal-pipefy");
     }).then(function(){ btn.disabled = false; });
@@ -5056,6 +5142,7 @@
 
   function loadFinanceiro(){
     triCarregar();
+    carregarFiliais(true).then(filRender);
     fimpPreparar();
     rest("categorias_custo?select=id,nome&order=nome").then(function(rows){
       fillSelect("nf-categoria", rows, function(c){ return c.nome; }, "Selecione…");

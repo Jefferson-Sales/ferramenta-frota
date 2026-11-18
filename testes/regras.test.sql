@@ -40,6 +40,7 @@ declare
   u_nop uuid; u_nvis uuid; nfor uuid; nhub uuid; nf1 uuid; ncat_ok uuid; ncat_fora uuid; u_n2 uuid; n2a uuid; n2b uuid; u_fop uuid; u_fvis uuid; u_frota uuid; ffor uuid; tg1 uuid; tg2 uuid; tg3 uuid; h1v uuid; h1a uuid; h1b uuid; h1t uuid; t2f1 uuid; t2f2 uuid; t2t uuid; t3op uuid := gen_random_uuid(); t3vis uuid := gen_random_uuid(); t3f1 uuid; t3f2 uuid; t3t uuid; t3t2 uuid; m1op uuid := gen_random_uuid(); m1vis uuid := gen_random_uuid(); m1v uuid; m1m uuid; m1c uuid; m1t uuid; m1mu uuid;
   o1op uuid := gen_random_uuid(); o1outro uuid := gen_random_uuid(); o1vis uuid := gen_random_uuid(); o1h uuid; o1h2 uuid; o1v uuid; o1v2 uuid; o1os uuid; o1os2 uuid; o1t uuid; o1t2 uuid;
   o2op uuid := gen_random_uuid(); o2h uuid; o2v uuid; o2os uuid; o2os2 uuid; o2t uuid; o2t2 uuid; o2n uuid;
+  f5op uuid := gen_random_uuid(); f5man uuid := gen_random_uuid(); f5mul uuid := gen_random_uuid(); f5h uuid;
   cat_t uuid; hub5 uuid; vm uuid; hub6 uuid; hub7 uuid; vr1 uuid; vr2 uuid; vr3 uuid; vr4 uuid;
   grupos jsonb := (select jsonb_agg(distinct grupo) from frota.checklist_itens_catalogo where ativo and 'retirada' = any(tipos) and (combustiveis is null or 'combustao' = any(combustiveis)));
   x text; res text; n_ok int := 0; n_falha int := 0; linhas text := '';
@@ -1525,6 +1526,39 @@ begin
   update frota.financeiro_notas_triagem set protocolado_pipefy_em = null where id = o2n;
   select coalesce(protocolado_pipefy_por_nome, 'limpo') into x from frota.financeiro_notas_triagem where id = o2n;
   casos := casos || text 'O2: desmarcar o protocolo limpa quem protocolou'; obtidos := obtidos || x; esperados := esperados || text 'limpo';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+
+  -- ============================================ 34. FILIAIS DA BEEP: CNPJ POR HUB (F5)
+  select count(*)::text into x from frota.beep_filiais where origem = 'nf_pdf' and cnpj like '28286170%';
+  casos := casos || text 'F5: os 3 CNPJs lidos das faturas da Versa Fuel estão cadastrados (a conferir)'; obtidos := obtidos || x; esperados := esperados || text '3';
+  insert into auth.users (id, email, aud, role) values (f5op, 'teste.f5op@zzt.invalid', 'authenticated', 'authenticated'),
+    (f5man, 'teste.f5man@zzt.invalid', 'authenticated', 'authenticated'), (f5mul, 'teste.f5mul@zzt.invalid', 'authenticated', 'authenticated');
+  insert into frota.usuarios_perfil (user_id, nome, papel, modulos_visualizacao, modulos_operador) values
+    (f5op, 'TESTE Fin F5', 'operador', '{financeiro}', '{financeiro}'), (f5man, 'TESTE Man F5', 'visualizador', '{manutencao}', '{}'),
+    (f5mul, 'TESTE Multas F5', 'visualizador', '{multas}', '{}');
+  insert into frota.hubs (nome) values ('TESTE Hub F5') returning id into f5h;
+  perform set_config('request.jwt.claims', json_build_object('sub', f5op, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into frota.beep_filiais (hub_id, cnpj, origem) values (f5h, '11.222.333/0001-81', 'nf_pdf');
+  select origem || '/' || cnpj || '/' || atualizado_por_nome into x from frota.beep_filiais where hub_id = f5h;
+  casos := casos || text 'F5: quem opera o Financeiro cadastra; CNPJ sem pontuação, origem "manual" e quem gravou pelo login'; obtidos := obtidos || x;
+  esperados := esperados || text 'manual/11222333000181/TESTE Fin F5';
+  begin update frota.beep_filiais set cnpj = '123' where hub_id = f5h; x := 'aceitou'; exception when others then x := 'recusou'; end;
+  casos := casos || text 'F5: CNPJ sem 14 dígitos é recusado'; obtidos := obtidos || x; esperados := esperados || text 'recusou';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', f5man, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.beep_filiais where hub_id = f5h;
+  update frota.beep_filiais set cnpj = '00000000000191' where hub_id = f5h;
+  select x || '/' || cnpj into x from frota.beep_filiais where hub_id = f5h;
+  casos := casos || text 'F5: quem vê Manutenções lê a filial (para a resposta à oficina), mas não altera'; obtidos := obtidos || x; esperados := esperados || text '1/11222333000181';
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', f5mul, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*)::text into x from frota.beep_filiais;
+  casos := casos || text 'F5: quem só vê Multas não lê as filiais'; obtidos := obtidos || x; esperados := esperados || text '0';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 

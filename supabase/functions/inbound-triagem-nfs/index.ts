@@ -45,7 +45,7 @@
 //
 // IMPORTANTE: regras-multa.js é GERADO do /regras.js da raiz (fonte única, com testes). Antes de publicar:
 //   node ferramentas/gerar-regras-multa.js
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.4";   // versão fixa: a "@2" solta falhou ao publicar em 18/11/2026
 import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
 import "./regras-multa.js";
 // deno-lint-ignore no-explicit-any
@@ -154,7 +154,7 @@ function classificar(anexos: Anexo[]) {
 
 // ---------- dados do XML (só memória) e do assunto ----------
 function lerDados(xml: Anexo | null, assunto: string | null) {
-  const d: { cnpj: string | null; valor: number | null; numero: string | null } = { cnpj: null, valor: null, numero: null };
+  const d: { cnpj: string | null; valor: number | null; numero: string | null; tomador: string | null } = { cnpj: null, valor: null, numero: null, tomador: null };
   if (xml) {
     const t = new TextDecoder().decode(xml.bytes);
     const tag = (re: RegExp) => t.match(re)?.[1]?.trim() || null;
@@ -162,6 +162,8 @@ function lerDados(xml: Anexo | null, assunto: string | null) {
     const v = tag(/<vNF>([\d.]+)<\/vNF>/i) || tag(/<ValorLiquidoNfse>([\d.]+)<\//i) || tag(/<ValorServicos>([\d.]+)<\//i);
     d.valor = v ? Number(v) : null;
     d.numero = tag(/<nNF>(\d+)<\/nNF>/i) || tag(/<Numero>(\d+)<\/Numero>/i);
+    // CNPJ da Beep (filial): destinatário da NF-e ou tomador da NFS-e
+    d.tomador = tag(/<dest>[\s\S]*?<CNPJ>(\d{14})<\/CNPJ>/i) || tag(/<(?:TomadorServico|Tomador)>[\s\S]*?<Cnpj>(\d{14})<\/Cnpj>/i);
   }
   if (!d.cnpj && assunto) {
     const m = assunto.match(/\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/);
@@ -261,15 +263,16 @@ async function gravarOrcamento(e: Origem, pdfs: Anexo[], textos: string[], motiv
 }
 
 // ---------- fila 3: notas e boletos (Financeiro) ----------
-async function gravarFinanceiro(e: Origem, anexos: Anexo[], xml: Anexo | null, teste: boolean, subidos: Subido[], formato = "") {
+async function gravarFinanceiro(e: Origem, anexos: Anexo[], xml: Anexo | null, teste: boolean, subidos: Subido[], formato = "", textoPdf = "") {
   const c = classificar(anexos);
   const dados = lerDados(xml, e.assunto);
+  const tomador = dados.tomador || R.cnpjTomadorBeep(textoPdf);   // CNPJ da Beep (filial) da nota — F5
   if (teste) {
     const { data: ach } = await db().rpc("triagem_achar_fornecedor", { p_cnpj: dados.cnpj, p_email: e.remetente });
     const f = Array.isArray(ach) ? ach[0] : null;
     return { ok: true, teste: true, fila: "financeiro", formato, remetente: e.remetente, assunto: e.assunto, message_id: e.messageId,
       nf: c.nf?.nome ?? null, boleto: c.boleto?.nome ?? null, outros_pdfs: c.outros.map((a) => a.nome),
-      ignorados_nao_pdf: c.ignorados, pdfs_grandes_demais: c.grandes, lidos: dados,
+      ignorados_nao_pdf: c.ignorados, pdfs_grandes_demais: c.grandes, lidos: dados, cnpj_tomador: tomador,
       fornecedor: f ? { id: f.fornecedor_id, achado_por: f.achado_por } : null };
   }
   const ja = await jaExiste("financeiro_notas_triagem", e.messageId);
@@ -282,7 +285,7 @@ async function gravarFinanceiro(e: Origem, anexos: Anexo[], xml: Anexo | null, t
   for (let i = 0; i < c.outros.length; i++) await subir(`${id}/outros/${i + 1}.pdf`, c.outros[i]);
   const linha: Record<string, unknown> = {
     id, message_id: e.messageId, remetente: e.remetente, assunto: e.assunto,
-    cnpj_lido: dados.cnpj, valor_lido: dados.valor, numero_nota_lido: dados.numero, data_vencimento: null,
+    cnpj_lido: dados.cnpj, valor_lido: dados.valor, numero_nota_lido: dados.numero, data_vencimento: null, cnpj_tomador_lido: tomador,
     caminho_pdf_nf: caminhoNf, caminho_pdf_boleto: caminhoBol, outros_anexos: c.outros.length,
   };
   if (e.dataRecebimento) linha.data_recebimento = e.dataRecebimento;
@@ -346,7 +349,7 @@ async function mover(req: Request, teste: boolean, subidos: Subido[]) {
 
   const { caminhos, pdfs } = await pdfsDoItem(FILAS[de].bucket, id);
   if (!pdfs.length) throw new Falha("O item não tem PDF para mover.", 409);
-  const textos = para === "financeiro" ? [] : await textosPorPdf(pdfs);
+  const textos = await textosPorPdf(pdfs);
   const e: Origem = { messageId: t.message_id, remetente: t.remetente, assunto: t.assunto, dataRecebimento: t.data_recebimento, origem: "movida" };
   const det = "movida da " + ({ financeiro: "triagem financeira", orcamentos: "triagem de orçamentos", multas: "triagem de multas" } as Record<string, string>)[de]
     + (motivo ? ": " + motivo : "");
@@ -354,7 +357,7 @@ async function mover(req: Request, teste: boolean, subidos: Subido[]) {
   let r: any;
   if (para === "multas") r = await gravarMulta(e, pdfs, juntar(textos), det, teste, subidos);
   else if (para === "orcamentos") r = await gravarOrcamento(e, pdfs, textos, det, teste, subidos);
-  else r = await gravarFinanceiro(e, pdfs, null, teste, subidos);
+  else r = await gravarFinanceiro(e, pdfs, null, teste, subidos, "", juntar(textos));
   if (teste) return { ...r, mover: { de, para, id, pdfs: caminhos.length, quem: quem.nome } };
   if (r.duplicado) throw new Falha("Este e-mail já está na fila de destino.", 409);
   const novos: string[] = r.ids || (r.id ? [r.id] : []);
@@ -413,6 +416,31 @@ async function responderOrcamento(req: Request) {
   return { ok: true, canal: "postmark", para: p.para };
 }
 
+// ---------- CNPJs nos PDFs da triagem financeira (F5, 18/11/2026): só leitura, só com a chave de automação ----------
+// Para achar o CNPJ tomador da Beep por filial: devolve, por item, o assunto e cada CNPJ do texto da NF/boleto com o
+// trecho logo antes dele (ex.: "Tomador", "Pagador", "Beep Saúde"). Não grava nada e não devolve o texto inteiro.
+async function cnpjsTomador(req: Request) {
+  if (!(await chaveValida(req.headers.get("x-inbound-key") || ""))) throw new Falha("Não autorizado.", 401);
+  const { data: itens, error } = await db().from("financeiro_notas_triagem").select("id, assunto, caminho_pdf_nf, caminho_pdf_boleto").limit(200);
+  if (error) throw new Falha(error.message, 500);
+  const out: unknown[] = [];
+  for (const t of itens || []) {
+    const docs: { doc: string; cnpjs: { cnpj: string; antes: string }[] }[] = [];
+    for (const [doc, caminho] of [["nf", t.caminho_pdf_nf], ["boleto", t.caminho_pdf_boleto]] as [string, string | null][]) {
+      if (!caminho) continue;
+      const { data: blob } = await admin.storage.from(BUCKET).download(caminho);
+      if (!blob) continue;
+      const [texto] = await textosPorPdf([{ nome: doc + ".pdf", tipo: "application/pdf", bytes: new Uint8Array(await blob.arrayBuffer()) }]);
+      const s = texto.replace(/\s+/g, " "), re = /(\d{2})\.?(\d{3})\.?(\d{3})\/?(\d{4})-?(\d{2})/g, achados: { cnpj: string; antes: string }[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(s))) achados.push({ cnpj: m.slice(1, 6).join(""), antes: s.slice(Math.max(0, m.index - 60), m.index).trim() });
+      docs.push({ doc, cnpjs: achados.slice(0, 12) });
+    }
+    out.push({ id: t.id, assunto: t.assunto, docs });
+  }
+  return { ok: true, itens: out };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   const subidos: Subido[] = [];
@@ -423,6 +451,7 @@ Deno.serve(async (req) => {
     const acao = url.searchParams.get("acao") || req.headers.get("x-inbound-acao");
     if (acao === "mover") return json(await mover(req, teste, subidos));   // autenticação própria (login ou chave)
     if (acao === "responder_orcamento") return json(await responderOrcamento(req));   // só com login
+    if (acao === "cnpjs_tomador") return json(await cnpjsTomador(req));               // só leitura, só com a chave
 
     if (!(await chaveValida(chaveRecebida(req)))) throw new Falha("Não autorizado.", 401);
     const email = await lerEmail(req);
@@ -442,7 +471,7 @@ Deno.serve(async (req) => {
     if (orc.orcamento && pdfsTodos.length) return json(await gravarOrcamento(origem, pdfsTodos, textos, orc.motivo, teste, subidos));
 
     // 3. financeiro
-    return json(await gravarFinanceiro(origem, email.anexos, c.xml, teste, subidos, email.formato));
+    return json(await gravarFinanceiro(origem, email.anexos, c.xml, teste, subidos, email.formato, textoPdf));
   } catch (e) {
     for (const bk of [BUCKET, BUCKET_MULTAS, BUCKET_ORC]) {   // não deixa arquivo sem linha
       const lista = subidos.filter((s) => s.bucket === bk).map((s) => s.caminho);

@@ -1,5 +1,5 @@
 // Gera supabase/functions/inbound-triagem-nfs/regras-multa.js a partir do /regras.js (fonte única, com testes).
-// Recorta finNorm e as seções "Triagem de multas (M1)" e "Triagem de orçamentos (O1)" e expõe globalThis.RegrasMulta. Rodar antes de publicar a função:
+// Recorta finNorm, cnpjValido e as seções "Triagem de multas (M1)" e "Triagem de orçamentos (O1)" e expõe globalThis.RegrasMulta. Rodar antes de publicar a função:
 //   node ferramentas/gerar-regras-multa.js
 const fs = require("fs"), path = require("path");
 const raiz = path.join(__dirname, "..");
@@ -10,12 +10,13 @@ const pega = (ini, fim) => {
   return src.slice(a, b);
 };
 const finNorm = pega("  function finNorm(s) {", "\n  }\n") + "\n  }\n";
+const cnpjValido = pega("  function cnpjValido(c) {", "\n  }\n") + "\n  }\n";   // usado por cnpjTomadorBeep
 const multa = pega("  // ---------------------------------------------------------------- Triagem de multas (M1)", "\n  global.Regras = {");
 const out = `// GERADO por ferramentas/gerar-regras-multa.js a partir de /regras.js — não editar aqui.
 (function (global) {
-${finNorm}${multa}
+${finNorm}${cnpjValido}${multa}
   global.RegrasMulta = { finNorm: finNorm, ehEmailDeMulta: ehEmailDeMulta, lerNotificacaoMulta: lerNotificacaoMulta, datasDaNotificacao: datasDaNotificacao,
-    ehEmailDeOrcamento: ehEmailDeOrcamento, lerOrcamento: lerOrcamento, separarOrcamentos: separarOrcamentos, FILAS_TRIAGEM: FILAS_TRIAGEM };
+    ehEmailDeOrcamento: ehEmailDeOrcamento, lerOrcamento: lerOrcamento, separarOrcamentos: separarOrcamentos, cnpjTomadorBeep: cnpjTomadorBeep, FILAS_TRIAGEM: FILAS_TRIAGEM };
 })(globalThis);
 `;
 fs.writeFileSync(path.join(raiz, "supabase/functions/inbound-triagem-nfs/regras-multa.js"), out);

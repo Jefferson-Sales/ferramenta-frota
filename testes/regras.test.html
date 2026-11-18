@@ -411,12 +411,29 @@
   igual("Pipefy: sem vencimento = hoje + 10", R.dataPagamentoPipefy(null, "2026-11-25").data, "2026-12-05");
   var rsP = R.resumoPipefyPagamento({ assunto: "Fatura Versa Fuel", remetente: "fin@x.zzt.invalid", data_recebimento: "2026-11-17T22:40:00Z", data_vencimento: "2026-12-10",
     valor_lido: 1500.5, numero_nota_lido: "123", cnpj_lido: "11222333000181", caminho_pdf_nf: "a/nf.pdf", caminho_pdf_boleto: "a/boleto.pdf" }, { nome: "Versa", forma_pagamento: "BOLETO" }, { filial: "Tatuapé" }, "2026-11-18");
-  igual("Pipefy: resumo segue a ordem do formulário (15 campos + anexo do boleto)", rsP.map(function(l){ return l.n; }).join(","), "1,2,3,4,5,6,7,8,9,10,11,12,13,13a,14,15");
-  igual("Pipefy: competência pelo recebimento em Brasília, mês sem zero", rsP[10].valor + "/" + rsP[11].valor, "2026/11");
-  igual("Pipefy: CNPJ formatado, pagamento no vencimento, valor em R$", [rsP[4].valor, rsP[9].valor, rsP[14].valor].join(" | "), "11.222.333/0001-81 — Versa | 10/12/2026 (no vencimento) | R$ 1.500,50");
+  igual("Pipefy: resumo segue a ordem do formulário (15 campos + anexo do boleto)", rsP.filter(function(l){ return !l.ref; }).map(function(l){ return l.n; }).join(","), "1,2,3,4,5,6,7,8,9,10,11,12,13,13a,14,15");
+  var rsPc = rsP.filter(function(l){ return !l.ref; });
+  igual("Pipefy: competência pelo recebimento em Brasília, mês sem zero", rsPc[10].valor + "/" + rsPc[11].valor, "2026/11");
+  igual("Pipefy: CNPJ formatado, pagamento no vencimento, valor em R$", [rsPc[4].valor, rsPc[9].valor, rsPc[14].valor].join(" | "), "11.222.333/0001-81 — Versa | 10/12/2026 (no vencimento) | R$ 1.500,50");
   igual("Pipefy: o que falta preencher fica marcado", rsP.filter(function(l){ return l.valor === "(preencher)"; }).map(function(l){ return l.n; }).join(","), "4,8");
   igual("Pipefy: PIX pergunta da alteração cadastral", R.resumoPipefyPagamento({}, { forma_pagamento: "PIX" }, {}, "2026-11-18").filter(function(l){ return l.n === "13a"; })[0].campo, "Solicitei alteração cadastral de dados bancários");
-  igual("Pipefy: texto para colar começa pelo nome do formulário", R.textoResumoPipefy(rsP).split("\n")[0] + " / " + R.textoResumoPipefy(rsP).split("\n")[1], "PIPEFY — 90. Pagamento a fornecedor / 1. Descrição do serviço contratado ou mercadoria adquirida: Fatura Versa Fuel");
+  var txP = R.textoResumoPipefy(rsP).split("\n");
+  igual("Pipefy: texto para colar começa pelo formulário e pela referência (placa, hub, filial)", [txP[0], txP[1], txP[2], txP[3], txP[4]].join(" / "),
+    "PIPEFY — 90. Pagamento a fornecedor / REFERÊNCIA PARA O LANÇAMENTO / • Placa(s): não identificada (confira no PDF) / • Hub / Base do veículo: não identificado / • Filial / CNPJ Beep: não identificada (cadastre o CNPJ do hub em Filiais da Beep)");
+  igual("Pipefy: depois da referência vêm os campos, a partir do 1", txP[6] + " / " + txP[7].slice(0, 15), "CAMPOS DO FORMULÁRIO / 1. Descrição do");
+  // F5: CNPJ da Beep por filial/hub
+  var fil = [{ hub_id: "hT", cnpj: "28286170001337" }, { hub_id: "hV", cnpj: "28286170000446" }], hubsF = [{ id: "hT", nome: "Tatuapé" }, { id: "hV", nome: "Vila Olímpia" }, { id: "hB", nome: "Barra Funda" }, { id: "hBT", nome: "Barra da Tijuca" }];
+  igual("Filial: acha o CNPJ da Beep pagador no boleto (caso real Versa Fuel)", R.cnpjTomadorBeep("Beneficiário AUTO POSTO B J PIRAPORA LTDA CNPJ/CPF: 62.576.723/0001-90 Pagador: BEEP SERVICOS MEDICOS LTDA VILA GOMES CNPJ/CPF: 28.286.170/0013-37"), "28286170001337");
+  igual("Filial: CNPJ de outra empresa com BEEP longe não conta; sem Beep = nada", R.cnpjTomadorBeep("Emitente POSTO X CNPJ 62.576.723/0001-90"), null);
+  igual("Filial: pela raiz conhecida, mesmo sem a palavra Beep", R.cnpjTomadorBeep("Tomador 28.286.170/0025-70 Rua X"), "28286170002570");
+  igual("Filial: placas do assunto (com espaço, minúscula, sem repetir)", R.placasDoTexto("orçamento kwid placa svs7B03 e SVS 7B03 / GDT-7I83").join(","), "SVS7B03,GDT7I83");
+  igual("Filial: hub pelo CNPJ da Beep lido na nota vem primeiro", JSON.stringify(R.hubDaTriagem({ cnpj_tomador_lido: "28286170000446", assunto: "Fatura (Tatuapé)" }, hubsF, fil)), '{"hub_id":"hV","fonte":"pelo CNPJ da Beep na nota"}');
+  igual("Filial: hub pelo nome no assunto ('Barra Funda' não vira 'Barra da Tijuca')", R.hubDaTriagem({ assunto: "Fatura Versa Fuel - Beep Saúde (Barra Funda) (01/11 a 15/11)" }, hubsF, fil).hub_id, "hB");
+  igual("Filial: hub pela placa do assunto que está no cadastro, senão pelo histórico", R.hubDaTriagem({ assunto: "NF placa ZZT1A11" }, hubsF, fil, [{ placa: "ZZT1A11", hub_id: "hT" }]).fonte + " / " + R.hubDaTriagem({ assunto: "NF" }, hubsF, fil, [], "hBT").fonte, "pela placa ZZT1A11 / pelo histórico do fornecedor");
+  igual("Filial: mensagem de aprovação com a filial e o CNPJ do hub", /emitir a nota fiscal em nome da Beep Saúde — Filial Tatuapé, CNPJ 28\.286\.170\/0013-37\./.test(R.mensagemOrcamento("aprovado", { placa: "X", filial: { hub: "Tatuapé", cnpj: "28286170001337" } }).texto), true);
+  var rsF = R.resumoPipefyPagamento({ assunto: "Fatura" }, {}, { placas: ["GDT7I83"], hub: "Tatuapé", hub_fonte: "pela placa GDT7I83", filial_cnpj: "28286170001337" }, "2026-11-18");
+  igual("Filial: resumo do Pipefy traz placa, hub (e de onde veio) e filial/CNPJ, e preenche o campo Filial", rsF.filter(function(l){ return l.ref || l.n === "3"; }).map(function(l){ return l.valor; }).join(" | "),
+    "GDT7I83 | Tatuapé (pela placa GDT7I83) | Tatuapé — CNPJ 28.286.170/0013-37 (pelo hub) | Tatuapé — CNPJ 28.286.170/0013-37");
   // V1: veículos ativos × arquivados e operacional × administrativo
   var frV1 = [{ placa: "A", ativo: true, finalidade: "operacional", status_operacional: "disponivel" }, { placa: "B", ativo: true, finalidade: "administrativo", status_operacional: "disponivel" },
     { placa: "C", ativo: true, finalidade: "operacional", status_operacional: "desmobilizar" }, { placa: "D", ativo: false, finalidade: "operacional", status_operacional: "devolvido" }, { placa: "E", ativo: true, finalidade: null }];
